@@ -355,14 +355,15 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 117 =>
             NVMM_Capability (State.RDI, Returned, Errno);
          when 118 =>
-            NVMM_Machine_Create (Returned, Errno);
+            NVMM_Machine_Create (State.RDI, Returned, Errno);
          when 119 =>
             NVMM_Machine_Destroy (State.RDI, Returned, Errno);
          when 120 =>
             NVMM_Machine_Configure
                (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 121 =>
-            NVMM_VCPU_Create (State.RDI, Returned, Errno);
+            NVMM_VCPU_Create
+               (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 122 =>
             NVMM_VCPU_Destroy (State.RDI, State.RSI, Returned, Errno);
          when 123 =>

@@ -44,6 +44,7 @@ release changes.
 - Make the @code{pipe} syscall accept @{O_CLOEXEC} and @code{O_CLOFORK}.
 - Added domain handling with `uname` returning the domain name and
   `setdomainname`.
+- Added further support for virtualization for x86, implementing SVM and VT-X.
 
 ### Breaking changes
 

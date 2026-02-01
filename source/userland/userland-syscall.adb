@@ -7321,23 +7321,95 @@ package body Userland.Syscall is
    end NVMM_Capability;
 
    procedure NVMM_Machine_Create
-      (Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Machine_Addr : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
    is
+      package Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      Proc : constant    PID := Arch.Local.Get_Current_Process;
+      A    : constant Integer_Address := Integer_Address (Machine_Addr);
+      Mach_Struct : NVMM_Machine_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      ID   : Virtualization.Machine_ID;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      ID := Virtualization.Machine_Create;
+      if ID = Virtualization.Invalid_Machine then
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+      else
+         --  Write machid back to userspace struct
+         Mach_Struct.Machid := ID;
+         Get_Common_Map (Proc, Map);
+         Trans.Paste_Into_Userland (Map, Mach_Struct, To_Address (A), Succ);
+         if Succ then
+            Errno    := Error_No_Error;
+            Returned := 0;
+         else
+            --  Failed to write to userspace, destroy the machine
+            if not Virtualization.Machine_Destroy (ID) then
+               null;  --  Ignore destroy failure
+            end if;
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+         end if;
+      end if;
    end NVMM_Machine_Create;
 
    procedure NVMM_Machine_Destroy
-      (Machine  : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Machine_Addr : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
    is
-      pragma Unreferenced (Machine);
+      package Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      Proc : constant    PID := Arch.Local.Get_Current_Process;
+      A    : constant Integer_Address := Integer_Address (Machine_Addr);
+      Mach_Struct : NVMM_Machine_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID : Virtualization.Machine_ID;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      --  Read machid from userspace struct
+      Get_Common_Map (Proc, Map);
+      Trans.Take_From_Userland (Map, Mach_Struct, To_Address (A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID := Virtualization.Machine_ID (Mach_Struct.Machid);
+      if Virtualization.Machine_Destroy (Mach_ID) then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_Machine_Destroy");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_Machine_Destroy;
 
    procedure NVMM_Machine_Configure
@@ -7354,26 +7426,147 @@ package body Userland.Syscall is
    end NVMM_Machine_Configure;
 
    procedure NVMM_VCPU_Create
-      (Machine  : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Machine_Addr : Unsigned_64;
+       CPU_ID       : Unsigned_64;
+       VCPU_Addr    : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
    is
-      pragma Unreferenced (Machine);
+      package Mach_Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      package VCPU_Trans is new Memory.Userland_Transfer (NVMM_VCPU_Struct);
+      Proc : constant    PID := Arch.Local.Get_Current_Process;
+      Mach_A : constant Integer_Address := Integer_Address (Machine_Addr);
+      VCPU_A : constant Integer_Address := Integer_Address (VCPU_Addr);
+      Mach_Struct : NVMM_Machine_Struct;
+      VCPU_Struct : NVMM_VCPU_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID : Virtualization.Machine_ID;
+      VCPU    : Virtualization.VCPU_ID;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      --  Read machid from userspace struct
+      Mach_Trans.Take_From_Userland
+         (Map, Mach_Struct, To_Address (Mach_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+         or CPU_ID > Unsigned_64 (Virtualization.Max_CPUs_Per_VM - 1)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID := Virtualization.Machine_ID (Mach_Struct.Machid);
+      VCPU    := Virtualization.VCPU_ID (CPU_ID);
+
+      if Virtualization.VCPU_Create (Mach_ID, VCPU) then
+         --  Write cpuid back to userspace struct
+         VCPU_Struct.Cpuid := Unsigned_32 (CPU_ID and 16#FFFFFFFF#);
+         VCPU_Trans.Paste_Into_Userland
+            (Map, VCPU_Struct, To_Address (VCPU_A), Succ);
+         if Succ then
+            Errno    := Error_No_Error;
+            Returned := 0;
+         else
+            --  Failed to write to userspace, destroy the VCPU
+            if not Virtualization.VCPU_Destroy (Mach_ID, VCPU) then
+               null;  --  Ignore destroy failure
+            end if;
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+         end if;
+      else
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_VCPU_Create");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_VCPU_Create;
 
    procedure NVMM_VCPU_Destroy
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Machine_Addr : Unsigned_64;
+       VCPU_Addr    : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
    is
-      pragma Unreferenced (Machine, CPU_ID);
+      package Mach_Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      package VCPU_Trans is new Memory.Userland_Transfer (NVMM_VCPU_Struct);
+      Proc : constant    PID := Arch.Local.Get_Current_Process;
+      Mach_A : constant Integer_Address := Integer_Address (Machine_Addr);
+      VCPU_A : constant Integer_Address := Integer_Address (VCPU_Addr);
+      Mach_Struct : NVMM_Machine_Struct;
+      VCPU_Struct : NVMM_VCPU_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID : Virtualization.Machine_ID;
+      VCPU    : Virtualization.VCPU_ID;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      --  Read machid from userspace struct
+      Mach_Trans.Take_From_Userland
+         (Map, Mach_Struct, To_Address (Mach_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      --  Read cpuid from userspace struct
+      VCPU_Trans.Take_From_Userland
+         (Map, VCPU_Struct, To_Address (VCPU_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+         or VCPU_Struct.Cpuid >
+            Unsigned_32 (Virtualization.Max_CPUs_Per_VM - 1)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID := Virtualization.Machine_ID (Mach_Struct.Machid);
+      VCPU    := Virtualization.VCPU_ID (VCPU_Struct.Cpuid);
+
+      if Virtualization.VCPU_Destroy (Mach_ID, VCPU) then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_VCPU_Destroy");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_VCPU_Destroy;
 
    procedure NVMM_VCPU_Configure
@@ -7397,10 +7590,171 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine, CPU_ID, Operation);
+      package Mach_Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      package VCPU_Trans is new Memory.Userland_Transfer (NVMM_VCPU_Struct);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Mach_A : constant Integer_Address := Integer_Address (Machine);
+      VCPU_A : constant Integer_Address := Integer_Address (CPU_ID);
+      Mach_Struct : NVMM_Machine_Struct;
+      VCPU_Struct : NVMM_VCPU_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID : Virtualization.Machine_ID;
+      VCPU    : Virtualization.VCPU_ID;
    begin
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      --  Read machid from userspace struct
+      Mach_Trans.Take_From_Userland
+         (Map, Mach_Struct, To_Address (Mach_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      --  Read VCPU struct (to get cpuid and state pointer)
+      VCPU_Trans.Take_From_Userland
+         (Map, VCPU_Struct, To_Address (VCPU_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+         or Unsigned_64 (VCPU_Struct.Cpuid) >
+            Unsigned_64 (Virtualization.Max_CPUs_Per_VM - 1)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID := Virtualization.Machine_ID (Mach_Struct.Machid);
+      VCPU    := Virtualization.VCPU_ID (VCPU_Struct.Cpuid);
+
+      --  Handle GPRs using proper userland transfer
+      if (Operation and Virtualization.VCPU_STATE_GPRS) /= 0 then
+         declare
+            --  GPRs offset in userspace struct = 10 segs * 16 bytes = 160
+            GPRs_Offset : constant := 160;
+            package GPR_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_GPR_Array);
+            GPRs : Virtualization.NVMM_GPR_Array;
+         begin
+            GPR_Trans.Take_From_Userland
+               (Map, GPRs,
+                To_Address (Integer_Address (VCPU_Struct.State_Ptr) +
+                            GPRs_Offset),
+                Succ);
+            if not Succ then
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            if not Virtualization.VCPU_Set_GPRs (Mach_ID, VCPU, GPRs) then
+               Errno    := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
+      --  Handle segments
+      if (Operation and Virtualization.VCPU_STATE_SEGS) /= 0 then
+         declare
+            --  Segments at offset 0 in state struct (10 segs * 16 bytes)
+            package Seg_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_Seg_Array);
+            Segs : Virtualization.NVMM_Seg_Array;
+         begin
+            Seg_Trans.Take_From_Userland
+               (Map, Segs,
+                To_Address (Integer_Address (VCPU_Struct.State_Ptr)),
+                Succ);
+            if not Succ then
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            if not Virtualization.VCPU_Set_Segs (Mach_ID, VCPU, Segs) then
+               Errno    := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
+      --  Handle CRs (offset = 160 segs + 144 GPRs = 304)
+      if (Operation and Virtualization.VCPU_STATE_CRS) /= 0 then
+         declare
+            CRs_Offset : constant := 304;
+            package CR_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_CR_Array);
+            CRs : Virtualization.NVMM_CR_Array;
+         begin
+            CR_Trans.Take_From_Userland
+               (Map, CRs,
+                To_Address (Integer_Address (VCPU_Struct.State_Ptr) +
+                            CRs_Offset),
+                Succ);
+            if not Succ then
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            if not Virtualization.VCPU_Set_CRs (Mach_ID, VCPU, CRs) then
+               Errno    := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
+      --  Handle MSRs (offset = 304 + 48 CRs + 48 DRs = 400)
+      if (Operation and Virtualization.VCPU_STATE_MSRS) /= 0 then
+         declare
+            MSRs_Offset : constant := 400;
+            package MSR_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_MSR_Array);
+            MSRs : Virtualization.NVMM_MSR_Array;
+         begin
+            MSR_Trans.Take_From_Userland
+               (Map, MSRs,
+                To_Address (Integer_Address (VCPU_Struct.State_Ptr) +
+                            MSRs_Offset),
+                Succ);
+            if not Succ then
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            if not Virtualization.VCPU_Set_MSRs (Mach_ID, VCPU, MSRs) then
+               Errno    := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
       Errno    := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_VCPU_SetState");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_VCPU_SetState;
 
    procedure NVMM_VCPU_GetState
@@ -7410,10 +7764,91 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine, CPU_ID, Operation);
+      package Mach_Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      package VCPU_Trans is new Memory.Userland_Transfer (NVMM_VCPU_Struct);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Mach_A : constant Integer_Address := Integer_Address (Machine);
+      VCPU_A : constant Integer_Address := Integer_Address (CPU_ID);
+      Mach_Struct : NVMM_Machine_Struct;
+      VCPU_Struct : NVMM_VCPU_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID : Virtualization.Machine_ID;
+      VCPU    : Virtualization.VCPU_ID;
    begin
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      --  Read machid from userspace struct
+      Mach_Trans.Take_From_Userland
+         (Map, Mach_Struct, To_Address (Mach_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      --  Read VCPU struct (to get cpuid and state pointer)
+      VCPU_Trans.Take_From_Userland
+         (Map, VCPU_Struct, To_Address (VCPU_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+         or Unsigned_64 (VCPU_Struct.Cpuid) >
+            Unsigned_64 (Virtualization.Max_CPUs_Per_VM - 1)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID := Virtualization.Machine_ID (Mach_Struct.Machid);
+      VCPU    := Virtualization.VCPU_ID (VCPU_Struct.Cpuid);
+
+      --  Handle GPRs using proper userland transfer
+      if (Operation and Virtualization.VCPU_STATE_GPRS) /= 0 then
+         declare
+            --  GPRs offset in userspace struct = 10 segs * 16 bytes = 160
+            GPRs_Offset : constant := 160;
+            package GPR_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_GPR_Array);
+            GPRs : Virtualization.NVMM_GPR_Array;
+         begin
+            if not Virtualization.VCPU_Get_GPRs (Mach_ID, VCPU, GPRs) then
+               Errno    := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            GPR_Trans.Paste_Into_Userland
+               (Map, GPRs,
+                To_Address (Integer_Address (VCPU_Struct.State_Ptr) +
+                            GPRs_Offset),
+                Succ);
+            if not Succ then
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
       Errno    := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_VCPU_GetState");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_VCPU_GetState;
 
    procedure NVMM_VCPU_Inject
@@ -7429,15 +7864,202 @@ package body Userland.Syscall is
    end NVMM_VCPU_Inject;
 
    procedure NVMM_VCPU_Run
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Machine_Addr : Unsigned_64;
+       VCPU_Addr    : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
    is
-      pragma Unreferenced (Machine, CPU_ID);
+      --  Exit state structure
+      type User_Exit_State is record
+         RFLAGS : Unsigned_64;
+         CR8    : Unsigned_64;
+         Flags  : Unsigned_64;
+      end record;
+      for User_Exit_State use record
+         RFLAGS at 0  range 0 .. 63;
+         CR8    at 8  range 0 .. 63;
+         Flags  at 16 range 0 .. 63;
+      end record;
+
+      --  Full exit structure - simplified as byte array for union
+      --  Reason (8) + Union (32) + ExitState (24) = 64 bytes
+      type User_Exit_Struct is record
+         Reason    : Unsigned_64;
+         Union_Dat : Unsigned_64;  --  First 8 bytes of union
+         Union_2   : Unsigned_64;
+         Union_3   : Unsigned_64;
+         Union_4   : Unsigned_64;
+         Exit_St   : User_Exit_State;
+      end record;
+      for User_Exit_Struct use record
+         Reason    at 0  range 0 .. 63;
+         Union_Dat at 8  range 0 .. 63;
+         Union_2   at 16 range 0 .. 63;
+         Union_3   at 24 range 0 .. 63;
+         Union_4   at 32 range 0 .. 63;
+         Exit_St   at 40 range 0 .. 191;
+      end record;
+
+      package Mach_Trans is new Memory.Userland_Transfer
+         (NVMM_Machine_Struct);
+      package VCPU_Trans is new Memory.Userland_Transfer
+         (NVMM_VCPU_Struct);
+      package Exit_Trans is new Memory.Userland_Transfer
+         (User_Exit_Struct);
+
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Mach_A : constant Integer_Address := Integer_Address (Machine_Addr);
+      VCPU_A : constant Integer_Address := Integer_Address (VCPU_Addr);
+      Mach_Struct : NVMM_Machine_Struct;
+      VCPU_Struct : NVMM_VCPU_Struct;
+      User_Exit   : User_Exit_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID   : Virtualization.Machine_ID;
+      VCPU_Num  : Virtualization.VCPU_ID;
+      Exit_Info : Virtualization.VCPU_Exit_Info;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      --  Read machid from userspace struct
+      Mach_Trans.Take_From_Userland
+         (Map, Mach_Struct, To_Address (Mach_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      --  Read full vcpu struct from userspace
+      VCPU_Trans.Take_From_Userland
+         (Map, VCPU_Struct, To_Address (VCPU_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+         or Unsigned_64 (VCPU_Struct.Cpuid) >
+            Unsigned_64 (Virtualization.Max_CPUs_Per_VM - 1)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID  := Virtualization.Machine_ID (Mach_Struct.Machid);
+      VCPU_Num := Virtualization.VCPU_ID (VCPU_Struct.Cpuid);
+
+      --  Run VCPU with enhanced exit info
+      if Virtualization.VCPU_Run_Ex (Mach_ID, VCPU_Num, Exit_Info) then
+         --  Prepare userspace exit structure
+         User_Exit.Reason := Exit_Info.Reason;
+         User_Exit.Union_Dat := 0;
+         User_Exit.Union_2 := 0;
+         User_Exit.Union_3 := 0;
+         User_Exit.Union_4 := 0;
+
+         --  Fill union based on exit reason (simplified)
+         case Exit_Info.Reason is
+            when Virtualization.NVMM_EXIT_IO =>
+               --  Pack IO info: is_in(1)|port(16)|seg(8)|sizes(8)|flags
+               User_Exit.Union_Dat :=
+                  (if Exit_Info.U.IO.Is_In then 1 else 0) or
+                  Shift_Left (Unsigned_64 (Exit_Info.U.IO.Port), 16) or
+                  Shift_Left (Unsigned_64 (Exit_Info.U.IO.Segment) and
+                              16#FF#, 32) or
+                  Shift_Left (Unsigned_64 (Exit_Info.U.IO.Address_Size), 40) or
+                  Shift_Left (Unsigned_64 (Exit_Info.U.IO.Operand_Size), 48) or
+                  Shift_Left ((if Exit_Info.U.IO.Is_Rep then 1 else 0), 56);
+               User_Exit.Union_2 :=
+                  (if Exit_Info.U.IO.Is_String then 1 else 0);
+               User_Exit.Union_3 := Exit_Info.U.IO.Next_RIP;
+
+            when Virtualization.NVMM_EXIT_RDMSR =>
+               User_Exit.Union_Dat :=
+                  Unsigned_64 (Exit_Info.U.MSR_Read.MSR_Num);
+               User_Exit.Union_2 := Exit_Info.U.MSR_Read.Next_RIP;
+
+            when Virtualization.NVMM_EXIT_WRMSR =>
+               User_Exit.Union_Dat :=
+                  Unsigned_64 (Exit_Info.U.MSR_Write.MSR_Num);
+               User_Exit.Union_2 := Exit_Info.U.MSR_Write.MSR_Val;
+               User_Exit.Union_3 := Exit_Info.U.MSR_Write.Next_RIP;
+
+            when Virtualization.NVMM_EXIT_CPUID |
+                 Virtualization.NVMM_EXIT_MONITOR |
+                 Virtualization.NVMM_EXIT_MWAIT =>
+               User_Exit.Union_Dat := Exit_Info.U.Insn.Next_RIP;
+
+            when Virtualization.NVMM_EXIT_INVALID =>
+               User_Exit.Union_Dat := Exit_Info.U.Invalid.HW_Code;
+
+            when Virtualization.NVMM_EXIT_MEMORY =>
+               --  Pack memory exit: prot(4)+pad(4) | gpa(8) | inst_len+bytes
+               User_Exit.Union_Dat :=
+                  Unsigned_64 (Exit_Info.U.Memory.Prot) and 16#FFFF_FFFF#;
+               User_Exit.Union_2 := Exit_Info.U.Memory.GPA;
+               --  Union_3: inst_len (byte 0) + inst_bytes[0..6] (bytes 1-7)
+               User_Exit.Union_3 := Unsigned_64 (Exit_Info.U.Memory.Inst_Len);
+               for I in 0 .. 6 loop
+                  User_Exit.Union_3 := User_Exit.Union_3 or
+                     Shift_Left (Unsigned_64
+                        (Exit_Info.U.Memory.Inst_Bytes (I)), (I + 1) * 8);
+               end loop;
+               --  Union_4: inst_bytes[7..14] (8 bytes)
+               User_Exit.Union_4 := 0;
+               for I in 7 .. 14 loop
+                  User_Exit.Union_4 := User_Exit.Union_4 or
+                     Shift_Left (Unsigned_64
+                        (Exit_Info.U.Memory.Inst_Bytes (I)), (I - 7) * 8);
+               end loop;
+
+            when others =>
+               null;
+         end case;
+
+         --  Fill exit state
+         User_Exit.Exit_St.RFLAGS := Exit_Info.Exit_State.RFLAGS;
+         User_Exit.Exit_St.CR8 := Exit_Info.Exit_State.CR8;
+         User_Exit.Exit_St.Flags := 0;
+         if Exit_Info.Exit_State.Int_Shadow then
+            User_Exit.Exit_St.Flags := User_Exit.Exit_St.Flags or 1;
+         end if;
+         if Exit_Info.Exit_State.Int_Window_Exit then
+            User_Exit.Exit_St.Flags := User_Exit.Exit_St.Flags or 2;
+         end if;
+         if Exit_Info.Exit_State.NMI_Window_Exit then
+            User_Exit.Exit_St.Flags := User_Exit.Exit_St.Flags or 4;
+         end if;
+         if Exit_Info.Exit_State.Evt_Pending then
+            User_Exit.Exit_St.Flags := User_Exit.Exit_St.Flags or 8;
+         end if;
+
+         --  Write exit info to userspace if exit pointer is valid
+         if VCPU_Struct.Exit_Ptr /= 0 then
+            Exit_Trans.Paste_Into_Userland
+               (Map, User_Exit,
+                To_Address (Integer_Address (VCPU_Struct.Exit_Ptr)), Succ);
+         end if;
+
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_VCPU_Run");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_VCPU_Run;
 
    procedure NVMM_GPA_Map
@@ -7449,10 +8071,104 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine, HVA, GPA, Size, Prot);
+      package Mach_Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Mach_A : constant Integer_Address := Integer_Address (Machine);
+      Mach_Struct : NVMM_Machine_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID : Virtualization.Machine_ID;
+      Physical_Addr    : System.Address;
+      Is_Mapped        : Boolean;
+      Is_User          : Boolean;
+      Is_Readable      : Boolean;
+      Is_Writeable     : Boolean;
+      Is_Executable    : Boolean;
+      Kernel_HVA       : Unsigned_64;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      --  Read machid from userspace struct
+      Mach_Trans.Take_From_Userland
+         (Map, Mach_Struct, To_Address (Mach_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID := Virtualization.Machine_ID (Mach_Struct.Machid);
+
+      --  Map each page separately since mmap'd memory isn't contiguous
+      declare
+         Num_Pages : constant Unsigned_64 := Size / 16#1000#;
+         Page_Idx  : Unsigned_64 := 0;
+         Cur_HVA   : Unsigned_64;
+         Cur_GPA   : Unsigned_64;
+         All_Ok    : Boolean := True;
+      begin
+         while Page_Idx < Num_Pages and All_Ok loop
+            Cur_HVA := HVA + Page_Idx * 16#1000#;
+            Cur_GPA := GPA + Page_Idx * 16#1000#;
+
+            --  Translate this page's userspace VA to physical address
+            Memory.MMU.Translate_Address
+               (Map,
+                To_Address (Integer_Address (Cur_HVA)),
+                Memory.MMU.Page_Size,
+                Physical_Addr,
+                Is_Mapped,
+                Is_User,
+                Is_Readable,
+                Is_Writeable,
+                Is_Executable);
+
+            if not Is_Mapped or not Is_User then
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            --  Convert physical address to kernel virtual address
+            Kernel_HVA := Unsigned_64 (To_Integer (Physical_Addr)) +
+                          Unsigned_64 (Arch.MMU.Memory_Offset);
+
+            --  Map this single page for all active VCPUs
+            if not Virtualization.GPA_Map_All
+               (Mach_ID, Kernel_HVA, Cur_GPA, 16#1000#, Prot)
+            then
+               All_Ok := False;
+            end if;
+
+            Page_Idx := Page_Idx + 1;
+         end loop;
+
+         if All_Ok then
+            Errno    := Error_No_Error;
+            Returned := 0;
+         else
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+         end if;
+      end;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_GPA_Map");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_GPA_Map;
 
    procedure NVMM_GPA_Unmap
@@ -7463,10 +8179,54 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine, HVA, GPA, Size);
+      pragma Unreferenced (HVA);
+      package Mach_Trans is new Memory.Userland_Transfer (NVMM_Machine_Struct);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Mach_A : constant Integer_Address := Integer_Address (Machine);
+      Mach_Struct : NVMM_Machine_Struct;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+      Mach_ID : Virtualization.Machine_ID;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      --  Read machid from userspace struct
+      Mach_Trans.Take_From_Userland
+         (Map, Mach_Struct, To_Address (Mach_A), Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Mach_Struct.Machid > Unsigned_32 (Virtualization.Max_Virtual_Machines)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Mach_ID := Virtualization.Machine_ID (Mach_Struct.Machid);
+
+      --  Use VCPU 0 for the NPT
+      if Virtualization.GPA_Unmap_All (Mach_ID, GPA, Size) then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_GPA_Unmap");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_GPA_Unmap;
 
    procedure NVMM_HVA_Map
@@ -7504,10 +8264,37 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine, CPU_ID, GVA, GPA_Addr, Prot_Addr);
+      pragma Unreferenced (Prot_Addr);  --  Prot not used in current impl
+      package Trans is new Memory.Userland_Transfer (Unsigned_64);
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Mach_ID : Virtualization.Machine_ID;
+      VCPU    : Virtualization.VCPU_ID;
+      GPA_Out : Unsigned_64;
+      Map     : Page_Table_Acc;
+      Succ    : Boolean;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      Mach_ID := Virtualization.Machine_ID (Machine);
+      VCPU := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.GVA_To_GPA (Mach_ID, VCPU, GVA, GPA_Out) then
+         Get_Common_Map (Proc, Map);
+         Trans.Paste_Into_Userland
+            (Map, GPA_Out, To_Address (Integer_Address (GPA_Addr)), Succ);
+         if Succ then
+            Errno    := Error_No_Error;
+            Returned := 0;
+         else
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+         end if;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_GVA_2_GPA");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_GVA_2_GPA;
 
    procedure NVMM_GPA_2_HVA
@@ -7518,10 +8305,37 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine, GPA, HVA_Addr, Prot_Addr);
+      pragma Unreferenced (Prot_Addr);  --  Prot not used in current impl
+      package Trans is new Memory.Userland_Transfer (Unsigned_64);
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Mach_ID : Virtualization.Machine_ID;
+      --  Use VCPU 0 by default (GPA translation is the same for all VCPUs)
+      VCPU    : constant Virtualization.VCPU_ID := 0;
+      HVA_Out : Unsigned_64;
+      Map     : Page_Table_Acc;
+      Succ    : Boolean;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      Mach_ID := Virtualization.Machine_ID (Machine);
+      if Virtualization.GPA_To_HVA (Mach_ID, VCPU, GPA, HVA_Out) then
+         Get_Common_Map (Proc, Map);
+         Trans.Paste_Into_Userland
+            (Map, HVA_Out, To_Address (Integer_Address (HVA_Addr)), Succ);
+         if Succ then
+            Errno    := Error_No_Error;
+            Returned := 0;
+         else
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+         end if;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_GPA_2_HVA");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_GPA_2_HVA;
 
    procedure NVMM_Assist_IO
@@ -7575,10 +8389,23 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine, CPU_ID);
+      Mach_ID : Virtualization.Machine_ID;
+      VCPU    : Virtualization.VCPU_ID;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      Mach_ID := Virtualization.Machine_ID (Machine);
+      VCPU := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.VCPU_Stop (Mach_ID, VCPU) then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_VCPU_Stop");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_VCPU_Stop;
 
    procedure Set_SID

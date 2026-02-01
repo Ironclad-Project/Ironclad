@@ -36,7 +36,6 @@ project Ironclad is
       "@SRCDIR@/source/networking",
       "@SRCDIR@/source/userland",
       "@SRCDIR@/source/vfs",
-      "@SRCDIR@/source/virtualization",
       "@SRCDIR@/source",
       "@SRCDIR@/freestnd-c-hdrs/include",
       "@SRCDIR@/cc-runtime/src"
