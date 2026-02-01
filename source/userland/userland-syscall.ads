@@ -1373,20 +1373,14 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-
-   type NVMM_Machine_Struct is record
-      Machid : Unsigned_32;
-   end record with Size => 64;
-
    procedure NVMM_Machine_Create
-      (Machine_Addr : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value);
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    procedure NVMM_Machine_Destroy
-      (Machine_Addr : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_Machine_Configure
       (Machine       : Unsigned_64;
@@ -1395,41 +1389,17 @@ package Userland.Syscall is
        Returned      : out Unsigned_64;
        Errno         : out Errno_Value);
 
-   type NVMM_VCPU_Struct is record
-      Cpuid     : Unsigned_32;
-      Pad       : Unsigned_32;
-      Cbs_IO    : Unsigned_64;
-      Cbs_Mem   : Unsigned_64;
-      State_Ptr : Unsigned_64;
-      Event_Ptr : Unsigned_64;  --  nvmm_vcpu_event *
-      Exit_Ptr  : Unsigned_64;  --  nvmm_vcpu_exit *
-      Stop_Ptr  : Unsigned_64;
-      Mach_Ptr  : Unsigned_64;
-   end record;
-   for NVMM_VCPU_Struct use record
-      Cpuid     at 0  range 0 .. 31;
-      Pad       at 4  range 0 .. 31;
-      Cbs_IO    at 8  range 0 .. 63;
-      Cbs_Mem   at 16 range 0 .. 63;
-      State_Ptr at 24 range 0 .. 63;
-      Event_Ptr at 32 range 0 .. 63;
-      Exit_Ptr  at 40 range 0 .. 63;
-      Stop_Ptr  at 48 range 0 .. 63;
-      Mach_Ptr  at 56 range 0 .. 63;
-   end record;
-
    procedure NVMM_VCPU_Create
-      (Machine_Addr : Unsigned_64;
-       CPU_ID       : Unsigned_64;
-       VCPU_Addr    : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       CPU_ID     : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_VCPU_Destroy
-      (Machine_Addr : Unsigned_64;
-       VCPU_Addr    : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       CPU_ID     : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_VCPU_Configure
       (Machine       : Unsigned_64;
@@ -1440,18 +1410,20 @@ package Userland.Syscall is
        Errno         : out Errno_Value);
 
    procedure NVMM_VCPU_SetState
-      (Machine   : Unsigned_64;
-       CPU_ID    : Unsigned_64;
-       Operation : Unsigned_64;
-       Returned  : out Unsigned_64;
-       Errno     : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       CPU_ID     : Unsigned_64;
+       Operation  : Unsigned_64;
+       State_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_VCPU_GetState
-      (Machine   : Unsigned_64;
-       CPU_ID    : Unsigned_64;
-       Operation : Unsigned_64;
-       Returned  : out Unsigned_64;
-       Errno     : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       CPU_ID     : Unsigned_64;
+       Operation  : Unsigned_64;
+       State_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_VCPU_Inject
       (Machine  : Unsigned_64;
@@ -1460,27 +1432,28 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    procedure NVMM_VCPU_Run
-      (Machine_Addr : Unsigned_64;
-       VCPU_Addr    : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       CPU_ID     : Unsigned_64;
+       Exit_Addr  : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_GPA_Map
-      (Machine  : Unsigned_64;
-       HVA      : Unsigned_64;
-       GPA      : Unsigned_64;
-       Size     : Unsigned_64;
-       Prot     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       HVA        : Unsigned_64;
+       GPA        : Unsigned_64;
+       Size       : Unsigned_64;
+       Prot       : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_GPA_Unmap
-      (Machine  : Unsigned_64;
-       HVA      : Unsigned_64;
-       GPA      : Unsigned_64;
-       Size     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+      (Machine_ID : Unsigned_64;
+       HVA        : Unsigned_64;
+       GPA        : Unsigned_64;
+       Size       : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_HVA_Map
       (Machine  : Unsigned_64;
