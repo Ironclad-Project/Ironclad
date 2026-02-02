@@ -32,9 +32,10 @@ package Arch.Virtualization.SVM with SPARK_Mode => Off is
       Base       at 8  range 0 .. 63;
    end record;
 
+   pragma Warnings (Off, "bits of *** unused");
+
    --  VMCB Control Area (offset 0x000 - 0x3FF, 1024 bytes)
    --  Simplified to key fields only; unused areas left as padding
-   type SVM_Padding is array (Natural range <>) of Unsigned_8;
    type VMCB_Control_Area is record
       Intercept_CR_Reads     : Unsigned_16;
       Intercept_CR_Writes    : Unsigned_16;
@@ -66,50 +67,119 @@ package Arch.Virtualization.SVM with SPARK_Mode => Off is
       VMCB_Clean             : Unsigned_32;
       Reserved_0C4           : Unsigned_32;
       Next_RIP               : Unsigned_64;
-      Padding                : SVM_Padding (1 .. 852);
-   end record with Pack, Size => 8192;  --  1024 bytes
+   end record with Size => 8192;
+   for VMCB_Control_Area use record
+      Intercept_CR_Reads     at 16#000# range 0 .. 15;
+      Intercept_CR_Writes    at 16#002# range 0 .. 15;
+      Intercept_DR_Reads     at 16#004# range 0 .. 15;
+      Intercept_DR_Writes    at 16#006# range 0 .. 15;
+      Intercept_Exceptions   at 16#008# range 0 .. 31;
+      Intercept_Misc_1       at 16#00C# range 0 .. 31;
+      Intercept_Misc_2       at 16#010# range 0 .. 31;
+      Intercept_Misc_3       at 16#014# range 0 .. 31;
+      Pause_Filter_Threshold at 16#03C# range 0 .. 15;
+      Pause_Filter_Count     at 16#03E# range 0 .. 15;
+      IOPM_Base_PA           at 16#040# range 0 .. 63;
+      MSRPM_Base_PA          at 16#048# range 0 .. 63;
+      TSC_Offset             at 16#050# range 0 .. 63;
+      Guest_ASID             at 16#058# range 0 .. 31;
+      TLB_Control            at 16#05C# range 0 .. 31;
+      V_Intr_Control         at 16#060# range 0 .. 63;
+      Interrupt_Shadow       at 16#068# range 0 .. 63;
+      Exit_Code              at 16#070# range 0 .. 63;
+      Exit_Info_1            at 16#078# range 0 .. 63;
+      Exit_Info_2            at 16#080# range 0 .. 63;
+      Exit_Int_Info          at 16#088# range 0 .. 63;
+      NP_Enable              at 16#090# range 0 .. 63;
+      AVIC_APIC_Bar          at 16#098# range 0 .. 63;
+      GHCB_GPA               at 16#0A0# range 0 .. 63;
+      Event_Inject           at 16#0A8# range 0 .. 63;
+      N_CR3                  at 16#0B0# range 0 .. 63;
+      LBR_Virt_Enable        at 16#0B8# range 0 .. 63;
+      VMCB_Clean             at 16#0C0# range 0 .. 31;
+      Reserved_0C4           at 16#0C4# range 0 .. 31;
+      Next_RIP               at 16#0C8# range 0 .. 63;
+   end record;
 
-   --  VMCB State Save Area (offset 0x400 - 0xFFF, 3072 bytes)
+   --  VMCB State Save Area
    type VMCB_State_Save_Area is record
-      --  Segment registers
-      ES                : Segment_Descriptor;
-      CS                : Segment_Descriptor;
-      SS                : Segment_Descriptor;
-      DS                : Segment_Descriptor;
-      FS                : Segment_Descriptor;
-      GS                : Segment_Descriptor;
-      GDTR              : Segment_Descriptor;
-      LDTR              : Segment_Descriptor;
-      IDTR              : Segment_Descriptor;
-      TR                : Segment_Descriptor;
-      CPL               : Unsigned_8;
-      EFER              : Unsigned_64;
-      CR4               : Unsigned_64;
-      CR3               : Unsigned_64;
-      CR0               : Unsigned_64;
-      DR7               : Unsigned_64;
-      DR6               : Unsigned_64;
-      RFLAGS            : Unsigned_64;
-      RIP               : Unsigned_64;
-      RSP               : Unsigned_64;
-      RAX               : Unsigned_64;
-      STAR              : Unsigned_64;
-      LSTAR             : Unsigned_64;
-      CSTAR             : Unsigned_64;
-      SFMASK            : Unsigned_64;
-      Kernel_GS_Base    : Unsigned_64;
-      SYSENTER_CS       : Unsigned_64;
-      SYSENTER_ESP      : Unsigned_64;
-      SYSENTER_EIP      : Unsigned_64;
-      CR2               : Unsigned_64;
-      G_PAT             : Unsigned_64;
-      DBGCTL            : Unsigned_64;
-      BR_FROM           : Unsigned_64;
-      BR_TO             : Unsigned_64;
-      Last_Excp_From    : Unsigned_64;
-      Last_Excp_To      : Unsigned_64;
-      Padding           : SVM_Padding (1 .. 2711);
-   end record with Pack, Size => 24576;  --  3072 bytes
+      ES             : Segment_Descriptor;
+      CS             : Segment_Descriptor;
+      SS             : Segment_Descriptor;
+      DS             : Segment_Descriptor;
+      FS             : Segment_Descriptor;
+      GS             : Segment_Descriptor;
+      GDTR           : Segment_Descriptor;
+      LDTR           : Segment_Descriptor;
+      IDTR           : Segment_Descriptor;
+      TR             : Segment_Descriptor;
+      CPL            : Unsigned_8;
+      EFER           : Unsigned_64;
+      CR4            : Unsigned_64;
+      CR3            : Unsigned_64;
+      CR0            : Unsigned_64;
+      DR7            : Unsigned_64;
+      DR6            : Unsigned_64;
+      RFLAGS         : Unsigned_64;
+      RIP            : Unsigned_64;
+      RSP            : Unsigned_64;
+      RAX            : Unsigned_64;
+      STAR           : Unsigned_64;
+      LSTAR          : Unsigned_64;
+      CSTAR          : Unsigned_64;
+      SFMASK         : Unsigned_64;
+      Kernel_GS_Base : Unsigned_64;
+      SYSENTER_CS    : Unsigned_64;
+      SYSENTER_ESP   : Unsigned_64;
+      SYSENTER_EIP   : Unsigned_64;
+      CR2            : Unsigned_64;
+      G_PAT          : Unsigned_64;
+      DBGCTL         : Unsigned_64;
+      BR_FROM        : Unsigned_64;
+      BR_TO          : Unsigned_64;
+      Last_Excp_From : Unsigned_64;
+      Last_Excp_To   : Unsigned_64;
+   end record with Size => 24576;
+   for VMCB_State_Save_Area use record
+      ES             at 16#000# range 0 .. 127;
+      CS             at 16#010# range 0 .. 127;
+      SS             at 16#020# range 0 .. 127;
+      DS             at 16#030# range 0 .. 127;
+      FS             at 16#040# range 0 .. 127;
+      GS             at 16#050# range 0 .. 127;
+      GDTR           at 16#060# range 0 .. 127;
+      LDTR           at 16#070# range 0 .. 127;
+      IDTR           at 16#080# range 0 .. 127;
+      TR             at 16#090# range 0 .. 127;
+      CPL            at 16#0CB# range 0 .. 7;
+      EFER           at 16#0D0# range 0 .. 63;
+      CR4            at 16#148# range 0 .. 63;
+      CR3            at 16#150# range 0 .. 63;
+      CR0            at 16#158# range 0 .. 63;
+      DR7            at 16#160# range 0 .. 63;
+      DR6            at 16#168# range 0 .. 63;
+      RFLAGS         at 16#170# range 0 .. 63;
+      RIP            at 16#178# range 0 .. 63;
+      RSP            at 16#1D8# range 0 .. 63;
+      RAX            at 16#1F8# range 0 .. 63;
+      STAR           at 16#200# range 0 .. 63;
+      LSTAR          at 16#208# range 0 .. 63;
+      CSTAR          at 16#210# range 0 .. 63;
+      SFMASK         at 16#218# range 0 .. 63;
+      Kernel_GS_Base at 16#220# range 0 .. 63;
+      SYSENTER_CS    at 16#228# range 0 .. 63;
+      SYSENTER_ESP   at 16#230# range 0 .. 63;
+      SYSENTER_EIP   at 16#238# range 0 .. 63;
+      CR2            at 16#240# range 0 .. 63;
+      G_PAT          at 16#268# range 0 .. 63;
+      DBGCTL         at 16#270# range 0 .. 63;
+      BR_FROM        at 16#278# range 0 .. 63;
+      BR_TO          at 16#280# range 0 .. 63;
+      Last_Excp_From at 16#288# range 0 .. 63;
+      Last_Excp_To   at 16#290# range 0 .. 63;
+   end record;
+
+   pragma Warnings (On, "bits of *** unused");
 
    type VMCB is record
       Control    : VMCB_Control_Area;
