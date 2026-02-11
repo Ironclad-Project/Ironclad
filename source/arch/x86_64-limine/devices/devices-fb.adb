@@ -268,12 +268,11 @@ package body Devices.FB with SPARK_Mode => Off is
    end Init;
 
    procedure IO_Control
-      (Key       : System.Address;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
       --  fbdev ioctl requests.
       FBIOGET_VSCREENINFO : constant := 16#4600#;
@@ -286,9 +285,8 @@ package body Devices.FB with SPARK_Mode => Off is
       Var_Req  : FB_Var_ScreenInfo with Import, Address => Argument;
       Fix_Req  : FB_Fix_ScreenInfo with Import, Address => Argument;
    begin
-      Has_Extra := False;
-      Extra     := 0;
-      Success   := True;
+      Extra   := 0;
+      Success := True;
 
       case Request is
          when FBIOGET_VSCREENINFO => Var_Req := Dev_Data.Variable_Info;

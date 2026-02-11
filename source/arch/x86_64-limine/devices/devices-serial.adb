@@ -171,19 +171,16 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Write;
 
    procedure IO_Control
-      (Key       : System.Address;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
       COM      : COM_Root          with Import, Address => Key;
       Returned : TermIOs.Main_Data with Import, Address => Argument;
    begin
-      Has_Extra := False;
-      Extra     := 0;
-
+      Extra := 0;
       Synchronization.Seize (COM.Mutex);
       case Request is
          when TermIOs.TCGETS =>

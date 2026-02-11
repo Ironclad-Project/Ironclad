@@ -1579,26 +1579,38 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end Chdir;
 
-   procedure IOCTL
-      (FD       : Unsigned_64;
-       Request  : Unsigned_64;
-       Argument : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+   procedure DevCtl
+      (FD            : Unsigned_64;
+       Request       : Unsigned_64;
+       Argument_Addr : Unsigned_64;
+       Argument_Len  : Unsigned_64;
+       Info_Addr     : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value)
    is
-      I_Arg : constant Integer_Address := Integer_Address (Argument);
+      pragma Unreferenced (Argument_Len);
+      package Trans is new Memory.Userland_Transfer (Unsigned_32);
+
+      Info_I : constant Integer_Address := Integer_Address (Info_Addr);
+      Info_S : constant  System.Address := To_Address (Info_I);
+      I_Arg : constant Integer_Address := Integer_Address (Argument_Addr);
       S_Arg : constant  System.Address := To_Address (I_Arg);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       File  : File_Description_Acc;
       Succ  : Boolean;
-      Has_E : Boolean;
       Extra : Unsigned_64;
       FSSuc : VFS.FS_Status;
       User  : Unsigned_32;
+      Map   : Page_Table_Acc;
    begin
-      --  This degenerate localized SMAP disabling is required because of
-      --  our current API is really poorly positioned to cleanly handle the
-      --  massive variety of ioctl argument types.
+      --  FIXME: This degenerate localized SMAP disabling is required because
+      --  the current Ironclad devctl API is just the legacy ioctl API. And
+      --  that API is poorly suited to do memory address checks.
+      --
+      --  Ideally access checks could be done ahead of time using the
+      --  Argument_Len argument but we allow passing 0 for legacy ioctl-like
+      --  semantics.
+      Get_Common_Map (Proc, Map);
       Arch.Snippets.Enable_Userland_Memory_Access;
 
       Get_File (Proc, FD, File);
@@ -1613,41 +1625,40 @@ package body Userland.Syscall is
       case File.Description is
          when Description_Inode =>
             VFS.IO_Control
-               (Key       => File.Inner_Ino_FS,
-                Ino       => File.Inner_Ino,
-                Request   => Request,
-                Arg       => S_Arg,
-                Has_Extra => Has_E,
-                Extra     => Extra,
-                Status    => FSSuc);
+               (Key     => File.Inner_Ino_FS,
+                Ino     => File.Inner_Ino,
+                Request => Request,
+                Arg     => S_Arg,
+                Extra   => Extra,
+                Status  => FSSuc);
             Succ := FSSuc = VFS.FS_Success;
          when Description_Primary_PTY =>
             IPC.PTY.IO_Control
                (File.Inner_Primary_PTY, True, Request, S_Arg, Succ);
-            Has_E := False;
             Extra := 0;
          when Description_Secondary_PTY =>
             IPC.PTY.IO_Control
                (File.Inner_Secondary_PTY, False, Request, S_Arg, Succ);
-            Has_E := False;
             Extra := 0;
          when others =>
-            Has_E := False;
             Extra := 0;
             Succ  := False;
       end case;
 
       if Succ then
-         if Has_E then
-            Errno    := Error_No_Error;
-            Returned := Extra;
-         else
-            Errno    := Error_No_Error;
-            Returned := 0;
-         end if;
+         Errno    := Error_No_Error;
+         Returned := 0;
       else
          Errno    := Error_Not_A_TTY;
          Returned := Unsigned_64'Last;
+      end if;
+
+      if Info_Addr /= 0 then
+         Trans.Paste_Into_Userland (Map, Unsigned_32 (Extra), Info_S, Succ);
+         if not Succ then
+            Errno := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+         end if;
       end if;
 
    <<Cleanup>>
@@ -1655,12 +1666,12 @@ package body Userland.Syscall is
       Arch.Snippets.Disable_Userland_Memory_Access;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Exception while executing IOCTL");
+         Messages.Put_Line ("Exception while executing DevCtl");
          Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
-   end IOCTL;
+   end DevCtl;
 
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value)
    is

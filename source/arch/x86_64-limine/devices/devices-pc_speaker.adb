@@ -62,20 +62,18 @@ package body Devices.PC_Speaker with SPARK_Mode => Off is
    end Beep;
    ----------------------------------------------------------------------------
    procedure IO_Control
-      (Key       : System.Address;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Request);
       Frequency : Unsigned_32 with Import, Address => Argument;
    begin
       Beep (Frequency);
-      Has_Extra := False;
-      Extra     := 0;
-      Success   := True;
+      Extra   := 0;
+      Success := True;
    end IO_Control;
 end Devices.PC_Speaker;

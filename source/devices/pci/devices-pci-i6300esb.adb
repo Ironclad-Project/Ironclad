@@ -116,12 +116,11 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
    end Write;
 
    procedure IO_Control
-      (Key       : System.Address;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
       WDOG_START     : constant := 1;
       WDOG_STOP      : constant := 2;
@@ -129,9 +128,7 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
       D : constant Dog_Data_Acc := Dog_Data_Acc (Con.To_Pointer (Key));
       Val : Unsigned_8;
    begin
-      Has_Extra := False;
-      Extra     := 0;
-
+      Extra := 0;
       declare
          Timeout    : Unsigned_32 with Import, Address => Argument;
          TIMER1_Reg : Unsigned_32 with Import, Address => D.Base_Addr + TIMER1;
@@ -159,9 +156,8 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
-         Has_Extra := False;
-         Extra     := 0;
-         Success   := False;
+         Extra   := 0;
+         Success := False;
    end IO_Control;
    ----------------------------------------------------------------------------
    procedure Unlock_Registers (Base_Addr : System.Address) is

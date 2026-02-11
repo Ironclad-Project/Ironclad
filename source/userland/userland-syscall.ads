@@ -334,13 +334,15 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   --  IO control.
-   procedure IOCTL
-      (FD       : Unsigned_64;
-       Request  : Unsigned_64;
-       Argument : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+   --  Device driver specific control.
+   procedure DevCtl
+      (FD            : Unsigned_64;
+       Request       : Unsigned_64;
+       Argument_Addr : Unsigned_64;
+       Argument_Len  : Unsigned_64;
+       Info_Addr     : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value);
 
    --  Yield.
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value);

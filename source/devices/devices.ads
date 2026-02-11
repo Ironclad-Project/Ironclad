@@ -83,12 +83,11 @@ package Devices is
       --  These functions must only be called with userland data for their
       --  address arguments!
       IO_Control : access procedure
-         (Key       : System.Address;
-          Request   : Unsigned_64;
-          Argument  : System.Address;
-          Has_Extra : out Boolean;
-          Extra     : out Unsigned_64;
-          Success   : out Boolean);
+         (Key      : System.Address;
+          Request  : Unsigned_64;
+          Argument : System.Address;
+          Extra    : out Unsigned_64;
+          Success  : out Boolean);
       Mmap : access procedure
          (Key     : System.Address;
           Map     : Memory.MMU.Page_Table_Acc;
@@ -243,16 +242,14 @@ package Devices is
    --  @param Handle    Handle to operate on, must be valid.
    --  @param Request   Device-specific request.
    --  @param Argument  Device-specific argument address.
-   --  @param Has_Extra If true, the device has an extra argument to return.
    --  @param Extra     If Has_Extra, this is said argument.
    --  @param Success   True in success, False if not supported or failed.
    procedure IO_Control
-      (Handle    : Device_Handle;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Handle   : Device_Handle;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Do a device-specific memory map request.

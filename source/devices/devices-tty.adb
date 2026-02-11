@@ -97,12 +97,11 @@ package body Devices.TTY is
    end Write;
 
    procedure IO_Control
-      (Key       : System.Address;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
       pragma Unreferenced (Key);
 
@@ -120,7 +119,6 @@ package body Devices.TTY is
       else
          Success := False;
       end if;
-      Has_Extra := False;
-      Extra     := 0;
+      Extra := 0;
    end IO_Control;
 end Devices.TTY;

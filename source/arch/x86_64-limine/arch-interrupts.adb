@@ -131,7 +131,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 19 =>
             Chdir (State.RDI, Returned, Errno);
          when 20 =>
-            IOCTL (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            DevCtl (State.RDI, State.RSI, State.RDX,
+                    State.R12, State.R8, Returned, Errno);
          when 21 =>
             Sched_Yield (Returned, Errno);
          when 22 =>

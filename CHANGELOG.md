@@ -60,6 +60,7 @@ release changes.
 - Make `uname` return the domain name, increasing struct size and changing
   layout.
 - Change `listthreads`'s data layout to return flags regarding thread state.
+- Replace the legacy `ioctl` syscall interface for a more POSIX `devctl`.
 
 ### Non-code related changes
 

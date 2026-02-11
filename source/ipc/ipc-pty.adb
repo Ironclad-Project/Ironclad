@@ -658,12 +658,11 @@ package body IPC.PTY is
    end Dev_Write;
 
    procedure Dev_IO_Control
-      (Key       : System.Address;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
       P : Inner_Acc;
    begin
@@ -674,7 +673,6 @@ package body IPC.PTY is
           Request    => Request,
           Argument   => Argument,
           Success    => Success);
-      Has_Extra := False;
       Extra := 0;
    end Dev_IO_Control;
 end IPC.PTY;

@@ -1002,7 +1002,6 @@ package body VFS is
        Ino       : File_Inode_Number;
        Request   : Unsigned_64;
        Arg       : System.Address;
-       Has_Extra : out Boolean;
        Extra     : out Unsigned_64;
        Status    : out FS_Status)
    is
@@ -1012,17 +1011,13 @@ package body VFS is
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
             Dev.IO_Control
-               (Mounts (Key).FS_Data, Ino, Request, Arg, Has_Extra, Extra,
-                Status);
+               (Mounts (Key).FS_Data, Ino, Request, Arg, Extra, Status);
          when FS_EXT =>
-            EXT.IO_Control
-               (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
-            Has_Extra := False;
-            Extra     := 0;
+            EXT.IO_Control (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
+            Extra := 0;
          when FS_FAT =>
-            Has_Extra := False;
-            Extra     := 0;
-            Status    := FS_Not_Supported;
+            Extra  := 0;
+            Status := FS_Not_Supported;
       end case;
    end IO_Control;
 

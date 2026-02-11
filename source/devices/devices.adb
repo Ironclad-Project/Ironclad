@@ -328,22 +328,20 @@ package body Devices is
    end Write;
 
    procedure IO_Control
-      (Handle    : Device_Handle;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Handle   : Device_Handle;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
    begin
       if Devices_Data (Handle).Contents.IO_Control /= null then
          Devices_Data (Handle).Contents.IO_Control
-            (Devices_Data (Handle).Contents.Data, Request, Argument, Has_Extra,
+            (Devices_Data (Handle).Contents.Data, Request, Argument,
              Extra, Success);
       else
-         Has_Extra := False;
-         Extra     := 0;
-         Success   := False;
+         Extra   := 0;
+         Success := False;
       end if;
    end IO_Control;
 

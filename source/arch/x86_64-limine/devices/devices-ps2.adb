@@ -299,12 +299,11 @@ package body Devices.PS2 with SPARK_Mode => Off is
    end Ms_Read;
 
    procedure Ms_IO_Control
-      (Key       : System.Address;
-       Request   : Unsigned_64;
-       Argument  : System.Address;
-       Has_Extra : out Boolean;
-       Extra     : out Unsigned_64;
-       Success   : out Boolean)
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
    is
       pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       pragma Unreferenced (Key);
@@ -320,9 +319,8 @@ package body Devices.PS2 with SPARK_Mode => Off is
       Argument_Integer : constant Unsigned_64 := To_Integer (Argument);
       Unused : Unsigned_8;
    begin
-      Success   := True;
-      Has_Extra := False;
-      Extra     := 0;
+      Success := True;
+      Extra   := 0;
 
       Synchronization.Seize (Ms_Data_Mutex);
 
@@ -365,9 +363,8 @@ package body Devices.PS2 with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release (Ms_Data_Mutex);
-         Success   := False;
-         Has_Extra := False;
-         Extra     := 0;
+         Success := False;
+         Extra   := 0;
    end Ms_IO_Control;
 
    procedure Ms_Poll

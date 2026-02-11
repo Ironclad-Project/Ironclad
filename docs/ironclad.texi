@@ -124,7 +124,7 @@ Syscalls
 * fstat::                   Fetch file information.
 * pivot_root::              Pivot the root mountpoint.
 * chdir::                   Current working directory manipulation.
-* ioctl::                   IO multiplexer.
+* devctl::                  Device driver and IO configuration multiplexer.
 * sched_yield::             Relinquish CPU time.
 * pipe::                    Create pipes.
 * rename::                  Rename a file.
@@ -1010,7 +1010,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{chdir}.
 @item
-@ref{ioctl}.
+@ref{devctl}.
 @item
 @ref{sched_yield}.
 @item
@@ -2026,26 +2026,31 @@ following errno:
 @code{EBADF}: The passed descriptor is not a valid directory.
 @end itemize
 
-@node ioctl
-@section ioctl
+@node devctl
+@section devctl
 
 @example c
-int ioctl(int fd, unsigned long request, void *argument);
+int devctl(int fd, unsigned long request, void *argument, size_t nbytes, int *info);
 @end example
 
-This syscall manipulates the underlying device parameters of special files. It
-allows a device-dependent API for fetching and setting several modes.
+This syscall interfaces with device files in device-specific ways. @code{fd}
+points to the desired device to interface with, @code{request} is a
+device-specific integer value that specifies that desired operation,
+@code{argument} points to a device-specific argument of length @code{nbytes}.
+@code{info} reports further error information depending on the device if not
+@code{NULL}, or @code{0} if no further info is provided.
 
-Despite not all ioctl calls needing a specific value for their arguments, due
-to current limitations, all arguments must point to valid memory, regardless
-of whether it ends up used or not.
+@code{nbytes} can be ignored by passing @code{0}, which allows very ioctl-like
+semantics. This is provided for easy @code{ioctl} implementation and usage
+from userland. By using @code{nbytes = 0}, @code{ioctl} can be implemented as
+@code{devctl(fd, req, arg, 0, NULL)}.
 
-@code{ioctl} returns @code{0} on success and @code{-1} on failure, and sets the
+@code{devctl} returns @code{0} on success and @code{-1} on failure, and sets the
 following errno:
 
 @itemize @bullet
 @item
-@code{ENOTTY}: The passed file does not support the passed ioctl.
+@code{ENOTTY}: The passed file does not support the passed @code{request}.
 
 @item
 @code{EBADF}: The passed file does not exist for the process.
@@ -5210,15 +5215,15 @@ Ironclad supports the feature list: @code{sparse_super}, @code{large_file},
 Those features should translate to ext2 read-write support, and ext3 read-only
 support.
 
-Some @code{ioctl} calls exist for files inside EXT-series FSs, which can help
+Some @code{devctl} calls exist for files inside EXT-series FSs, which can help
 manage specialized FS-specific inode flags and permissions, they are:
 
 @example c
 EXT_GETFLAGS = 0x5600
 EXT_SETFLAGS = 0x5601
 
-ioctl(fd, EXT_GETFLAGS, pointer_to_u32); // Get EXT's flags inode field.
-ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
+devctl(fd, EXT_GETFLAGS, ptr_to_u32, 0, NULL); // Get EXT's flags inode field.
+devctl(fd, EXT_SETFLAGS, ptr_to_u32, 0, NULL); // Set EXT's flags inode field.
 @end example
 
 @subsection Ironclad support quirks
@@ -5232,7 +5237,7 @@ to avoid denial of service attacks by mounting deliberately faulty flesystems.
 @section File Allocation Table (FAT)
 
 Ironclad's FAT support is really rough. Only read-only FAT32 is supported.
-No special @code{ioctl} calls are provided. Long filenames are not supported.
+No special @code{devctl} calls are provided. Long filenames are not supported.
 
 @node Devices and their properties
 @chapter Devices and their properties
@@ -5241,7 +5246,7 @@ Ironclad exposes a number of physical and virtual devices to userland. All
 of them are exposed under the @code{/dev} location, and support a series of
 standard operations, like being manipulated by the usual file-related
 syscalls like @code{read} or @code{write}, while sporting device-specific
-interfaces in the form of device-specific @code{ioctl} requests.
+interfaces in the form of device-specific @code{devctl} requests.
 
 When querying device-specific information, Ironclad exposes information a bit
 different than other kernels like Linux. Here is a quick list of the most
@@ -5249,17 +5254,17 @@ notable differences:
 
 @itemize @bullet
 @item
-The @code{BLKGETSIZE}/@code{BLKGETSIZE64} @code{ioctl} calls are not available,
+The @code{BLKGETSIZE}/@code{BLKGETSIZE64} @code{devctl} calls are not available,
 instead, the block count and block size values of @code{stat} are used.
 @end itemize
 
-All devices in Ironclad have the @code{ioctl} call @code{DEV_PARTUUID}
+All devices in Ironclad have the @code{devctl} call @code{DEV_PARTUUID}
 implemented, with the signature:
 
 @example c
 #define DEV_PARTUUID 0x9821
 
-ioctl(fd, DEV_PARTUUID, &pointer_to_uuid); -- uuids being uint8_t[16];
+devctl(fd, DEV_PARTUUID, &pointer_to_uuid, 0, NULL); -- uuids being uint8_t[16];
 @end example
 
 This call will write the UUID of the device pointed to by @code{fd}. If
@@ -5335,16 +5340,16 @@ operations are discarded.
 
 @code{i6300esb} is a hardware watchdog featured in a lot of intel hardware, it
 can be reset by using @code{write} and can be configured using
-@code{ioctl} like:
+@code{devctl} like:
 
 @example c
 WDOG_START     = 1 // Start the count.
 WDOG_STOP      = 2 // Stop the count.
 WDOG_HEARTBEAT = 3 // Reset and set a new heartbeat period in seconds.
 
-ioctl(wdog, WDOG_START, ignored); // Enable 2:1 scaling.
-ioctl(wdog, WDOG_STOP,  ignored); // Enable 1:1 scaling.
-ioctl(wdog, WDOG_HEARTBEAT, pointer_to_uint32_t);
+devctl(wdog, WDOG_START, NULL, 0, NULL); // Enable 2:1 scaling.
+devctl(wdog, WDOG_STOP, NULL, 0, NULL);  // Enable 1:1 scaling.
+devctl(wdog, WDOG_HEARTBEAT, pointer_to_uint32_t, 0, NULL);
 @end example
 
 There is no default heartbeat count, so be sure to configure it if you do not
@@ -5566,7 +5571,7 @@ struct mouse_data @{
 @};
 @end example
 
-@code{ps2mouse} supports a series of @code{ioctl} calls for setting different
+@code{ps2mouse} supports a series of @code{devctl} calls for setting different
 modes and talking directly with the PS2 controller:
 
 @example c
@@ -5575,10 +5580,10 @@ PS2MOUSE_1_1_SCALING     = 2
 PS2MOUSE_SET_RES         = 3
 PS2MOUSE_SET_SAMPLE_RATE = 4
 
-ioctl(mouse, PS2MOUSE_2_1_SCALING, ignored);  // Enable 2:1 scaling.
-ioctl(mouse, PS2MOUSE_1_1_SCALING, ignored);  // Enable 1:1 scaling.
-ioctl(mouse, PS2MOUSE_SET_RES, resolution);   // (0 - 3).
-ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, rate); // (0 - 200).
+devctl(mouse, PS2MOUSE_2_1_SCALING, NULL, 0, NULL);  // Enable 2:1 scaling.
+devctl(mouse, PS2MOUSE_1_1_SCALING, NULL, 0, NULL);  // Enable 1:1 scaling.
+devctl(mouse, PS2MOUSE_SET_RES, resolution, 0, NULL);   // (0 - 3).
+devctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, rate, 0, NULL); // (0 - 200).
 @end example
 
 Valid resolutions and sample rates are values for the PS2 controller, else
