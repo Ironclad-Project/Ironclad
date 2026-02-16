@@ -940,6 +940,7 @@ package body Userland.Syscall is
             --  Of course dont remove the map if we are vforked.
             Userland.Process.Remove_Thread (Proc, Th);
             Pop_VFork_Marker (Proc, Success);
+            Set_Exec_Marker (Proc);
             if not Success then
                Memory.MMU.Destroy_Table (Orig);
             end if;
@@ -4763,7 +4764,8 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc : PID;
+      Proc, Parent, Curr : PID;
+      Was_Exec : Boolean;
    begin
       if ID = 0 then
          Proc := Arch.Local.Get_Current_Process;
@@ -4771,6 +4773,21 @@ package body Userland.Syscall is
          Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
          if Proc = Error_PID then
             goto Bad_Search_Error;
+         end if;
+
+         Curr := Arch.Local.Get_Current_Process;
+         if Proc /= Curr then
+            Get_Parent (Proc, Parent);
+            if Curr /= Parent then
+               goto Bad_Search_Error;
+            end if;
+
+            Get_Exec_Marker (Proc, Was_Exec);
+            if Was_Exec then
+               Errno    := Error_Bad_Access;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
          end if;
       end if;
 
@@ -5885,10 +5902,10 @@ package body Userland.Syscall is
 
          case How is
             when SIG_BLOCK =>
-               Set_Masked_Signals (Proc, C2 (New_Set and C1 (Old_Set)));
-            when SIG_SETMASK =>
-               Set_Masked_Signals (Proc, C2 (New_Set and not C1 (Old_Set)));
+               Set_Masked_Signals (Proc, C2 (New_Set or C1 (Old_Set)));
             when SIG_UNBLOCK =>
+               Set_Masked_Signals (Proc, C2 (New_Set and not C1 (Old_Set)));
+            when SIG_SETMASK =>
                Set_Masked_Signals (Proc, C2 (New_Set));
             when others =>
                Errno    := Error_Invalid_Value;

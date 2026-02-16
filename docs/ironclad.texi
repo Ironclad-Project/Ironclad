@@ -3272,8 +3272,12 @@ returns @code{0}. On failure, both syscalls return @code{-1} with the
 following errno:
 
 @table @code
+@item EACCES
+The passed process is not the caller, and is a valid target, but it executed
+since fork, which is not allowed as per POSIX.
+
 @item ESRCH
-The passed PID is not valid.
+The passed PID is not a valid PID, or is not a child of the caller.
 @end table
 
 @node getsid/setsid

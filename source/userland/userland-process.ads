@@ -171,7 +171,7 @@ package Userland.Process is
        Signal_RT_6                => 36,
        Signal_RT_7                => 37,
        Signal_RT_8                => 38);
-   type Signal_Bitmap is array (Signal) of Boolean with Pack, Size => 38;
+   type Signal_Bitmap is array (Signal) of Boolean with Pack;
 
    --  Initialize the process registry.
    procedure Init;
@@ -277,6 +277,14 @@ package Userland.Process is
 
    --  Set a mark to know whether the process has been vforked.
    procedure Set_VFork_Marker (Process : PID)
+      with Pre => Process /= Error_PID;
+
+   --  Get a mark to know whether the process has exec'd.
+   procedure Get_Exec_Marker (Process : PID; Marked : out Boolean)
+      with Pre => Process /= Error_PID;
+
+   --  Set a mark to know whether the process has exec'd.
+   procedure Set_Exec_Marker (Process : PID)
       with Pre => Process /= Error_PID;
 
    --  Check whether a file is registered in a process.
@@ -828,6 +836,7 @@ private
       Signal_Exit     : Boolean;
       Which_Signal    : Signal;
       VFork_Mark      : Boolean;
+      Exec_Mark       : Boolean;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;
       Children_System : Time.Timestamp;

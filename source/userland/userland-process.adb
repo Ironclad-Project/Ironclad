@@ -127,6 +127,7 @@ package body Userland.Process with SPARK_Mode => Off is
                 Did_Exit        => False,
                 Exit_Code       => 0,
                 VFork_Mark      => False,
+                Exec_Mark       => False,
                 RR_Sec          => 0,
                 RR_NS        => Unsigned_64 (Scheduler.Default_RR_NS_Interval),
                 Children_System => (0, 0),
@@ -480,6 +481,26 @@ package body Userland.Process with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Set_VFork_Marker;
+
+   procedure Get_Exec_Marker (Process : PID; Marked : out Boolean) is
+   begin
+      Synchronization.Seize (Registry (Process).Data_Mutex);
+      Marked := Registry (Process).Exec_Mark;
+      Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Marked := False;
+   end Get_Exec_Marker;
+
+   procedure Set_Exec_Marker (Process : PID) is
+   begin
+      Synchronization.Seize (Registry (Process).Data_Mutex);
+      Registry (Process).Exec_Mark := True;
+      Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Exec_Marker;
 
    procedure Is_Valid_File
       (Process : PID;
@@ -1420,12 +1441,24 @@ package body Userland.Process with SPARK_Mode => Off is
        Restorer : System.Address;
        Altstack : Boolean)
    is
+      use System;
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       if Sig /= Signal_Kill and Sig /= Signal_Stop then
          Registry (Proc).Signal_Handlers (Sig).Handler_Addr  := Handler;
          Registry (Proc).Signal_Handlers (Sig).Restorer_Addr := Restorer;
          Registry (Proc).Signal_Handlers (Sig).Is_Altstack   := Altstack;
+
+         --  Certain exceptions have as default operation being ignored.
+         --  Default operation in Ironclad is null addresses to these fields.
+         --  POSIX says ignoring a signal should clear it. Thus, for these
+         --  ignored signals, we have to clear them.
+         if Handler = System.Null_Address and
+            Restorer = System.Null_Address and
+            (Sig = Signal_Child or Sig = Signal_Urgent)
+         then
+            Registry (Proc).Raised_Signals (Sig) := False;
+         end if;
       end if;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
