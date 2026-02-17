@@ -5938,10 +5938,10 @@ package body Userland.Syscall is
       O_SAddr : constant  System.Address := To_Address (O_IAddr);
       Actual  : Process.Signal;
       Success : Boolean;
-      Mask    : Process.Signal_Bitmap;
       Old     : Sigaction_Info;
       Map     : Page_Table_Acc;
       Altstk  : Boolean;
+      Is_Default, Is_Ignored : Boolean;
    begin
       Translate_Signal (Signal, Actual, Success);
       if not Success then
@@ -5951,21 +5951,30 @@ package body Userland.Syscall is
       end if;
 
       Get_Common_Map (Proc, Map);
-      Get_Masked_Signals (Proc, Mask);
 
       if O_IAddr /= 0 then
          Old.Mask  := 0;
-         Get_Signal_Handlers (Proc, Actual, Old.Handler, Old.Restorer, Altstk);
-         if Mask (Actual) then
+         Get_Signal_Handlers
+            (Proc       => Proc,
+             Sig        => Actual,
+             Is_Default => Is_Default,
+             Is_Ignored => Is_Ignored,
+             Handler    => Old.Handler,
+             Restorer   => Old.Restorer,
+             Altstack   => Altstk);
+
+         if Is_Ignored then
             Old.Handler := To_Address (SIG_IGN);
-         elsif Old.Handler = System.Null_Address then
+         elsif Is_Default then
             Old.Handler := To_Address (SIG_DFL);
          end if;
+
          if Altstk then
             Old.Flags := SA_ONSTACK;
          else
             Old.Flags := 0;
          end if;
+
          Trans.Paste_Into_Userland (Map, Old, O_SAddr, Success);
          if not Success then
             goto Would_Fault_Error;
@@ -5981,15 +5990,42 @@ package body Userland.Syscall is
          Altstk := (Old.Flags and SA_ONSTACK) /= 0;
          case To_Integer (Old.Handler) is
             when SIG_DFL =>
-               Set_Signal_Handlers (Proc, Actual, System.Null_Address,
-                  System.Null_Address, Altstk);
+               Set_Signal_Handlers
+                  (Proc       => Proc,
+                   Sig        => Actual,
+                   Is_Default => True,
+                   Is_Ignored => False,
+                   Handler    => System.Null_Address,
+                   Restorer   => Old.Restorer,
+                   Altstack   => Altstk,
+                   Success    => Success);
             when SIG_IGN =>
-               Mask (Actual) := True;
-               Set_Masked_Signals (Proc, Mask);
+               Set_Signal_Handlers
+                  (Proc       => Proc,
+                   Sig        => Actual,
+                   Is_Default => False,
+                   Is_Ignored => True,
+                   Handler    => System.Null_Address,
+                   Restorer   => Old.Restorer,
+                   Altstack   => Altstk,
+                   Success    => Success);
             when others =>
                Set_Signal_Handlers
-                  (Proc, Actual, Old.Handler, Old.Restorer, Altstk);
+                  (Proc       => Proc,
+                   Sig        => Actual,
+                   Is_Default => False,
+                   Is_Ignored => False,
+                   Handler    => Old.Handler,
+                   Restorer   => Old.Restorer,
+                   Altstack   => Altstk,
+                   Success    => Success);
          end case;
+
+         if not Success then
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
       end if;
 
       Errno    := Error_No_Error;
@@ -8768,7 +8804,6 @@ package body Userland.Syscall is
       Signal_Addr   : System.Address;
       Restorer_Addr : System.Address;
       No_Signal     : Boolean;
-      Ignore_Signal : Boolean;
       Altstack      : Boolean;
       Mask          : Process.Signal_Bitmap;
    begin
@@ -8778,7 +8813,6 @@ package body Userland.Syscall is
           Handler  => Signal_Addr,
           Restorer => Restorer_Addr,
           No_Sig   => No_Signal,
-          Ignore   => Ignore_Signal,
           Altstack => Altstack,
           Old_Mask => Mask);
       if not No_Signal then
@@ -8787,10 +8821,8 @@ package body Userland.Syscall is
             Scheduler.Launch_Signal_Thread
                (Unsigned_64 (Process.Signal'Enum_Rep (Raised_Signal)),
                 Signal_Addr, Restorer_Addr, Altstack, Has_Handled);
-         elsif not Ignore_Signal then
-            Exit_Process (Proc, Raised_Signal);
          else
-            Has_Handled := True;
+            Exit_Process (Proc, Raised_Signal);
          end if;
 
          --  Restore old signals if we were successful.

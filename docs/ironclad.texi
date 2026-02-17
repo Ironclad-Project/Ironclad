@@ -1664,6 +1664,10 @@ all the threads of the callee process and putting a single one in place for
 the new program. Other process-specific elements like file descriptors are
 untouched.
 
+Exception handlers marked as @code{SIG_DFL} and @code{SIG_IGN} are preserved,
+other handlers are not maintained, signal mask is maintained, raised signals
+are cleared.
+
 This syscall only returns in failure with @code{-1} with the following errno:
 
 @itemize @bullet

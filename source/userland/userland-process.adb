@@ -96,8 +96,7 @@ package body Userland.Process with SPARK_Mode => Off is
                 Controlling_TTY => null,
                 Masked_Signals  => [others => False],
                 Raised_Signals  => [others => False],
-                Signal_Handlers => [others =>
-                  (System.Null_Address, System.Null_Address, False)],
+                Signal_Handlers => Default_Signal_Handlers,
                 Prio            => Scheduler.Default_Priority,
                 Niceness        => Scheduler.Default_Niceness,
                 Pol             => Scheduler.Policy_Other,
@@ -426,11 +425,16 @@ package body Userland.Process with SPARK_Mode => Off is
       Registry (Process).Alloc_Base := Rand_Addr;
       Synchronization.Release (Registry (Process).Data_Mutex);
 
-      --  Reassign signal information.
-      Registry (Process).Masked_Signals  := [others => False];
-      Registry (Process).Raised_Signals  := [others => False];
-      Registry (Process).Signal_Handlers :=
-         [others => (System.Null_Address, System.Null_Address, False)];
+      --  POSIX specifies that signal handlers that are either default or
+      --  ignored are copied. Raised signals are also to be cleared
+      Registry (Process).Raised_Signals := [others => False];
+      for Handler of Registry (Process).Signal_Handlers loop
+         Handler :=
+            (Is_Ignored    => Handler.Is_Ignored,
+             Handler_Addr  => System.Null_Address,
+             Restorer_Addr => System.Null_Address,
+             Is_Altstack   => False);
+      end loop;
    exception
       when Constraint_Error =>
          null;
@@ -1346,6 +1350,8 @@ package body Userland.Process with SPARK_Mode => Off is
    end Set_Masked_Signals;
 
    procedure Raise_Signal (Proc : PID; Sig : Signal) is
+      use System;
+      Has_Handler : Boolean;
    begin
       if Sig = Signal_Kill then
          Exit_Process (Proc, Signal_Kill);
@@ -1354,7 +1360,16 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
       else
          Synchronization.Seize (Registry (Proc).Data_Mutex);
-         Registry (Proc).Raised_Signals (Sig) := True;
+         --  The default of SIGCHLD and SIGURG is to be ignored if not
+         --  assigned.
+         Has_Handler := Registry (Proc).Signal_Handlers (Sig).Handler_Addr
+            /= System.Null_Address;
+         if not Registry (Proc).Signal_Handlers (Sig).Is_Ignored and
+            (Sig /= Signal_Child  or else Has_Handler) and
+            (Sig /= Signal_Urgent or else Has_Handler)
+         then
+            Registry (Proc).Raised_Signals (Sig) := True;
+         end if;
          Synchronization.Release (Registry (Proc).Data_Mutex);
       end if;
    exception
@@ -1416,54 +1431,81 @@ package body Userland.Process with SPARK_Mode => Off is
    end Raise_Signal;
 
    procedure Get_Signal_Handlers
-      (Proc     : PID;
-       Sig      : Signal;
-       Handler  : out System.Address;
-       Restorer : out System.Address;
-       Altstack : out Boolean)
-   is
-   begin
-      Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Handler  := Registry (Proc).Signal_Handlers (Sig).Handler_Addr;
-      Restorer := Registry (Proc).Signal_Handlers (Sig).Restorer_Addr;
-      Altstack := Registry (Proc).Signal_Handlers (Sig).Is_Altstack;
-      Synchronization.Release (Registry (Proc).Data_Mutex);
-   exception
-      when Constraint_Error =>
-         Handler  := System.Null_Address;
-         Restorer := System.Null_Address;
-   end Get_Signal_Handlers;
-
-   procedure Set_Signal_Handlers
-      (Proc     : PID;
-       Sig      : Signal;
-       Handler  : System.Address;
-       Restorer : System.Address;
-       Altstack : Boolean)
+      (Proc       : PID;
+       Sig        : Signal;
+       Is_Default : out Boolean;
+       Is_Ignored : out Boolean;
+       Handler    : out System.Address;
+       Restorer   : out System.Address;
+       Altstack   : out Boolean)
    is
       use System;
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
-      if Sig /= Signal_Kill and Sig /= Signal_Stop then
-         Registry (Proc).Signal_Handlers (Sig).Handler_Addr  := Handler;
-         Registry (Proc).Signal_Handlers (Sig).Restorer_Addr := Restorer;
-         Registry (Proc).Signal_Handlers (Sig).Is_Altstack   := Altstack;
-
-         --  Certain exceptions have as default operation being ignored.
-         --  Default operation in Ironclad is null addresses to these fields.
-         --  POSIX says ignoring a signal should clear it. Thus, for these
-         --  ignored signals, we have to clear them.
-         if Handler = System.Null_Address and
-            Restorer = System.Null_Address and
-            (Sig = Signal_Child or Sig = Signal_Urgent)
-         then
-            Registry (Proc).Raised_Signals (Sig) := False;
-         end if;
-      end if;
+      Handler    := Registry (Proc).Signal_Handlers (Sig).Handler_Addr;
+      Is_Default := Handler = System.Null_Address;
+      Is_Ignored := Registry (Proc).Signal_Handlers (Sig).Is_Ignored;
+      Restorer   := Registry (Proc).Signal_Handlers (Sig).Restorer_Addr;
+      Altstack   := Registry (Proc).Signal_Handlers (Sig).Is_Altstack;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
-         null;
+         Is_Default := False;
+         Is_Ignored := False;
+         Handler    := System.Null_Address;
+         Restorer   := System.Null_Address;
+         Altstack   := False;
+   end Get_Signal_Handlers;
+
+   procedure Set_Signal_Handlers
+      (Proc       : PID;
+       Sig        : Signal;
+       Is_Default : Boolean;
+       Is_Ignored : Boolean;
+       Handler    : System.Address;
+       Restorer   : System.Address;
+       Altstack   : Boolean;
+       Success    : out Boolean)
+   is
+      use System;
+   begin
+      if Sig = Signal_Kill or else Sig = Signal_Stop then
+         Success := False;
+         return;
+      end if;
+
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      if Is_Default then
+         Registry (Proc).Signal_Handlers (Sig) :=
+            (Is_Ignored    => False,
+             Handler_Addr  => System.Null_Address,
+             Restorer_Addr => Restorer,
+             Is_Altstack   => Altstack);
+
+         --  As per POSIX, the default of these is to be ignored, so we are
+         --  going to harcode the signal clearing.
+         if Sig = Signal_Child or Sig = Signal_Urgent then
+            Registry (Proc).Raised_Signals (Sig) := False;
+         end if;
+      elsif Is_Ignored then
+         Registry (Proc).Signal_Handlers (Sig) :=
+            (Is_Ignored    => True,
+             Handler_Addr  => System.Null_Address,
+             Restorer_Addr => Restorer,
+             Is_Altstack   => Altstack);
+         Registry (Proc).Raised_Signals (Sig) := False;
+      else
+         Registry (Proc).Signal_Handlers (Sig) :=
+            (Is_Ignored    => False,
+             Handler_Addr  => Handler,
+             Restorer_Addr => Restorer,
+             Is_Altstack   => Altstack);
+      end if;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+      Success := True;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Set_Signal_Handlers;
 
    procedure Get_Raised_Signal_Actions
@@ -1472,7 +1514,6 @@ package body Userland.Process with SPARK_Mode => Off is
        Handler  : out System.Address;
        Restorer : out System.Address;
        No_Sig   : out Boolean;
-       Ignore   : out Boolean;
        Altstack : out Boolean;
        Old_Mask : out Signal_Bitmap)
    is
@@ -1481,7 +1522,6 @@ package body Userland.Process with SPARK_Mode => Off is
       Handler  := System.Null_Address;
       Restorer := System.Null_Address;
       No_Sig   := True;
-      Ignore   := False;
       Altstack := False;
       Old_Mask := [others => False];
 
@@ -1496,11 +1536,6 @@ package body Userland.Process with SPARK_Mode => Off is
             Altstack := Registry (Proc).Signal_Handlers (I).Is_Altstack;
             No_Sig   := False;
 
-            --  POSIX established only certain signals are safely ignored, when
-            --  not ignored, POSIX instructs us to terminate the process if not
-            --  handled.
-            Ignore := Sig = Signal_Child or Sig = Signal_Urgent;
-
             Registry (Proc).Raised_Signals (I) := False;
             Old_Mask := Registry (Proc).Masked_Signals;
             Registry (Proc).Masked_Signals (I) := True;
@@ -1514,7 +1549,6 @@ package body Userland.Process with SPARK_Mode => Off is
          Handler  := System.Null_Address;
          Restorer := System.Null_Address;
          No_Sig   := True;
-         Ignore   := False;
    end Get_Raised_Signal_Actions;
 
    procedure Get_Default_Policy (Proc : PID; Pol : out Scheduler.Policy) is

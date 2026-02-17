@@ -674,30 +674,40 @@ package Userland.Process is
       with Pre => Process /= Error_PID;
 
    --  Get the address assigned for a process to use as a signal handler.
-   --  @param Proc     Process to get the handler for.
-   --  @param Sig      Signal to get the handler for.
-   --  @param Handler  Address set for the handler.
-   --  @param Restorer Address set for the restorer function.
-   --  @param Altstack Whether the signal will be handled in an altstack.
+   --  @param Proc       Process to get the handler for.
+   --  @param Sig        Signal to get the handler for.
+   --  @param Is_Default True if the handler is default action.
+   --  @param Is_Ignored True if the handler is ignored.
+   --  @param Handler    Address set for the handler.
+   --  @param Restorer   Address set for the restorer function.
+   --  @param Altstack   Whether the signal will be handled in an altstack.
    procedure Get_Signal_Handlers
-      (Proc     : PID;
-       Sig      : Signal;
-       Handler  : out System.Address;
-       Restorer : out System.Address;
-       Altstack : out Boolean);
+      (Proc       : PID;
+       Sig        : Signal;
+       Is_Default : out Boolean;
+       Is_Ignored : out Boolean;
+       Handler    : out System.Address;
+       Restorer   : out System.Address;
+       Altstack   : out Boolean);
 
    --  Set an address for a process to use as a signal handler.
-   --  @param Proc     Process to set the handler for.
-   --  @param Sig      Signal to set the handlers for.
-   --  @param Handler  Address set for the handler.
-   --  @param Restorer Address set for the restorer function.
-   --  @param Altstack Whether the signal will be handled in an altstack.
+   --  @param Proc       Process to set the handler for.
+   --  @param Sig        Signal to set the handlers for.
+   --  @param Is_Default Ignore the Handler field, use default actions.
+   --  @param Is_Ignored Ignore the Handler field, never raise this signal.
+   --  @param Handler    Address set for the handler.
+   --  @param Restorer   Address set for the restorer function.
+   --  @param Altstack   Whether the signal will be handled in an altstack.
+   --  @param Success    True if the passed signal was changed.
    procedure Set_Signal_Handlers
-      (Proc     : PID;
-       Sig      : Signal;
-       Handler  : System.Address;
-       Restorer : System.Address;
-       Altstack : Boolean);
+      (Proc       : PID;
+       Sig        : Signal;
+       Is_Default : Boolean;
+       Is_Ignored : Boolean;
+       Handler    : System.Address;
+       Restorer   : System.Address;
+       Altstack   : Boolean;
+       Success    : out Boolean);
 
    --  Get a raised signal for a process.
    --  Getting a signal will mask it.
@@ -706,7 +716,6 @@ package Userland.Process is
    --  @param Handler  Address of the handler, Null_Address if not registered.
    --  @param Restorer Address of the restorer.
    --  @param No_Sig   The process has no more signals to process.
-   --  @param Ignore   If Addr = null, this signal can be ignored, else, kill.
    --  @param Altstack If true, handle this signal in an altstack.
    --  @param Old_Mask Masked signals after maskng the raised one.
    procedure Get_Raised_Signal_Actions
@@ -715,7 +724,6 @@ package Userland.Process is
        Handler  : out System.Address;
        Restorer : out System.Address;
        No_Sig   : out Boolean;
-       Ignore   : out Boolean;
        Altstack : out Boolean;
        Old_Mask : out Signal_Bitmap);
 
@@ -792,6 +800,7 @@ private
    end record;
 
    type Signal_Handlers is record
+      Is_Ignored    : Boolean;
       Handler_Addr  : System.Address;
       Restorer_Addr : System.Address;
       Is_Altstack   : Boolean;
@@ -848,6 +857,9 @@ private
    type Process_Data_Acc is access Process_Data;
    type Process_Arr     is array (PID range 1 .. PID'Last) of Process_Data_Acc;
    type Process_Arr_Acc  is access Process_Arr;
+
+   Default_Signal_Handlers : constant Handle_Arr :=
+      [others => (False, System.Null_Address, System.Null_Address, False)];
 
    Registry       : Process_Arr_Acc := null;
    Registry_Mutex : aliased Synchronization.Mutex :=
