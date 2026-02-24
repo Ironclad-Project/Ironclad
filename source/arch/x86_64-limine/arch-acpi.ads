@@ -742,6 +742,14 @@ private
 
    procedure Kernel_Log (Level : int; Str_Addr : System.Address)
       with Export, Convention => C, External_Name => "uacpi_kernel_log";
+
+   function Disable_Interrupts return Unsigned_64
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_disable_interrupts";
+
+   procedure Restore_Interrupts (State : Unsigned_64)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_restore_interrupts";
    -------------------------------------------------------------------------
    --  Provided API.
    function Initialize (Flags : Unsigned_64) return Status

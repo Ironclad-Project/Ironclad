@@ -169,9 +169,9 @@ package body Devices.PCI with SPARK_Mode => Off is
    procedure Search_Device
       (Vendor_ID : Unsigned_16;
        Device_ID : Unsigned_16;
-       Idx          : Natural;
-       Result       : out PCI_Device;
-       Success      : out Boolean)
+       Idx       : Natural;
+       Result    : out PCI_Device;
+       Success   : out Boolean)
    is
       FIdx :                Natural := 0;
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
@@ -232,24 +232,7 @@ package body Devices.PCI with SPARK_Mode => Off is
          Temp := Temp.Next;
       end loop;
 
-      --  Sometimes when addressing devices by their position, AML, and other
-      --  similar things, will request devices that do not exist, and check
-      --  fields themselves to confirm validity. In those cases, we will
-      --  return a "fake" device and let them figure it out.
-      Result :=
-         (Bus          => Bus,
-          Func         => Slot,
-          Slot         => Func,
-          Device_ID    => 0,
-          Vendor_ID    => 0,
-          Revision_ID  => 0,
-          Subclass     => 0,
-          Device_Class => 0,
-          Prog_If      => 0,
-          MSI_Support  => False,
-          MSIX_Support => False,
-          MSI_Offset   => 0,
-          MSIX_Offset  => 0);
+      Success := False;
    exception
       when Constraint_Error =>
          Success := False;

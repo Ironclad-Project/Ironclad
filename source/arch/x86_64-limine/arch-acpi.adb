@@ -746,4 +746,20 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Messages.Put_Line (Str);
    end Kernel_Log;
+
+   function Disable_Interrupts return Unsigned_64 is
+      Is_Enabled : constant Boolean := Arch.Snippets.Interrupts_Enabled;
+   begin
+      Arch.Snippets.Disable_Interrupts;
+      return (if Is_Enabled then 1 else 0);
+   end Disable_Interrupts;
+
+   procedure Restore_Interrupts (State : Unsigned_64) is
+   begin
+      if State = 1 then
+         Arch.Snippets.Enable_Interrupts;
+      else
+         Arch.Snippets.Disable_Interrupts;
+      end if;
+   end Restore_Interrupts;
 end Arch.ACPI;
