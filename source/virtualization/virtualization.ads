@@ -15,14 +15,14 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with System;
 
 package Virtualization with SPARK_Mode => Off is
-   --  This module implements a KVM compatible interface, KVM's specification
-   --  can be found at https://docs.kernel.org/virt/kvm/api.html
+   --  This module implements a NVMM compatible interface, NVMM's spec
+   --  can be found at the kernel's docs, or
+   --  https://www.dragonflybsd.org/docs/docs/howtos/nvmm/
 
-   --  KVM version that this module implements, we implement version 2, which
-   --  means we provide VCPU-stop.
+   --  NVMM version that this module implements. The meaning of these version
+   --  numbers is provided at ... TODO: Add link.
    NVMM_Version : constant := 2;
 
    --  Capabilities of this implementation.
@@ -41,12 +41,9 @@ package Virtualization with SPARK_Mode => Off is
    --  Returns True if virtualization is supported.
    function Is_Supported return Boolean;
 
+   --  Initialize virtualization if available, otherwise return silently.
    procedure Initialize;
-
    ----------------------------------------------------------------------------
-   --  Machine management
-   ----------------------------------------------------------------------------
-
    --  Create a new virtual machine.
    --  @return Machine ID on success, Invalid_Machine on failure.
    function Machine_Create return Machine_ID;
@@ -55,11 +52,7 @@ package Virtualization with SPARK_Mode => Off is
    --  @param ID  The machine ID to destroy.
    --  @return True on success, False if ID is invalid.
    function Machine_Destroy (ID : Machine_ID) return Boolean;
-
    ----------------------------------------------------------------------------
-   --  VCPU management
-   ----------------------------------------------------------------------------
-
    --  Create a new VCPU for a machine.
    --  @param Mach  The machine ID.
    --  @param CPU   The VCPU ID to create.
@@ -82,18 +75,12 @@ package Virtualization with SPARK_Mode => Off is
        CPU       : VCPU_ID;
        Exit_Code : out Unsigned_64) return Boolean;
 
-   --  Get VCPU state flags (must match nvmm_x86.h NVMM_X64_STATE_* values)
-   VCPU_STATE_SEGS   : constant := 16#0001#;  --  Segment registers
-   VCPU_STATE_GPRS   : constant := 16#0002#;  --  General purpose registers
-   VCPU_STATE_CRS    : constant := 16#0004#;  --  Control registers
-   VCPU_STATE_DRS    : constant := 16#0008#;  --  Debug registers
-   VCPU_STATE_MSRS   : constant := 16#0010#;  --  MSRs
-   VCPU_STATE_INTR   : constant := 16#0020#;  --  Interrupt state
-   VCPU_STATE_FPU    : constant := 16#0040#;  --  FPU state
-   VCPU_STATE_ALL    : constant := 16#007F#;
-
    --  GPR array type for userland transfer (18 64-bit registers)
-   type NVMM_GPR_Array is array (0 .. 17) of Unsigned_64;
+   --  This is user ABI, dont change structure!
+   type NVMM_GPR_Array is record
+      RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9 : Unsigned_64;
+      R10, R11, R12, R13, R14, R15, RIP, RFLAGS : Unsigned_64;
+   end record;
 
    --  Segment register structure (matches nvmm_x64_state_seg, 16 bytes)
    type NVMM_Segment is record
@@ -110,23 +97,32 @@ package Virtualization with SPARK_Mode => Off is
    end record;
    for NVMM_Segment'Size use 128;
 
-   --  Segment array (10 segments: ES,CS,SS,DS,FS,GS,GDT,IDT,LDT,TR)
-   type NVMM_Seg_Array is array (0 .. 9) of NVMM_Segment;
+   --  Segment array, this is user ABI.
+   type NVMM_Seg_Array is record
+      ES, CS, SS, DS, FS, GS, GDT, IDT, LDT, TR : NVMM_Segment;
+   end record;
 
-   --  Control register array (6 CRs to match libnvmm)
-   type NVMM_CR_Array is array (0 .. 5) of Unsigned_64;
+   --  Control register array, this is user ABI.
+   type NVMM_CR_Array is record
+      CR0, CR2, CR3, CR4 : Unsigned_64;
+      Placeholder1, Placeholder2 : Unsigned_64;
+   end record;
 
-   --  MSR array (11 MSRs)
-   type NVMM_MSR_Array is array (0 .. 10) of Unsigned_64;
+   --  MSR array, this is user ABI.
+   type NVMM_MSR_Array is record
+      EFER, STAR, LSTAR, CSTAR, SFMASK, KERNELGSBASE : Unsigned_64;
+      SYSENTER_CS, SYSENTER_ESP, SYSENTER_EIP, PAT : Unsigned_64;
+   end record;
 
-   --  DR array (6 debug registers to match libnvmm)
-   type NVMM_DR_Array is array (0 .. 5) of Unsigned_64;
+   --  Debug Register array, this is user ABI.
+   type NVMM_DR_Array is record
+      DR0, DR1, DR2, DR3, DR6, DR7 : Unsigned_64;
+   end record;
 
    --  FPU state type for userland transfer (512 bytes, fxsave format)
-   type NVMM_FPU_State is array (0 .. 511) of Unsigned_8
-      with Alignment => 16;
+   type NVMM_FPU_State is array (0 .. 511) of Unsigned_8 with Alignment => 16;
 
-   --  Event types for injection (matches nvmm_x86.h)
+   --  Event types for injection (is user ABI).
    NVMM_EVENT_INTERRUPT_HW : constant := 0;  --  Hardware interrupt
    NVMM_EVENT_INTERRUPT_SW : constant := 1;  --  Software interrupt (INT n)
    NVMM_EVENT_EXCEPTION    : constant := 2;  --  Exception
@@ -139,26 +135,6 @@ package Virtualization with SPARK_Mode => Off is
       Has_Error  : Boolean;      --  True if error code is valid
       Error_Code : Unsigned_64;  --  Error code (for exceptions)
    end record;
-
-   --  GPR indices
-   NVMM_X64_GPR_RAX : constant := 0;
-   NVMM_X64_GPR_RCX : constant := 1;
-   NVMM_X64_GPR_RDX : constant := 2;
-   NVMM_X64_GPR_RBX : constant := 3;
-   NVMM_X64_GPR_RSP : constant := 4;
-   NVMM_X64_GPR_RBP : constant := 5;
-   NVMM_X64_GPR_RSI : constant := 6;
-   NVMM_X64_GPR_RDI : constant := 7;
-   NVMM_X64_GPR_R8  : constant := 8;
-   NVMM_X64_GPR_R9  : constant := 9;
-   NVMM_X64_GPR_R10 : constant := 10;
-   NVMM_X64_GPR_R11 : constant := 11;
-   NVMM_X64_GPR_R12 : constant := 12;
-   NVMM_X64_GPR_R13 : constant := 13;
-   NVMM_X64_GPR_R14 : constant := 14;
-   NVMM_X64_GPR_R15 : constant := 15;
-   NVMM_X64_GPR_RIP : constant := 16;
-   NVMM_X64_GPR_RFLAGS : constant := 17;
 
    --  Get VCPU GPRs to kernel buffer (safe for userland transfer)
    function VCPU_Get_GPRs
@@ -227,43 +203,7 @@ package Virtualization with SPARK_Mode => Off is
        CPU   : VCPU_ID;
        Event : NVMM_Event_Info) return Boolean;
 
-   --  Set VCPU state from userspace buffer.
-   --  @param Mach   The machine ID.
-   --  @param CPU    The VCPU ID.
-   --  @param Flags  Which state to set.
-   --  @param Addr   Address of state buffer.
-   --  @return True on success.
-   function VCPU_Set_State
-      (Mach  : Machine_ID;
-       CPU   : VCPU_ID;
-       Flags : Unsigned_64;
-       Addr  : System.Address) return Boolean;
-
-   --  Get VCPU state to userspace buffer.
-   --  @param Mach   The machine ID.
-   --  @param CPU    The VCPU ID.
-   --  @param Flags  Which state to get.
-   --  @param Addr   Address of state buffer.
-   --  @return True on success.
-   function VCPU_Get_State
-      (Mach  : Machine_ID;
-       CPU   : VCPU_ID;
-       Flags : Unsigned_64;
-       Addr  : System.Address) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  Memory management
-   ----------------------------------------------------------------------------
-
-   --  Protection flags for GPA mapping
-   GPA_PROT_READ  : constant := 16#01#;
-   GPA_PROT_WRITE : constant := 16#02#;
-   GPA_PROT_EXEC  : constant := 16#04#;
-   GPA_PROT_USER  : constant := 16#08#;
-
-   ----------------------------------------------------------------------------
    --  NVMM Exit Codes (translated from hardware-specific codes)
-   ----------------------------------------------------------------------------
    NVMM_EXIT_NONE       : constant := 16#0000_0000_0000_0000#;
    NVMM_EXIT_STOPPED    : constant := 16#FFFF_FFFF_FFFF_FFFE#;
    NVMM_EXIT_INVALID    : constant := 16#FFFF_FFFF_FFFF_FFFF#;
@@ -279,9 +219,7 @@ package Virtualization with SPARK_Mode => Off is
    NVMM_EXIT_MWAIT      : constant := 16#0000_0000_0000_2003#;
    NVMM_EXIT_CPUID      : constant := 16#0000_0000_0000_2004#;
 
-   ----------------------------------------------------------------------------
    --  Exit information structure (matches userspace nvmm_x86_exit)
-   ----------------------------------------------------------------------------
    type Exit_IO_Info is record
       Is_In        : Boolean;
       Port         : Unsigned_16;
@@ -305,16 +243,14 @@ package Virtualization with SPARK_Mode => Off is
    end record;
 
    --  Instruction bytes array for memory exit (must match C uint8_t[15])
-   type Inst_Bytes_Array is array (0 .. 14) of Unsigned_8
-      with Pack;
+   type Inst_Bytes_Array is array (0 .. 14) of Unsigned_8 with Pack;
 
    type Exit_Memory_Info is record
       Prot       : Integer;
       GPA        : Unsigned_64;
       Inst_Len   : Unsigned_8;
       Inst_Bytes : Inst_Bytes_Array;  --  15 bytes of instruction data
-   end record
-      with Pack;
+   end record with Pack;
 
    type Exit_Insn_Info is record
       Next_RIP : Unsigned_64;
@@ -333,25 +269,17 @@ package Virtualization with SPARK_Mode => Off is
       Evt_Pending      : Boolean;
    end record;
 
-   --  Exit union - all variants overlap in memory like C union
-   --  The largest variant is Exit_Memory_Info at about 32 bytes
+   --  Exit C-style union.
    type Exit_Union (Variant : Unsigned_64 := 0) is record
       case Variant is
-         when NVMM_EXIT_MEMORY =>
-            Memory : Exit_Memory_Info;
-         when NVMM_EXIT_IO =>
-            IO : Exit_IO_Info;
-         when NVMM_EXIT_RDMSR =>
-            MSR_Read : Exit_MSR_Read_Info;
-         when NVMM_EXIT_WRMSR =>
-            MSR_Write : Exit_MSR_Write_Info;
-         when NVMM_EXIT_INVALID =>
-            Invalid : Exit_Invalid_Info;
-         when others =>
-            Insn : Exit_Insn_Info;
+         when NVMM_EXIT_MEMORY =>  Memory    : Exit_Memory_Info;
+         when NVMM_EXIT_IO =>      IO        : Exit_IO_Info;
+         when NVMM_EXIT_RDMSR =>   MSR_Read  : Exit_MSR_Read_Info;
+         when NVMM_EXIT_WRMSR =>   MSR_Write : Exit_MSR_Write_Info;
+         when NVMM_EXIT_INVALID => Invalid   : Exit_Invalid_Info;
+         when others =>            Insn      : Exit_Insn_Info;
       end case;
-   end record
-      with Unchecked_Union, Size => 32 * 8;  --  32 bytes to match C union
+   end record with Unchecked_Union, Size => 32 * 8;
 
    type VCPU_Exit_Info is record
       Reason     : Unsigned_64;
@@ -370,6 +298,22 @@ package Virtualization with SPARK_Mode => Off is
        CPU       : VCPU_ID;
        Exit_Info : in out VCPU_Exit_Info) return Boolean;
 
+   --  Request a running VCPU to stop.
+   --  @param Mach  The machine ID.
+   --  @param CPU   The VCPU ID.
+   --  @return True on success.
+   function VCPU_Stop
+      (Mach : Machine_ID;
+       CPU  : VCPU_ID) return Boolean;
+   ----------------------------------------------------------------------------
+   --  Protection flags for GPA mapping
+   type GPA_Flags is record
+      Can_Read : Boolean;
+      Can_Write : Boolean;
+      Can_Exec : Boolean;
+      Is_User_Accessible : Boolean;
+   end record;
+
    --  Map a host virtual address to a guest physical address.
    --  @param Mach  The machine ID.
    --  @param CPU   The VCPU ID (for NPT access).
@@ -384,7 +328,7 @@ package Virtualization with SPARK_Mode => Off is
        HVA  : Unsigned_64;
        GPA  : Unsigned_64;
        Size : Unsigned_64;
-       Prot : Unsigned_64) return Boolean;
+       Prot : GPA_Flags) return Boolean;
 
    --  Map a guest physical address range for ALL active VCPUs.
    --  This should be used when mapping memory shared by multiple VCPUs.
@@ -399,7 +343,7 @@ package Virtualization with SPARK_Mode => Off is
        HVA  : Unsigned_64;
        GPA  : Unsigned_64;
        Size : Unsigned_64;
-       Prot : Unsigned_64) return Boolean;
+       Prot : GPA_Flags) return Boolean;
 
    --  Unmap a guest physical address range.
    --  @param Mach  The machine ID.
@@ -418,10 +362,6 @@ package Virtualization with SPARK_Mode => Off is
       (Mach : Machine_ID;
        GPA  : Unsigned_64;
        Size : Unsigned_64) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  Address translation
-   ----------------------------------------------------------------------------
 
    --  Translate guest physical address to host virtual address.
    --  @param Mach  The machine ID.
@@ -447,145 +387,6 @@ package Virtualization with SPARK_Mode => Off is
        CPU  : VCPU_ID;
        GVA  : Unsigned_64;
        GPA  : out Unsigned_64) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  VCPU control
-   ----------------------------------------------------------------------------
-
-   --  Request a running VCPU to stop.
-   --  @param Mach  The machine ID.
-   --  @param CPU   The VCPU ID.
-   --  @return True on success.
-   function VCPU_Stop
-      (Mach : Machine_ID;
-       CPU  : VCPU_ID) return Boolean;
-
-   --  VCPU mode values for VCPU_Set_Mode
-   VCPU_MODE_32BIT : constant := 0;  --  32-bit protected mode
-   VCPU_MODE_64BIT : constant := 1;  --  64-bit long mode
-   VCPU_MODE_REAL  : constant := 2;  --  16-bit real mode
-   VCPU_MODE_VM86  : constant := 3;  --  Virtual 8086 mode
-
-   --  Set VCPU execution mode.
-   --  @param Mach  The machine ID.
-   --  @param CPU   The VCPU ID.
-   --  @param Mode  VCPU_MODE_32BIT, VCPU_MODE_64BIT, VCPU_MODE_REAL, or
-   --               VCPU_MODE_VM86.
-   --  @return True on success.
-   function VCPU_Set_Mode
-      (Mach : Machine_ID;
-       CPU  : VCPU_ID;
-       Mode : Unsigned_32) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  I/O port passthrough control
-   ----------------------------------------------------------------------------
-
-   --  Set I/O port interception.
-   --  @param Mach       The machine ID.
-   --  @param CPU        The VCPU ID.
-   --  @param Port       The I/O port number (0-65535).
-   --  @param Intercept  True to intercept (VMEXIT), False for passthrough.
-   --  @return True on success.
-   function Set_IO_Port_Intercept
-      (Mach      : Machine_ID;
-       CPU       : VCPU_ID;
-       Port      : Unsigned_16;
-       Intercept : Boolean) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  MSR passthrough control
-   ----------------------------------------------------------------------------
-
-   --  Set MSR interception.
-   --  @param Mach       The machine ID.
-   --  @param CPU        The VCPU ID.
-   --  @param MSR_Num    The MSR number.
-   --  @param Intercept  True to intercept (VMEXIT), False for passthrough.
-   --  @param Is_Write   Whether to do read or white interception.
-   --  @return True on success.
-   function Set_MSR_Intercept
-      (Mach      : Machine_ID;
-       CPU       : VCPU_ID;
-       MSR_Num   : Unsigned_32;
-       Intercept : Boolean;
-       Is_Write  : Boolean) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  TLB flush control
-   ----------------------------------------------------------------------------
-
-   --  TLB control values
-   TLB_CONTROL_DO_NOTHING    : constant := 0;  --  No TLB flush
-   TLB_CONTROL_FLUSH_ALL     : constant := 1;  --  Flush all TLB entries
-   TLB_CONTROL_FLUSH_GUEST   : constant := 3;  --  Flush guest TLB entries
-   TLB_CONTROL_FLUSH_NONGLOBAL : constant := 7;  --  Flush non-global entries
-
-   --  Set TLB control for next VCPU run.
-   --  @param Mach     The machine ID.
-   --  @param CPU      The VCPU ID.
-   --  @param Control  TLB_CONTROL_* value.
-   --  @return True on success.
-   function Set_TLB_Control
-      (Mach    : Machine_ID;
-       CPU     : VCPU_ID;
-       Control : Unsigned_32) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  TSC offsetting
-   ----------------------------------------------------------------------------
-
-   --  Set TSC offset for a VCPU.
-   --  @param Mach    The machine ID.
-   --  @param CPU     The VCPU ID.
-   --  @param Offset  The TSC offset value (signed).
-   --  @return True on success.
-   function Set_TSC_Offset
-      (Mach   : Machine_ID;
-       CPU    : VCPU_ID;
-       Offset : Unsigned_64) return Boolean;
-
-   --  Get TSC offset for a VCPU.
-   --  @param Mach    The machine ID.
-   --  @param CPU     The VCPU ID.
-   --  @param Offset  Output: The current TSC offset value.
-   --  @return True on success.
-   function Get_TSC_Offset
-      (Mach   : Machine_ID;
-       CPU    : VCPU_ID;
-       Offset : out Unsigned_64) return Boolean;
-
-   ----------------------------------------------------------------------------
-   --  Large page NPT mapping (1GB pages)
-   ----------------------------------------------------------------------------
-
-   --  Map a 1GB region using a single NPT entry.
-   --  @param Mach  The machine ID.
-   --  @param CPU   The VCPU ID.
-   --  @param HVA   Host virtual address (must be 1GB aligned).
-   --  @param GPA   Guest physical address (must be 1GB aligned).
-   --  @param Prot  Protection flags (GPA_PROT_*).
-   --  @return True on success.
-   function GPA_Map_1GB
-      (Mach : Machine_ID;
-       CPU  : VCPU_ID;
-       HVA  : Unsigned_64;
-       GPA  : Unsigned_64;
-       Prot : Unsigned_64) return Boolean;
-
-   --  Map a 2MB region using a single NPT entry.
-   --  @param Mach  The machine ID.
-   --  @param CPU   The VCPU ID.
-   --  @param HVA   Host virtual address (must be 2MB aligned).
-   --  @param GPA   Guest physical address (must be 2MB aligned).
-   --  @param Prot  Protection flags (GPA_PROT_*).
-   --  @return True on success.
-   function GPA_Map_2MB
-      (Mach : Machine_ID;
-       CPU  : VCPU_ID;
-       HVA  : Unsigned_64;
-       GPA  : Unsigned_64;
-       Prot : Unsigned_64) return Boolean;
 
 private
 

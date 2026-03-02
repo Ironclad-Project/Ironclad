@@ -1419,6 +1419,15 @@ package Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value);
 
+   --  State options to get.
+   VCPU_STATE_SEGS : constant := 16#0001#;  --  Segment registers
+   VCPU_STATE_GPRS : constant := 16#0002#;  --  General purpose registers
+   VCPU_STATE_CRS  : constant := 16#0004#;  --  Control registers
+   VCPU_STATE_DRS  : constant := 16#0008#;  --  Debug registers
+   VCPU_STATE_MSRS : constant := 16#0010#;  --  MSRs
+   VCPU_STATE_INTR : constant := 16#0020#;  --  Interrupt state
+   VCPU_STATE_FPU  : constant := 16#0040#;  --  FPU state
+   VCPU_STATE_ALL  : constant := 16#007F#;
    procedure NVMM_VCPU_GetState
       (Machine_ID : Unsigned_64;
        CPU_ID     : Unsigned_64;
@@ -1440,6 +1449,10 @@ package Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value);
 
+   GPA_PROT_READ  : constant := 16#01#;
+   GPA_PROT_WRITE : constant := 16#02#;
+   GPA_PROT_EXEC  : constant := 16#04#;
+   GPA_PROT_USER  : constant := 16#08#;
    procedure NVMM_GPA_Map
       (Machine_ID : Unsigned_64;
        HVA        : Unsigned_64;

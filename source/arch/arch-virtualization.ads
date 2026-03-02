@@ -14,17 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-
 package Arch.Virtualization is
-   --  Checks whether virtualization in any form is supported.
-   procedure Initialize (Success : out Boolean);
-
-   --  List of MSRs indexes supported by the virtualization.
-   type MSR_List is array (Natural range <>) of Unsigned_32;
-
-   --  List all MSRs supported by the virtualized architecture.
-   --  @param List  List to write the MSRs to.
-   --  @param Count Count of MSRs supported, might be bigger than List.
-   procedure Get_MSR_List (List : out MSR_List; Count : out Natural);
+   --  Placeholder.
 end Arch.Virtualization;

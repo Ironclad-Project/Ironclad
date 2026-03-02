@@ -7698,9 +7698,7 @@ package body Userland.Syscall is
       if Machine_ID > Unsigned_64 (Virtualization.Max_Virtual_Machines) or
          CPU_ID > Unsigned_64 (Virtualization.Max_CPUs_Per_VM - 1)
       then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
+         goto Invalid_Value_Error;
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
       VCPU    := Virtualization.VCPU_ID (CPU_ID);
@@ -7716,24 +7714,94 @@ package body Userland.Syscall is
             GPRs : Virtualization.NVMM_GPR_Array;
          begin
             if not Virtualization.VCPU_Get_GPRs (Mach_ID, VCPU, GPRs) then
-               Errno    := Error_Invalid_Value;
-               Returned := Unsigned_64'Last;
-               return;
+               goto Invalid_Value_Error;
             end if;
 
             GPR_Trans.Paste_Into_Userland
                (Map, GPRs,
                 To_Address (Integer_Address (State_Addr) + GPRs_Offset), Succ);
             if not Succ then
-               Errno    := Error_Would_Fault;
-               Returned := Unsigned_64'Last;
-               return;
+               goto Would_Fault_Error;
+            end if;
+         end;
+      end if;
+
+      --  Handle segments
+      if (Operation and Virtualization.VCPU_STATE_SEGS) /= 0 then
+         declare
+            --  Segments at offset 0 in state struct (10 segs * 16 bytes)
+            GPRs_Offset : constant := 0;
+            package Seg_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_Seg_Array);
+            Segs : Virtualization.NVMM_Seg_Array;
+         begin
+            if not Virtualization.VCPU_Get_Segs (Mach_ID, VCPU, Segs) then
+               goto Invalid_Value_Error;
+            end if;
+
+            Seg_Trans.Paste_Into_Userland
+               (Map, Segs,
+                To_Address (Integer_Address (State_Addr) + GPRs_Offset), Succ);
+            if not Succ then
+               goto Would_Fault_Error;
+            end if;
+         end;
+      end if;
+
+      --  Handle CRs (offset = 160 segs + 144 GPRs = 304)
+      if (Operation and Virtualization.VCPU_STATE_CRS) /= 0 then
+         declare
+            CRs_Offset : constant := 304;
+            package CR_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_CR_Array);
+            CRs : Virtualization.NVMM_CR_Array;
+         begin
+            if not Virtualization.VCPU_Get_CRs (Mach_ID, VCPU, CRs) then
+               goto Invalid_Value_Error;
+            end if;
+
+            CR_Trans.Paste_Into_Userland
+               (Map, CRs,
+                To_Address (Integer_Address (State_Addr) + CRs_Offset), Succ);
+            if not Succ then
+               goto Would_Fault_Error;
+            end if;
+         end;
+      end if;
+
+      --  Handle MSRs (offset = 304 + 48 CRs + 48 DRs = 400)
+      if (Operation and Virtualization.VCPU_STATE_MSRS) /= 0 then
+         declare
+            MSRs_Offset : constant := 400;
+            package MSR_Trans is new Memory.Userland_Transfer
+               (Virtualization.NVMM_MSR_Array);
+            MSRs : Virtualization.NVMM_MSR_Array;
+         begin
+            if not Virtualization.VCPU_Get_MSRs (Mach_ID, VCPU, MSRs) then
+               goto Invalid_Value_Error;
+            end if;
+
+            MSR_Trans.Paste_Into_Userland
+               (Map, MSRs,
+                To_Address (Integer_Address (State_Addr) + MSRs_Offset), Succ);
+            if not Succ then
+               goto Would_Fault_Error;
             end if;
          end;
       end if;
 
       Errno    := Error_No_Error;
       Returned := 0;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing NVMM_VCPU_GetState");
@@ -7943,6 +8011,7 @@ package body Userland.Syscall is
       Is_Writeable  : Boolean;
       Is_Executable : Boolean;
       Kernel_HVA    : Unsigned_64;
+      Trans_Prot    : Virtualization.GPA_Flags;
    begin
       if not Virtualization.Is_Supported then
          Errno    := Error_Not_Supported;
@@ -7991,9 +8060,15 @@ package body Userland.Syscall is
             Kernel_HVA := Unsigned_64 (To_Integer (Physical_Addr)) +
                           Unsigned_64 (Arch.MMU.Memory_Offset);
 
+            Trans_Prot :=
+               (Can_Read => (Prot and GPA_PROT_READ) /= 0,
+                Can_Write => (Prot and GPA_PROT_WRITE) /= 0,
+                Can_Exec => (Prot and GPA_PROT_EXEC) /= 0,
+                Is_User_Accessible => (Prot and GPA_PROT_USER) /= 0);
+
             --  Map this single page for all active VCPUs
             if not Virtualization.GPA_Map_All
-               (Mach_ID, Kernel_HVA, Cur_GPA, 16#1000#, Prot)
+               (Mach_ID, Kernel_HVA, Cur_GPA, 16#1000#, Trans_Prot)
             then
                All_Ok := False;
             end if;
