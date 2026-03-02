@@ -1437,10 +1437,11 @@ package Userland.Syscall is
        Errno      : out Errno_Value);
 
    procedure NVMM_VCPU_Inject
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+      (Machine    : Unsigned_64;
+       CPU_ID     : Unsigned_64;
+       Event_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure NVMM_VCPU_Run
       (Machine_ID : Unsigned_64;
@@ -1470,20 +1471,6 @@ package Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value);
 
-   procedure NVMM_HVA_Map
-      (Machine  : Unsigned_64;
-       HVA      : Unsigned_64;
-       Size     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
-   procedure NVMM_HVA_Unmap
-      (Machine  : Unsigned_64;
-       HVA      : Unsigned_64;
-       Size     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
    procedure NVMM_GVA_2_GPA
       (Machine   : Unsigned_64;
        CPU_ID    : Unsigned_64;
@@ -1500,26 +1487,6 @@ package Userland.Syscall is
        Prot_Addr : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
-
-   procedure NVMM_Assist_IO
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Port     : Unsigned_64;
-       Is_In    : Unsigned_64;
-       Addr     : Unsigned_64;
-       Length   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
-   procedure NVMM_Assist_Mem
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Desto    : Unsigned_64;
-       Is_Write : Unsigned_64;
-       Addr     : Unsigned_64;
-       Length   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
 
    procedure NVMM_VCPU_Dump
       (Machine  : Unsigned_64;

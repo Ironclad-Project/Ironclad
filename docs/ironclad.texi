@@ -222,12 +222,8 @@ Syscalls
 * nvmm_vcpu_run::           Issue a VCPU for running.
 * nvmm_gpa_map::            Map a GPA.
 * nvmm_gpa_unmap::          Unmap a GPA.
-* nvmm_hva_map::            Map a HVA.
-* nvmm_hva_unmap::          Unmap a HVA.
 * nvmm_gva_2_gpa::          Map a GVA to a GPA.
 * nvmm_gpa_2_hva::          Map a GPA to a HVA.
-* nvmm_assist_io::          Assist NVMM machines at IO operations.
-* nvmm_assist_mem::         Assist NVMM machines at memory operations.
 * nvmm_vcpu_dump::          Dump VCPU state.
 * nvmm_vcpu_stop::          Stop a VCPU.
 * pci_read/pci_write::      PCI device read/write.
@@ -1230,17 +1226,17 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{nvmm_gpa_unmap}
 @item
-@ref{nvmm_hva_map}
+Empty.
 @item
-@ref{nvmm_hva_unmap}
+Empty.
 @item
 @ref{nvmm_gva_2_gpa}
 @item
 @ref{nvmm_gpa_2_hva}
 @item
-@ref{nvmm_assist_io}
+Empty.
 @item
-@ref{nvmm_assist_mem}
+Empty.
 @item
 @ref{nvmm_vcpu_dump}
 @item
@@ -4998,26 +4994,6 @@ int nvmm_gpa_unmap(int machine_id, uint64_t hva_addr, uint64_t gpa_addr, size_t 
 This syscall executes the VCPU and blocks until execution is stopped, returns
 @code{0} on success, or @code{-1} on failure.
 
-@node nvmm_hva_map
-@section nvmm_hva_map
-
-@example c
-int nvmm_hva_map(int machine_id, uint64_t hva_addr, size_t size, int prot);
-@end example
-
-This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure.
-
-@node nvmm_hva_unmap
-@section nvmm_hva_unmap
-
-@example c
-int nvmm_hva_unmap(int machine_id, uint64_t hva_addr, size_t size);
-@end example
-
-This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure.
-
 @node nvmm_gva_2_gpa
 @section nvmm_gva_2_gpa
 
@@ -5037,27 +5013,6 @@ int nvmm_gpa_to_hva(int machine_id, uint64_t gpa_addr, uint64_t *hva_addr, int *
 
 This syscall executes the VCPU and blocks until execution is stopped, returns
 @code{0} on success, or @code{-1} on failure.
-
-@node nvmm_assist_io
-@section nvmm_assist_io
-
-@example c
-int nvmm_assist_io(int machine_id, int cpu, uint16_t port, int in, void *data, size_t size);
-@end example
-
-This syscall forwards an IO operation to the CPU, which is featured in some
-architectures like x86. It returns @code{0} on success, or @code{-1} on
-failure.
-
-@node nvmm_assist_mem
-@section nvmm_assist_mem
-
-@example c
-int nvmm_assist_mem(int machine_id, int cpu, void *gpa, int write, void *data, size_t size);
-@end example
-
-This syscall does the same as @code{nvmm_assist_io} but with MMIO space instead
-of IO space. It features the same error codes and returns.
 
 @node nvmm_vcpu_dump
 @section nvmm_vcpu_dump

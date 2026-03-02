@@ -7577,7 +7577,7 @@ package body Userland.Syscall is
 
       --  Handle GPRs using proper userland transfer
       Get_Common_Map (Proc, Map);
-      if (Operation and Virtualization.VCPU_STATE_GPRS) /= 0 then
+      if (Operation and VCPU_STATE_GPRS) /= 0 then
          declare
             --  GPRs offset in userspace struct = 10 segs * 16 bytes = 160
             GPRs_Offset : constant := 160;
@@ -7598,7 +7598,7 @@ package body Userland.Syscall is
       end if;
 
       --  Handle segments
-      if (Operation and Virtualization.VCPU_STATE_SEGS) /= 0 then
+      if (Operation and VCPU_STATE_SEGS) /= 0 then
          declare
             --  Segments at offset 0 in state struct (10 segs * 16 bytes)
             package Seg_Trans is new Memory.Userland_Transfer
@@ -7617,7 +7617,7 @@ package body Userland.Syscall is
       end if;
 
       --  Handle CRs (offset = 160 segs + 144 GPRs = 304)
-      if (Operation and Virtualization.VCPU_STATE_CRS) /= 0 then
+      if (Operation and VCPU_STATE_CRS) /= 0 then
          declare
             CRs_Offset : constant := 304;
             package CR_Trans is new Memory.Userland_Transfer
@@ -7637,7 +7637,7 @@ package body Userland.Syscall is
       end if;
 
       --  Handle MSRs (offset = 304 + 48 CRs + 48 DRs = 400)
-      if (Operation and Virtualization.VCPU_STATE_MSRS) /= 0 then
+      if (Operation and VCPU_STATE_MSRS) /= 0 then
          declare
             MSRs_Offset : constant := 400;
             package MSR_Trans is new Memory.Userland_Transfer
@@ -7705,7 +7705,7 @@ package body Userland.Syscall is
 
       --  Handle GPRs using proper userland transfer
       Get_Common_Map (Proc, Map);
-      if (Operation and Virtualization.VCPU_STATE_GPRS) /= 0 then
+      if (Operation and VCPU_STATE_GPRS) /= 0 then
          declare
             --  GPRs offset in userspace struct = 10 segs * 16 bytes = 160
             GPRs_Offset : constant := 160;
@@ -7727,7 +7727,7 @@ package body Userland.Syscall is
       end if;
 
       --  Handle segments
-      if (Operation and Virtualization.VCPU_STATE_SEGS) /= 0 then
+      if (Operation and VCPU_STATE_SEGS) /= 0 then
          declare
             --  Segments at offset 0 in state struct (10 segs * 16 bytes)
             GPRs_Offset : constant := 0;
@@ -7749,7 +7749,7 @@ package body Userland.Syscall is
       end if;
 
       --  Handle CRs (offset = 160 segs + 144 GPRs = 304)
-      if (Operation and Virtualization.VCPU_STATE_CRS) /= 0 then
+      if (Operation and VCPU_STATE_CRS) /= 0 then
          declare
             CRs_Offset : constant := 304;
             package CR_Trans is new Memory.Userland_Transfer
@@ -7770,7 +7770,7 @@ package body Userland.Syscall is
       end if;
 
       --  Handle MSRs (offset = 304 + 48 CRs + 48 DRs = 400)
-      if (Operation and Virtualization.VCPU_STATE_MSRS) /= 0 then
+      if (Operation and VCPU_STATE_MSRS) /= 0 then
          declare
             MSRs_Offset : constant := 400;
             package MSR_Trans is new Memory.Userland_Transfer
@@ -7810,15 +7810,60 @@ package body Userland.Syscall is
    end NVMM_VCPU_GetState;
 
    procedure NVMM_VCPU_Inject
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Machine    : Unsigned_64;
+       CPU_ID     : Unsigned_64;
+       Event_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value)
    is
-      pragma Unreferenced (Machine, CPU_ID);
+      package Event_Trans is new Memory.Userland_Transfer
+         (Virtualization.NVMM_Event_Info);
+
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      SAddr     : constant System.Address :=
+         To_Address (Integer_Address (Event_Addr));
+      Map       : Page_Table_Acc;
+      Succ      : Boolean;
+      Mach_ID   : Virtualization.Machine_ID;
+      VCPU_Num  : Virtualization.VCPU_ID;
+      Event     : Virtualization.NVMM_Event_Info;
    begin
-      Errno    := Error_No_Error;
-      Returned := 0;
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Machine > Unsigned_64 (Virtualization.Max_Virtual_Machines) or
+         CPU_ID > Unsigned_64 (Virtualization.Max_CPUs_Per_VM - 1)
+      then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+      Mach_ID  := Virtualization.Machine_ID (Machine);
+      VCPU_Num := Virtualization.VCPU_ID (CPU_ID);
+
+      Get_Common_Map (Proc, Map);
+      Event_Trans.Take_From_Userland (Map, Event, SAddr, Succ);
+      if not Succ then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Virtualization.VCPU_Inject_Event (Mach_ID, VCPU_Num, Event) then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing NVMM_VCPU_Inject");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end NVMM_VCPU_Inject;
 
    procedure NVMM_VCPU_Run
@@ -8130,32 +8175,6 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end NVMM_GPA_Unmap;
 
-   procedure NVMM_HVA_Map
-      (Machine  : Unsigned_64;
-       HVA      : Unsigned_64;
-       Size     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      pragma Unreferenced (Machine, HVA, Size);
-   begin
-      Errno    := Error_No_Error;
-      Returned := 0;
-   end NVMM_HVA_Map;
-
-   procedure NVMM_HVA_Unmap
-      (Machine  : Unsigned_64;
-       HVA      : Unsigned_64;
-       Size     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      pragma Unreferenced (Machine, HVA, Size);
-   begin
-      Errno    := Error_No_Error;
-      Returned := 0;
-   end NVMM_HVA_Unmap;
-
    procedure NVMM_GVA_2_GPA
       (Machine   : Unsigned_64;
        CPU_ID    : Unsigned_64;
@@ -8238,38 +8257,6 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end NVMM_GPA_2_HVA;
-
-   procedure NVMM_Assist_IO
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Port     : Unsigned_64;
-       Is_In    : Unsigned_64;
-       Addr     : Unsigned_64;
-       Length   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      pragma Unreferenced (Machine, CPU_ID, Port, Is_In, Addr, Length);
-   begin
-      Errno    := Error_No_Error;
-      Returned := 0;
-   end NVMM_Assist_IO;
-
-   procedure NVMM_Assist_Mem
-      (Machine  : Unsigned_64;
-       CPU_ID   : Unsigned_64;
-       Desto    : Unsigned_64;
-       Is_Write : Unsigned_64;
-       Addr     : Unsigned_64;
-       Length   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      pragma Unreferenced (Machine, CPU_ID, Desto, Is_Write, Addr, Length);
-   begin
-      Errno    := Error_No_Error;
-      Returned := 0;
-   end NVMM_Assist_Mem;
 
    procedure NVMM_VCPU_Dump
       (Machine  : Unsigned_64;

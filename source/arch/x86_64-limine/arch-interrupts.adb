@@ -376,7 +376,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             NVMM_VCPU_GetState
                (State.RDI, State.RSI, State.RDX, State.R12, Returned, Errno);
          when 126 =>
-            NVMM_VCPU_Inject (State.RDI, State.RSI, Returned, Errno);
+            NVMM_VCPU_Inject
+               (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 127 =>
             NVMM_VCPU_Run (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 128 =>
@@ -385,24 +386,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 129 =>
             NVMM_GPA_Unmap (State.RDI, State.RSI, State.RDX, State.R12,
                Returned, Errno);
-         when 130 =>
-            NVMM_HVA_Map (State.RDI, State.RSI, State.RDX, Returned, Errno);
-         when 131 =>
-            NVMM_HVA_Unmap (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 132 =>
             NVMM_GVA_2_GPA (State.RDI, State.RSI, State.RDX, State.R12,
                State.R8, Returned, Errno);
          when 133 =>
             NVMM_GPA_2_HVA (State.RDI, State.RSI, State.RDX, State.R12,
                Returned, Errno);
-         when 134 =>
-            NVMM_Assist_IO
-               (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
-                State.R9, Returned, Errno);
-         when 135 =>
-            NVMM_Assist_Mem
-               (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
-                State.R9, Returned, Errno);
          when 136 =>
             NVMM_VCPU_Dump (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 137 =>

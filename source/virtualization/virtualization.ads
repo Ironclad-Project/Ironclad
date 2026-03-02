@@ -122,20 +122,6 @@ package Virtualization with SPARK_Mode => Off is
    --  FPU state type for userland transfer (512 bytes, fxsave format)
    type NVMM_FPU_State is array (0 .. 511) of Unsigned_8 with Alignment => 16;
 
-   --  Event types for injection (is user ABI).
-   NVMM_EVENT_INTERRUPT_HW : constant := 0;  --  Hardware interrupt
-   NVMM_EVENT_INTERRUPT_SW : constant := 1;  --  Software interrupt (INT n)
-   NVMM_EVENT_EXCEPTION    : constant := 2;  --  Exception
-   NVMM_EVENT_NMI          : constant := 3;  --  Non-maskable interrupt
-
-   --  Event info for injection
-   type NVMM_Event_Info is record
-      Event_Type : Unsigned_32;  --  NVMM_EVENT_* constant
-      Vector     : Unsigned_8;   --  Interrupt/exception vector
-      Has_Error  : Boolean;      --  True if error code is valid
-      Error_Code : Unsigned_64;  --  Error code (for exceptions)
-   end record;
-
    --  Get VCPU GPRs to kernel buffer (safe for userland transfer)
    function VCPU_Get_GPRs
       (Mach : Machine_ID;
@@ -195,6 +181,20 @@ package Virtualization with SPARK_Mode => Off is
       (Mach : Machine_ID;
        CPU  : VCPU_ID;
        MSRs : NVMM_MSR_Array) return Boolean;
+
+   --  Event types for injection (is user ABI).
+   NVMM_EVENT_INTERRUPT_HW : constant := 0;  --  Hardware interrupt
+   NVMM_EVENT_INTERRUPT_SW : constant := 1;  --  Software interrupt (INT n)
+   NVMM_EVENT_EXCEPTION    : constant := 2;  --  Exception
+   NVMM_EVENT_NMI          : constant := 3;  --  Non-maskable interrupt
+
+   --  Event info for injection
+   type NVMM_Event_Info is record
+      Event_Type : Unsigned_32;  --  NVMM_EVENT_* constant
+      Vector     : Unsigned_8;   --  Interrupt/exception vector
+      Has_Error  : Boolean;      --  True if error code is valid
+      Error_Code : Unsigned_64;  --  Error code (for exceptions)
+   end record;
 
    --  Inject an event (interrupt/exception) into the VCPU
    --  The event will be delivered on the next VCPU_Run
