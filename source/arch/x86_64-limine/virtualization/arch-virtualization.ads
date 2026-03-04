@@ -15,30 +15,20 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Arch.Virtualization;
 
-package Virtualization with SPARK_Mode => Off is
-   --  This module implements a NVMM compatible interface, NVMM's spec
-   --  can be found at the kernel's docs, or
-   --  https://www.dragonflybsd.org/docs/docs/howtos/nvmm/
-
-   --  NVMM version that this module implements. The meaning of these version
-   --  numbers is provided at ... TODO: Add link.
-   NVMM_Version : constant := 2;
-
+package Arch.Virtualization with SPARK_Mode => Off is
    --  Capabilities of this implementation.
-   State_Size           : constant := Arch.Virtualization.State_Size;
-   Max_Virtual_Machines : constant := Arch.Virtualization.Max_Virtual_Machines;
-   Max_CPUs_Per_VM      : constant := Arch.Virtualization.Max_CPUs_Per_VM;
-   Max_RAM_Per_VM       : constant := Arch.Virtualization.Max_RAM_Per_VM;
+   State_Size           : constant := 0; --  TODO.
+   Max_Virtual_Machines : constant := 128;
+   Max_CPUs_Per_VM      : constant := 4;
+   Max_RAM_Per_VM       : constant := Unsigned_64'Last;
 
    --  Machine ID type (0 = invalid)
-   subtype Machine_ID is Arch.Virtualization.Machine_ID;
-   Invalid_Machine : constant Machine_ID :=
-      Arch.Virtualization.Invalid_Machine;
+   subtype Machine_ID is Unsigned_32 range 0 .. Max_Virtual_Machines;
+   Invalid_Machine : constant Machine_ID := 0;
 
    --  VCPU ID type
-   subtype VCPU_ID is Arch.Virtualization.VCPU_ID;
+   subtype VCPU_ID is Unsigned_32 range 0 .. Max_CPUs_Per_VM - 1;
    ----------------------------------------------------------------------------
    --  Returns True if virtualization is supported.
    function Is_Supported return Boolean;
@@ -79,25 +69,50 @@ package Virtualization with SPARK_Mode => Off is
 
    --  GPR array type for userland transfer (18 64-bit registers)
    --  This is user ABI, dont change structure!
-   subtype NVMM_GPR_Array is Arch.Virtualization.NVMM_GPR_Array;
+   type NVMM_GPR_Array is record
+      RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9 : Unsigned_64;
+      R10, R11, R12, R13, R14, R15, RIP, RFLAGS : Unsigned_64;
+   end record;
 
    --  Segment register structure (matches nvmm_x64_state_seg, 16 bytes)
-   subtype NVMM_Segment is Arch.Virtualization.NVMM_Segment;
+   type NVMM_Segment is record
+      Selector : Unsigned_16;
+      Attrib   : Unsigned_16;  --  Packed bitfield
+      Limit    : Unsigned_32;
+      Base     : Unsigned_64;
+   end record;
+   for NVMM_Segment use record
+      Selector at 0 range 0 .. 15;
+      Attrib   at 2 range 0 .. 15;
+      Limit    at 4 range 0 .. 31;
+      Base     at 8 range 0 .. 63;
+   end record;
+   for NVMM_Segment'Size use 128;
 
    --  Segment array, this is user ABI.
-   subtype NVMM_Seg_Array is Arch.Virtualization.NVMM_Seg_Array;
+   type NVMM_Seg_Array is record
+      ES, CS, SS, DS, FS, GS, GDT, IDT, LDT, TR : NVMM_Segment;
+   end record;
 
    --  Control register array, this is user ABI.
-   subtype NVMM_CR_Array is Arch.Virtualization.NVMM_CR_Array;
+   type NVMM_CR_Array is record
+      CR0, CR2, CR3, CR4 : Unsigned_64;
+      Placeholder1, Placeholder2 : Unsigned_64;
+   end record;
 
    --  MSR array, this is user ABI.
-   subtype NVMM_MSR_Array is Arch.Virtualization.NVMM_MSR_Array;
+   type NVMM_MSR_Array is record
+      EFER, STAR, LSTAR, CSTAR, SFMASK, KERNELGSBASE : Unsigned_64;
+      SYSENTER_CS, SYSENTER_ESP, SYSENTER_EIP, PAT : Unsigned_64;
+   end record;
 
    --  Debug Register array, this is user ABI.
-   subtype NVMM_DR_Array is Arch.Virtualization.NVMM_DR_Array;
+   type NVMM_DR_Array is record
+      DR0, DR1, DR2, DR3, DR6, DR7 : Unsigned_64;
+   end record;
 
    --  FPU state type for userland transfer (512 bytes, fxsave format)
-   subtype NVMM_FPU_State is Arch.Virtualization.NVMM_FPU_State;
+   type NVMM_FPU_State is array (0 .. 511) of Unsigned_8 with Alignment => 16;
 
    --  Get VCPU GPRs to kernel buffer (safe for userland transfer)
    function VCPU_Get_GPRs
@@ -159,23 +174,19 @@ package Virtualization with SPARK_Mode => Off is
        CPU  : VCPU_ID;
        MSRs : NVMM_MSR_Array) return Boolean;
 
-   --  Event info for injection.
-   NVMM_EXIT_NONE       : constant := Arch.Virtualization.NVMM_EXIT_NONE;
-   NVMM_EXIT_STOPPED    : constant := Arch.Virtualization.NVMM_EXIT_STOPPED;
-   NVMM_EXIT_INVALID    : constant := Arch.Virtualization.NVMM_EXIT_INVALID;
-   NVMM_EXIT_MEMORY     : constant := Arch.Virtualization.NVMM_EXIT_MEMORY;
-   NVMM_EXIT_IO         : constant := Arch.Virtualization.NVMM_EXIT_IO;
-   NVMM_EXIT_SHUTDOWN   : constant := Arch.Virtualization.NVMM_EXIT_SHUTDOWN;
-   NVMM_EXIT_INT_READY  : constant := Arch.Virtualization.NVMM_EXIT_INT_READY;
-   NVMM_EXIT_NMI_READY  : constant := Arch.Virtualization.NVMM_EXIT_NMI_READY;
-   NVMM_EXIT_HALTED     : constant := Arch.Virtualization.NVMM_EXIT_HALTED;
-   NVMM_EXIT_RDMSR      : constant := Arch.Virtualization.NVMM_EXIT_RDMSR;
-   NVMM_EXIT_WRMSR      : constant := Arch.Virtualization.NVMM_EXIT_WRMSR;
-   NVMM_EXIT_MONITOR    : constant := Arch.Virtualization.NVMM_EXIT_MONITOR;
-   NVMM_EXIT_MWAIT      : constant := Arch.Virtualization.NVMM_EXIT_MWAIT;
-   NVMM_EXIT_CPUID      : constant := Arch.Virtualization.NVMM_EXIT_CPUID;
+   --  Event types for injection (is user ABI).
+   NVMM_EVENT_INTERRUPT_HW : constant := 0;  --  Hardware interrupt
+   NVMM_EVENT_INTERRUPT_SW : constant := 1;  --  Software interrupt (INT n)
+   NVMM_EVENT_EXCEPTION    : constant := 2;  --  Exception
+   NVMM_EVENT_NMI          : constant := 3;  --  Non-maskable interrupt
 
-   subtype NVMM_Event_Info is Arch.Virtualization.NVMM_Event_Info;
+   --  Event info for injection
+   type NVMM_Event_Info is record
+      Event_Type : Unsigned_32;  --  NVMM_EVENT_* constant
+      Vector     : Unsigned_8;   --  Interrupt/exception vector
+      Has_Error  : Boolean;      --  True if error code is valid
+      Error_Code : Unsigned_64;  --  Error code (for exceptions)
+   end record;
 
    --  Inject an event (interrupt/exception) into the VCPU
    --  The event will be delivered on the next VCPU_Run
@@ -185,13 +196,99 @@ package Virtualization with SPARK_Mode => Off is
        Event : NVMM_Event_Info) return Boolean;
 
    --  NVMM Exit Codes (translated from hardware-specific codes)
-   subtype VCPU_Exit_Info is Arch.Virtualization.VCPU_Exit_Info;
+   NVMM_EXIT_NONE       : constant := 16#0000_0000_0000_0000#;
+   NVMM_EXIT_STOPPED    : constant := 16#FFFF_FFFF_FFFF_FFFE#;
+   NVMM_EXIT_INVALID    : constant := 16#FFFF_FFFF_FFFF_FFFF#;
+   NVMM_EXIT_MEMORY     : constant := 16#0000_0000_0000_0001#;  --  NPF
+   NVMM_EXIT_IO         : constant := 16#0000_0000_0000_0002#;  --  I/O
+   NVMM_EXIT_SHUTDOWN   : constant := 16#0000_0000_0000_1000#;
+   NVMM_EXIT_INT_READY  : constant := 16#0000_0000_0000_1001#;
+   NVMM_EXIT_NMI_READY  : constant := 16#0000_0000_0000_1002#;
+   NVMM_EXIT_HALTED     : constant := 16#0000_0000_0000_1003#;
+   NVMM_EXIT_RDMSR      : constant := 16#0000_0000_0000_2000#;
+   NVMM_EXIT_WRMSR      : constant := 16#0000_0000_0000_2001#;
+   NVMM_EXIT_MONITOR    : constant := 16#0000_0000_0000_2002#;
+   NVMM_EXIT_MWAIT      : constant := 16#0000_0000_0000_2003#;
+   NVMM_EXIT_CPUID      : constant := 16#0000_0000_0000_2004#;
+
+   --  Exit information structure (matches userspace nvmm_x86_exit)
+   type Exit_IO_Info is record
+      Is_In        : Boolean;
+      Port         : Unsigned_16;
+      Segment      : Integer_8;
+      Address_Size : Unsigned_8;
+      Operand_Size : Unsigned_8;
+      Is_Rep       : Boolean;
+      Is_String    : Boolean;
+      Next_RIP     : Unsigned_64;
+   end record;
+
+   type Exit_MSR_Read_Info is record
+      MSR_Num  : Unsigned_32;
+      Next_RIP : Unsigned_64;
+   end record;
+
+   type Exit_MSR_Write_Info is record
+      MSR_Num  : Unsigned_32;
+      MSR_Val  : Unsigned_64;
+      Next_RIP : Unsigned_64;
+   end record;
+
+   --  Instruction bytes array for memory exit (must match C uint8_t[15])
+   type Inst_Bytes_Array is array (0 .. 14) of Unsigned_8 with Pack;
+
+   type Exit_Memory_Info is record
+      Prot       : Integer;
+      GPA        : Unsigned_64;
+      Inst_Len   : Unsigned_8;
+      Inst_Bytes : Inst_Bytes_Array;  --  15 bytes of instruction data
+   end record with Pack;
+
+   type Exit_Insn_Info is record
+      Next_RIP : Unsigned_64;
+   end record;
+
+   type Exit_Invalid_Info is record
+      HW_Code : Unsigned_64;
+   end record;
+
+   type Exit_State_Info is record
+      RFLAGS           : Unsigned_64;
+      CR8              : Unsigned_64;
+      Int_Shadow       : Boolean;
+      Int_Window_Exit  : Boolean;
+      NMI_Window_Exit  : Boolean;
+      Evt_Pending      : Boolean;
+   end record;
+
+   --  Exit C-style union.
+   type Exit_Union (Variant : Unsigned_64 := 0) is record
+      case Variant is
+         when NVMM_EXIT_MEMORY =>  Memory    : Exit_Memory_Info;
+         when NVMM_EXIT_IO =>      IO        : Exit_IO_Info;
+         when NVMM_EXIT_RDMSR =>   MSR_Read  : Exit_MSR_Read_Info;
+         when NVMM_EXIT_WRMSR =>   MSR_Write : Exit_MSR_Write_Info;
+         when NVMM_EXIT_INVALID => Invalid   : Exit_Invalid_Info;
+         when others =>            Insn      : Exit_Insn_Info;
+      end case;
+   end record with Unchecked_Union, Size => 32 * 8;
+
+   type VCPU_Exit_Info is record
+      Reason     : Unsigned_64;
+      U          : Exit_Union;
+      Exit_State : Exit_State_Info;
+   end record;
 
    --  Enhanced VCPU_Run that populates exit info
    function VCPU_Run_Ex
       (Mach      : Machine_ID;
        CPU       : VCPU_ID;
        Exit_Info : out VCPU_Exit_Info) return Boolean;
+
+   function VCPU_Run_Ex_VMX
+      (Mach      : Machine_ID;
+       CPU       : VCPU_ID;
+       Exit_Info : in out VCPU_Exit_Info) return Boolean;
 
    --  Request a running VCPU to stop.
    --  @param Mach  The machine ID.
@@ -202,7 +299,12 @@ package Virtualization with SPARK_Mode => Off is
        CPU  : VCPU_ID) return Boolean;
    ----------------------------------------------------------------------------
    --  Protection flags for GPA mapping
-   subtype GPA_Flags is Arch.Virtualization.GPA_Flags;
+   type GPA_Flags is record
+      Can_Read : Boolean;
+      Can_Write : Boolean;
+      Can_Exec : Boolean;
+      Is_User_Accessible : Boolean;
+   end record;
 
    --  Map a host virtual address to a guest physical address.
    --  @param Mach  The machine ID.
@@ -277,4 +379,18 @@ package Virtualization with SPARK_Mode => Off is
        CPU  : VCPU_ID;
        GVA  : Unsigned_64;
        GPA  : out Unsigned_64) return Boolean;
-end Virtualization;
+
+private
+
+   function Allocate_ASID return Unsigned_32;
+   procedure Free_ASID (ASID : Unsigned_32);
+
+   function VMCB_To_NVMM_Attrib (A : Unsigned_16) return Unsigned_16;
+   function NVMM_To_VMCB_Attrib (A : Unsigned_16) return Unsigned_16;
+
+   function To_VMX_AR
+      (NVMM_Attrib : Unsigned_16;
+       Limit       : Unsigned_32) return Unsigned_64;
+
+   function Get_Attrib_Raw (S : NVMM_Segment) return Unsigned_16;
+end Arch.Virtualization;
