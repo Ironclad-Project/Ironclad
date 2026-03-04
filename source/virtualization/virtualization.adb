@@ -45,15 +45,6 @@ package body Virtualization with SPARK_Mode => Off is
       return Arch.Virtualization.VCPU_Destroy (Mach, CPU);
    end VCPU_Destroy;
 
-   function VCPU_Run
-      (Mach      : Machine_ID;
-       CPU       : VCPU_ID;
-       Exit_Code : out Unsigned_64) return Boolean
-   is
-   begin
-      return Arch.Virtualization.VCPU_Run (Mach, CPU, Exit_Code);
-   end VCPU_Run;
-
    function VCPU_Get_GPRs
       (Mach : Machine_ID;
        CPU  : VCPU_ID;

@@ -67,16 +67,6 @@ package Virtualization with SPARK_Mode => Off is
    --  @return True on success.
    function VCPU_Destroy (Mach : Machine_ID; CPU : VCPU_ID) return Boolean;
 
-   --  Run a VCPU until VMEXIT.
-   --  @param Mach       The machine ID.
-   --  @param CPU        The VCPU ID to run.
-   --  @param Exit_Code  Set to the VMEXIT reason on return.
-   --  @return True on success.
-   function VCPU_Run
-      (Mach      : Machine_ID;
-       CPU       : VCPU_ID;
-       Exit_Code : out Unsigned_64) return Boolean;
-
    --  GPR array type for userland transfer (18 64-bit registers)
    --  This is user ABI, dont change structure!
    subtype NVMM_GPR_Array is Arch.Virtualization.NVMM_GPR_Array;
@@ -187,7 +177,11 @@ package Virtualization with SPARK_Mode => Off is
    --  NVMM Exit Codes (translated from hardware-specific codes)
    subtype VCPU_Exit_Info is Arch.Virtualization.VCPU_Exit_Info;
 
-   --  Enhanced VCPU_Run that populates exit info
+   --  Run a VCPU until VMEXIT.
+   --  @param Mach       The machine ID.
+   --  @param CPU        The VCPU ID to run.
+   --  @param Exit_Info  VMEXIT reason on return, among other info.
+   --  @return True on success.
    function VCPU_Run_Ex
       (Mach      : Machine_ID;
        CPU       : VCPU_ID;

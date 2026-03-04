@@ -443,7 +443,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             NVMM_Machine_Configure
                (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 121 =>
-            NVMM_VCPU_Create (Ctx.X10, Returned, Errno);
+            NVMM_VCPU_Create (Ctx.X10, Ctx.X11, Returned, Errno);
          when 122 =>
             NVMM_VCPU_Destroy (Ctx.X10, Ctx.X11, Returned, Errno);
          when 123 =>
@@ -451,38 +451,26 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Returned, Errno);
          when 124 =>
             NVMM_VCPU_SetState
-               (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
+               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Returned, Errno);
          when 125 =>
             NVMM_VCPU_GetState
-               (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
+               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Returned, Errno);
          when 126 =>
-            NVMM_VCPU_Inject (Ctx.X10, Ctx.X11, Returned, Errno);
+            NVMM_VCPU_Inject (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 127 =>
-            NVMM_VCPU_Run (Ctx.X10, Ctx.X11, Returned, Errno);
+            NVMM_VCPU_Run (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 128 =>
             NVMM_GPA_Map (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
                Returned, Errno);
          when 129 =>
             NVMM_GPA_Unmap (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13,
                Returned, Errno);
-         when 130 =>
-            NVMM_HVA_Map (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
-         when 131 =>
-            NVMM_HVA_Unmap (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 132 =>
             NVMM_GVA_2_GPA (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13,
                Ctx.X14, Returned, Errno);
          when 133 =>
             NVMM_GPA_2_HVA (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13,
                Returned, Errno);
-         when 134 =>
-            NVMM_Assist_IO
-               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
-                Ctx.X15, Returned, Errno);
-         when 135 =>
-            NVMM_Assist_Mem
-               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
-                Ctx.X15, Returned, Errno);
          when 136 =>
             NVMM_VCPU_Dump (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 137 =>
