@@ -7353,6 +7353,7 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       package Trans is new Memory.Userland_Transfer (NVMM_Caps);
       Proc : constant             PID := Arch.Local.Get_Current_Process;
       A    : constant Integer_Address := Integer_Address (Cap_Addr);
@@ -7388,6 +7389,7 @@ package body Userland.Syscall is
       (Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       ID : Virtualization.Machine_ID;
    begin
       if not Virtualization.Is_Supported then
@@ -7411,6 +7413,7 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       Mach_ID : Virtualization.Machine_ID;
    begin
       if not Virtualization.Is_Supported then
@@ -7459,6 +7462,7 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       Mach_ID : Virtualization.Machine_ID;
       VCPU    : Virtualization.VCPU_ID;
    begin
@@ -7498,6 +7502,7 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       Mach_ID : Virtualization.Machine_ID;
       VCPU    : Virtualization.VCPU_ID;
    begin
@@ -7553,6 +7558,7 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Map  : Page_Table_Acc;
       Succ : Boolean;
@@ -7683,6 +7689,7 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Map  : Page_Table_Acc;
       Succ : Boolean;
@@ -7816,6 +7823,8 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
+
       package Event_Trans is new Memory.Userland_Transfer
          (Virtualization.NVMM_Event_Info);
 
@@ -7873,6 +7882,8 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
+
       --  Exit state structure
       type User_Exit_State is record
          RFLAGS : Unsigned_64;
@@ -8046,6 +8057,7 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       Proc          : constant PID := Arch.Local.Get_Current_Process;
       Map           : Page_Table_Acc;
       Mach_ID       : Virtualization.Machine_ID;
@@ -8144,6 +8156,7 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       pragma Unreferenced (HVA);
       Mach_ID : Virtualization.Machine_ID;
    begin
@@ -8184,6 +8197,7 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       pragma Unreferenced (Prot_Addr);  --  Prot not used in current impl
       package Trans is new Memory.Userland_Transfer (Unsigned_64);
       Proc    : constant PID := Arch.Local.Get_Current_Process;
@@ -8225,6 +8239,7 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       pragma Unreferenced (Prot_Addr);  --  Prot not used in current impl
       package Trans is new Memory.Userland_Transfer (Unsigned_64);
       Proc    : constant PID := Arch.Local.Get_Current_Process;
@@ -8277,6 +8292,7 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma SPARK_Mode (Off);
       Mach_ID : Virtualization.Machine_ID;
       VCPU    : Virtualization.VCPU_ID;
    begin
