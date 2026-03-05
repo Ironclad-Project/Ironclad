@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Virtualization;
 with Arch.Virtualization.SVM;
 with Arch.Virtualization.VMX;
 with Arch.IDT;
@@ -23,8 +22,6 @@ with Arch.Snippets;
 with Interfaces.C;
 with Memory.Physical;
 with Memory.MMU;
-with Messages;
-with System.Storage_Elements; use System.Storage_Elements;
 with Synchronization; use Synchronization;
 with System;
 
