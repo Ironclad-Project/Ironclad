@@ -1480,14 +1480,6 @@ package Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
-   procedure NVMM_GPA_2_HVA
-      (Machine   : Unsigned_64;
-       GPA       : Unsigned_64;
-       HVA_Addr  : Unsigned_64;
-       Prot_Addr : Unsigned_64;
-       Returned  : out Unsigned_64;
-       Errno     : out Errno_Value);
-
    procedure NVMM_VCPU_Dump
       (Machine  : Unsigned_64;
        CPU_ID   : Unsigned_64;

@@ -223,7 +223,6 @@ Syscalls
 * nvmm_gpa_map::            Map a GPA.
 * nvmm_gpa_unmap::          Unmap a GPA.
 * nvmm_gva_2_gpa::          Map a GVA to a GPA.
-* nvmm_gpa_2_hva::          Map a GPA to a HVA.
 * nvmm_vcpu_dump::          Dump VCPU state.
 * nvmm_vcpu_stop::          Stop a VCPU.
 * pci_read/pci_write::      PCI device read/write.
@@ -1232,7 +1231,7 @@ Empty.
 @item
 @ref{nvmm_gva_2_gpa}
 @item
-@ref{nvmm_gpa_2_hva}
+Empty.
 @item
 Empty.
 @item
@@ -4999,16 +4998,6 @@ This syscall executes the VCPU and blocks until execution is stopped, returns
 
 @example c
 int nvmm_gpa_to_hva(int machine_id, int cpu, uint64_t gva_addr, uint64_t *gpa_addr, int *gpa_prot);
-@end example
-
-This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure.
-
-@node nvmm_gpa_2_hva
-@section nvmm_gpa_2_hva
-
-@example c
-int nvmm_gpa_to_hva(int machine_id, uint64_t gpa_addr, uint64_t *hva_addr, int *hva_prot);
 @end example
 
 This syscall executes the VCPU and blocks until execution is stopped, returns

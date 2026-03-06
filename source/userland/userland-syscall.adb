@@ -8231,48 +8231,6 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end NVMM_GVA_2_GPA;
 
-   procedure NVMM_GPA_2_HVA
-      (Machine   : Unsigned_64;
-       GPA       : Unsigned_64;
-       HVA_Addr  : Unsigned_64;
-       Prot_Addr : Unsigned_64;
-       Returned  : out Unsigned_64;
-       Errno     : out Errno_Value)
-   is
-      pragma SPARK_Mode (Off);
-      pragma Unreferenced (Prot_Addr);  --  Prot not used in current impl
-      package Trans is new Memory.Userland_Transfer (Unsigned_64);
-      Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Mach_ID : Virtualization.Machine_ID;
-      --  Use VCPU 0 by default (GPA translation is the same for all VCPUs)
-      VCPU    : constant Virtualization.VCPU_ID := 0;
-      HVA_Out : Unsigned_64;
-      Map     : Page_Table_Acc;
-      Succ    : Boolean;
-   begin
-      Mach_ID := Virtualization.Machine_ID (Machine);
-      if Virtualization.GPA_To_HVA (Mach_ID, VCPU, GPA, HVA_Out) then
-         Get_Common_Map (Proc, Map);
-         Trans.Paste_Into_Userland
-            (Map, HVA_Out, To_Address (Integer_Address (HVA_Addr)), Succ);
-         if Succ then
-            Errno    := Error_No_Error;
-            Returned := 0;
-         else
-            Errno    := Error_Would_Fault;
-            Returned := Unsigned_64'Last;
-         end if;
-      else
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-      end if;
-   exception
-      when Constraint_Error =>
-         Messages.Put_Line ("Exception while executing NVMM_GPA_2_HVA");
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
-   end NVMM_GPA_2_HVA;
-
    procedure NVMM_VCPU_Dump
       (Machine  : Unsigned_64;
        CPU_ID   : Unsigned_64;

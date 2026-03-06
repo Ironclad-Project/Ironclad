@@ -389,9 +389,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 132 =>
             NVMM_GVA_2_GPA (State.RDI, State.RSI, State.RDX, State.R12,
                State.R8, Returned, Errno);
-         when 133 =>
-            NVMM_GPA_2_HVA (State.RDI, State.RSI, State.RDX, State.R12,
-               Returned, Errno);
          when 136 =>
             NVMM_VCPU_Dump (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 137 =>

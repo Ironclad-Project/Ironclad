@@ -205,16 +205,6 @@ package body Virtualization with SPARK_Mode => Off is
       return Arch.Virtualization.GPA_Unmap_All (Mach, GPA, Size);
    end GPA_Unmap_All;
 
-   function GPA_To_HVA
-      (Mach : Machine_ID;
-       CPU  : VCPU_ID;
-       GPA  : Unsigned_64;
-       HVA  : out Unsigned_64) return Boolean
-   is
-   begin
-      return Arch.Virtualization.GPA_To_HVA (Mach, CPU, GPA, HVA);
-   end GPA_To_HVA;
-
    function GVA_To_GPA
       (Mach : Machine_ID;
        CPU  : VCPU_ID;
