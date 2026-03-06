@@ -26,6 +26,9 @@ with Interfaces; use Interfaces;
 package body Userland.Corefile is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
+   --  UNIX permissions for the core files.
+   Core_Perms : constant := 8#600#; --  root exclusive RW.
+
    procedure Generate_Corefile (Ctx : Arch.Context.GP_Context) is
       subtype Ctx_Data is Devices.Operation_Data (1 .. Ctx'Size / 8);
       function Conv is new Ada.Unchecked_Conversion
@@ -64,7 +67,8 @@ package body Userland.Corefile is
       declare
          File_Path : constant String := "/tmp/" & PID_Val'Image & ".core";
       begin
-         VFS.Create_Node (File_Path, VFS.File_Regular, 8#777#, Success, 0, 0);
+         VFS.Create_Node (File_Path, VFS.File_Regular, Core_Perms, Success,
+            0, 0);
          if Success /= VFS.FS_Success then
             Messages.Put_Line ("Could not create core file " & File_Path);
             return;
