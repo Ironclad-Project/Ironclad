@@ -4850,12 +4850,20 @@ The current configuration doesn't support NVMM.
 int nvmm_machine_create(void);
 @end example
 
-This syscall creates a virtual machine, and returns a machine ID, or @code{-1}
-on failure.
+This syscall creates a virtual machine. The machine will be created with no
+assigned memory or cores.
+
+This syscall returns a machine ID, or @code{-1} on failure, with the following
+errno:
 
 @table @code
-@item ENOMEM
-No resources were available for making the VM.
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+
+@item EAGAIN
+Either no memory is available to execute this operation right now, or the
+underlying hardware does not allow for VM creation at this moment.
 @end table
 
 @node nvmm_machine_destroy
@@ -4869,6 +4877,10 @@ This syscall destroys a virtual machine, and returns @code{0} on success, or
 @code{-1} on failure.
 
 @table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+
 @item EINVAL
 The passed machine id does not exist, or the setting is not valid.
 @end table
@@ -4884,8 +4896,13 @@ This syscall configures the virtual machine with the passed settings, and
 returns @code{0} on success, or @code{-1} on failure, with the following errno:
 
 @table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+
 @item EINVAL
 The passed machine id does not exist, or the setting is not valid.
+
 @item EFAULT
 The argument was not pointing to valid memory.
 @end table
@@ -4911,6 +4928,10 @@ This syscall creates a virtual CPU attached to the passed machine, and returns
 the cpu id on success, or @code{-1} on failure, with the following errno:
 
 @table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+
 @item ENOMEM
 No resources were available for creating the VCPU.
 @end table
@@ -4927,8 +4948,13 @@ settings, and returns @code{0} on success, or @code{-1} on failure, with the
 following errno:
 
 @table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+
 @item EINVAL
 The passed machine id or cpu does not exist, or the setting is not valid.
+
 @item EFAULT
 The argument was not pointing to valid memory.
 @end table
@@ -4941,7 +4967,14 @@ int nvmm_vcpu_setstate(int machine_id, int cpu_id, uint64_t setting, void *addr)
 @end example
 
 This syscall instructs the machine to load values into the VCPU as requested
-with @code{setting}, and returns @code{0} on success, or @code{-1} on failure.
+with @code{setting}, and returns @code{0} on success, or @code{-1} on failure,
+with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_vcpu_getstate
 @section nvmm_vcpu_getstate
@@ -4951,7 +4984,14 @@ int nvmm_vcpu_getstate(int machine_id, int cpu_id, uint64_t setting, void *addr)
 @end example
 
 This syscall instructs the machine to report values from the VCPU as requested
-with @code{setting}, and returns @code{0} on success, or @code{-1} on failure.
+with @code{setting}, and returns @code{0} on success, or @code{-1} on failure,
+with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_vcpu_inject
 @section nvmm_vcpu_inject
@@ -4961,7 +5001,13 @@ int nvmm_vcpu_inject(int machine_id, int cpu_id, void *injected);
 @end example
 
 This syscall injects VCPU data and returns @code{0} on success, or @code{-1} on
-failure.
+failure with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_vcpu_run
 @section nvmm_vcpu_run
@@ -4971,7 +5017,13 @@ int nvmm_vcpu_run(int machine_id, int cpu_id);
 @end example
 
 This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure.
+@code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_gpa_map
 @section nvmm_gpa_map
@@ -4981,7 +5033,13 @@ int nvmm_gpa_map(int machine_id, uint64_t hva_addr, uint64_t gpa_addr, size_t si
 @end example
 
 This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure.
+@code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_gpa_unmap
 @section nvmm_gpa_unmap
@@ -4991,7 +5049,13 @@ int nvmm_gpa_unmap(int machine_id, uint64_t hva_addr, uint64_t gpa_addr, size_t 
 @end example
 
 This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure.
+@code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_gva_2_gpa
 @section nvmm_gva_2_gpa
@@ -5001,7 +5065,29 @@ int nvmm_gpa_to_hva(int machine_id, int cpu, uint64_t gva_addr, uint64_t *gpa_ad
 @end example
 
 This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure.
+@code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
+
+@node nvmm_gpa_2_hva
+@section nvmm_gpa_2_hva
+
+@example c
+int nvmm_gpa_to_hva(int machine_id, uint64_t gpa_addr, uint64_t *hva_addr, int *hva_prot);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_vcpu_dump
 @section nvmm_vcpu_dump
@@ -5011,7 +5097,13 @@ int nvmm_vcpu_dump(int machine_id, int cpu_id, void *dump_addr);
 @end example
 
 This syscall makes the VCPU dump local state into a memory window, and
-returns @code{0} on success, or @code{-1} on failure.
+returns @code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node nvmm_vcpu_stop
 @section nvmm_vcpu_stop
@@ -5021,7 +5113,13 @@ int nvmm_vcpu_stop(int machine_id, int cpu_id);
 @end example
 
 This syscall stops a foreign VCPU that is blocking until execution is stopped,
-returns @code{0} on success, or @code{-1} on failure.
+returns @code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOTSUPP
+The current hardware or Ironclad does not support hardware-accelerated
+virtualization, thus NVMM capability is not available.
+@end table
 
 @node pci_read/pci_write
 @section pci_read/pci_write
