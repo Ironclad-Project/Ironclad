@@ -125,6 +125,7 @@ is
       end if;
 
       Arch.Debug.Print (Final (1 .. Message'Length + 13));
+      Arch.Debug.Print (Ada.Characters.Latin_1.CR);
       Arch.Debug.Print (Ada.Characters.Latin_1.LF);
 
       Curr_Entry := Curr_Entry + 1;
