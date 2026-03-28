@@ -340,18 +340,6 @@ package Arch.Virtualization with SPARK_Mode => Off is
        GPA  : Unsigned_64;
        Size : Unsigned_64) return Boolean;
 
-   --  Translate guest physical address to host virtual address.
-   --  @param Mach  The machine ID.
-   --  @param CPU   The VCPU ID (for NPT access).
-   --  @param GPA   Guest physical address to translate.
-   --  @param HVA   Output: Host virtual address.
-   --  @return True on success, False if GPA is not mapped.
-   function GPA_To_HVA
-      (Mach : Machine_ID;
-       CPU  : VCPU_ID;
-       GPA  : Unsigned_64;
-       HVA  : out Unsigned_64) return Boolean;
-
    --  Translate guest virtual address to guest physical address.
    --  Walks guest page tables to perform translation.
    --  @param Mach  The machine ID.
@@ -379,6 +367,12 @@ private
           Limit       : Unsigned_32) return Unsigned_64;
 
       function Get_Attrib_Raw (S : NVMM_Segment) return Unsigned_16;
+
+      function GPA_To_HVA
+         (Mach : Machine_ID;
+          CPU  : VCPU_ID;
+          GPA  : Unsigned_64;
+          HVA  : out Unsigned_64) return Boolean;
 
       function VCPU_Run_Ex_VMX
          (Mach      : Machine_ID;
