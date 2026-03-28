@@ -2461,410 +2461,6 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          return False;
    end VCPU_Run_Ex;
 
-   function VCPU_Run_Ex_VMX
-      (Mach      : Machine_ID;
-       CPU       : VCPU_ID;
-       Exit_Info : in out VCPU_Exit_Info) return Boolean
-   is
-      VMCS_Phys  : Unsigned_64;
-      Exit_Reason : Unsigned_64;
-      Load_OK    : Boolean;
-   begin
-      VMCS_Phys := Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys;
-
-      --  Load the VMCS pointer
-      Arch.Virtualization.VMX.VMPTRLD (VMCS_Phys, Load_OK);
-      if not Load_OK then
-         Release (Machines (Positive (Mach)).Lock);
-         Exit_Info.Reason := NVMM_EXIT_INVALID;
-         Exit_Info.U.Invalid.HW_Code := 16#DEAD_0001#;
-         return False;
-      end if;
-
-      --  Check if stop was requested BEFORE running
-      if Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested then
-         Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
-         Exit_Info.Reason := NVMM_EXIT_STOPPED;
-         Release (Machines (Positive (Mach)).Lock);
-         return True;
-      end if;
-
-      --  FPU/XSAVE save/restore around VM entry
-      declare
-         FPU_Addr_Local : constant Integer_Address :=
-            Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
-         Guest_XCR0 : constant Unsigned_64 :=
-            Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
-         Saved_Host_XCR0 : Unsigned_64 := 0;
-      begin
-         if Has_XSAVE then
-            declare
-               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
-            begin
-               Saved_Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
-               Arch.Virtualization.SVM.XSAVE_Save
-                  (Host_XSAVE, Saved_Host_XCR0);
-               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
-                  Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
-               end if;
-               Arch.Virtualization.SVM.XSAVE_Restore (Guest_XSAVE, Guest_XCR0);
-            end;
-         else
-            declare
-               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 512);
-            begin
-               Arch.Virtualization.SVM.FPU_Save (Host_FPU);
-               Arch.Virtualization.SVM.FPU_Restore (Guest_FPU);
-            end;
-         end if;
-
-         --  Save host FS and GS bases
-         declare
-            Host_FS_Base : constant Unsigned_64 := Arch.Snippets.Read_FS;
-            Host_GS_Base : constant Unsigned_64 := Arch.Snippets.Read_GS;
-            Is_Launch : constant Boolean :=
-               not Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched;
-            VM_Success : Boolean;
-         begin
-            --  Run the VCPU using VMLAUNCH or VMRESUME
-            Arch.Virtualization.VMX.VMLAUNCH_VMRESUME
-               (VMCS_PA   => VMCS_Phys,
-                GPRs      => Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs,
-                Is_Launch => Is_Launch,
-                Success   => VM_Success);
-
-            --  Check if VMLAUNCH/VMRESUME failed
-            if not VM_Success then
-               --  Restore FS/GS before returning
-               Arch.Snippets.Write_FS (Host_FS_Base);
-               Arch.Snippets.Write_GS (Host_GS_Base);
-               --  Continue to return invalid exit
-            end if;
-
-            --  After first successful launch, use VMRESUME for next entries
-            if Is_Launch and VM_Success then
-               Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := True;
-            end if;
-
-            --  Restore host FS and GS bases
-            Arch.Snippets.Write_FS (Host_FS_Base);
-            Arch.Snippets.Write_GS (Host_GS_Base);
-         end;
-
-         --  Save guest state and restore host state
-         if Has_XSAVE then
-            declare
-               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
-            begin
-               Arch.Virtualization.SVM.XSAVE_Save (Guest_XSAVE, Guest_XCR0);
-               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
-                  Arch.Virtualization.SVM.Set_XCR0 (Saved_Host_XCR0);
-               end if;
-               Arch.Virtualization.SVM.XSAVE_Restore
-                  (Host_XSAVE, Saved_Host_XCR0);
-            end;
-         else
-            declare
-               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 512);
-            begin
-               Arch.Virtualization.SVM.FPU_Save (Guest_FPU);
-               Arch.Virtualization.SVM.FPU_Restore (Host_FPU);
-            end;
-         end if;
-      end;
-
-      --  Reload IDT after VM exit
-      Arch.IDT.Load_IDT;
-
-      --  Check if stop was requested after running
-      if Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested then
-         Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
-         Exit_Info.Reason := NVMM_EXIT_STOPPED;
-         Release (Machines (Positive (Mach)).Lock);
-         return True;
-      end if;
-
-      --  Get exit reason from VMCS
-      Exit_Reason := Arch.Virtualization.VMX.VMX_Read
-         (Arch.Virtualization.VMX.VMCS_EXIT_REASON);
-
-      --  Get exit state - read RFLAGS from VMCS
-      Exit_Info.Exit_State.RFLAGS := Arch.Virtualization.VMX.VMX_Read
-         (Arch.Virtualization.VMX.VMCS_GUEST_RFLAGS);
-      Exit_Info.Exit_State.CR8 := 0;
-      Exit_Info.Exit_State.Int_Shadow :=
-         (Arch.Virtualization.VMX.VMX_Read
-            (Arch.Virtualization.VMX.VMCS_GUEST_INTERRUPTIBILITY) and 1) /= 0;
-
-      --  Translate VMX exit reason to NVMM exit code
-      --  VMX exit reasons are in the low 16 bits
-      case Exit_Reason and 16#FFFF# is
-         when Arch.Virtualization.VMX.EXIT_REASON_EXCEPTION_NMI =>
-            --  Guest hit an intercepted exception
-            --  TODO: Properly handle different exception types
-            Exit_Info.Reason := NVMM_EXIT_INVALID;
-            Exit_Info.U.Invalid.HW_Code := Exit_Reason;
-
-         when Arch.Virtualization.VMX.EXIT_REASON_EXTERNAL_INTERRUPT =>
-            --  External interrupt arrived - just continue guest
-            Exit_Info.Reason := NVMM_EXIT_NONE;
-
-         when Arch.Virtualization.VMX.EXIT_REASON_TRIPLE_FAULT =>
-            Exit_Info.Reason := NVMM_EXIT_SHUTDOWN;
-
-         when Arch.Virtualization.VMX.EXIT_REASON_CPUID =>
-            --  Emulate CPUID (RAX is in VMX_GPRs, not VMCS)
-            declare
-               Guest_RAX : constant Unsigned_64 :=
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX;
-               Leaf    : constant Unsigned_32 :=
-                  Unsigned_32 (Guest_RAX and 16#FFFF_FFFF#);
-               Subleaf : constant Unsigned_32 := Unsigned_32
-                  (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
-                               and 16#FFFF_FFFF#);
-               Out_EAX, Out_EBX, Out_ECX, Out_EDX : Unsigned_32;
-               CPUID_OK : Boolean;
-               Inst_Len : Unsigned_64;
-               Guest_RIP : Unsigned_64;
-            begin
-               Arch.Snippets.Get_CPUID
-                  (Leaf    => Leaf,
-                   Subleaf => Subleaf,
-                   EAX     => Out_EAX,
-                   EBX     => Out_EBX,
-                   ECX     => Out_ECX,
-                   EDX     => Out_EDX,
-                   Success => CPUID_OK);
-
-               if CPUID_OK then
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX :=
-                     Unsigned_64 (Out_EAX);
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RBX :=
-                     Unsigned_64 (Out_EBX);
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX :=
-                     Unsigned_64 (Out_ECX);
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX :=
-                     Unsigned_64 (Out_EDX);
-               else
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX := 0;
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RBX := 0;
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX := 0;
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX := 0;
-               end if;
-
-               --  Advance RIP
-               Inst_Len := Arch.Virtualization.VMX.VMX_Read
-                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
-               Guest_RIP := Arch.Virtualization.VMX.VMX_Read
-                  (Arch.Virtualization.VMX.VMCS_GUEST_RIP);
-               declare
-                  Dummy_OK : Boolean;
-               begin
-                  Arch.Virtualization.VMX.VMX_Write
-                     (Arch.Virtualization.VMX.VMCS_GUEST_RIP,
-                      Guest_RIP + Inst_Len, Dummy_OK);
-               end;
-
-               Exit_Info.Reason := NVMM_EXIT_NONE;
-            end;
-
-         when Arch.Virtualization.VMX.EXIT_REASON_HLT =>
-            Exit_Info.Reason := NVMM_EXIT_HALTED;
-
-         when Arch.Virtualization.VMX.EXIT_REASON_IO_INSTRUCTION =>
-            Exit_Info.Reason := NVMM_EXIT_IO;
-            declare
-               Qual : constant Unsigned_64 := Arch.Virtualization.VMX.VMX_Read
-                  (Arch.Virtualization.VMX.VMCS_EXIT_QUALIFICATION);
-            begin
-               --  Bit 3: Direction (0=OUT, 1=IN)
-               Exit_Info.U.IO.Is_In := (Qual and 8) /= 0;
-               --  Bit 4: String instruction
-               Exit_Info.U.IO.Is_String := (Qual and 16) /= 0;
-               --  Bit 5: REP prefix
-               Exit_Info.U.IO.Is_Rep := (Qual and 32) /= 0;
-               --  Bits 0-2: Size (0=1, 1=2, 3=4)
-               case Qual and 7 is
-                  when 0 => Exit_Info.U.IO.Operand_Size := 1;
-                  when 1 => Exit_Info.U.IO.Operand_Size := 2;
-                  when 3 => Exit_Info.U.IO.Operand_Size := 4;
-                  when others => Exit_Info.U.IO.Operand_Size := 1;
-               end case;
-               Exit_Info.U.IO.Address_Size := 32;  --  Default
-               Exit_Info.U.IO.Segment := 0;
-               --  Bits 16-31: Port number
-               Exit_Info.U.IO.Port :=
-                  Unsigned_16 (Shift_Right (Qual, 16) and 16#FFFF#);
-            end;
-            Exit_Info.U.IO.Next_RIP := Arch.Virtualization.VMX.VMX_Read
-               (Arch.Virtualization.VMX.VMCS_GUEST_RIP) +
-               Arch.Virtualization.VMX.VMX_Read
-                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
-
-         when Arch.Virtualization.VMX.EXIT_REASON_RDMSR =>
-            Exit_Info.Reason := NVMM_EXIT_RDMSR;
-            Exit_Info.U.MSR_Read.MSR_Num :=
-               Unsigned_32 (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
-                            and 16#FFFF_FFFF#);
-            Exit_Info.U.MSR_Read.Next_RIP := Arch.Virtualization.VMX.VMX_Read
-               (Arch.Virtualization.VMX.VMCS_GUEST_RIP) +
-               Arch.Virtualization.VMX.VMX_Read
-                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
-
-         when Arch.Virtualization.VMX.EXIT_REASON_WRMSR =>
-            Exit_Info.Reason := NVMM_EXIT_WRMSR;
-            Exit_Info.U.MSR_Write.MSR_Num :=
-               Unsigned_32 (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
-                            and 16#FFFF_FFFF#);
-            Exit_Info.U.MSR_Write.MSR_Val :=
-               Shift_Left (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX
-                            and 16#FFFF_FFFF#, 32) or
-               (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX
-                            and 16#FFFF_FFFF#);
-            Exit_Info.U.MSR_Write.Next_RIP := Arch.Virtualization.VMX.VMX_Read
-               (Arch.Virtualization.VMX.VMCS_GUEST_RIP) +
-               Arch.Virtualization.VMX.VMX_Read
-                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
-
-         when Arch.Virtualization.VMX.EXIT_REASON_EPT_VIOLATION =>
-            Exit_Info.Reason := NVMM_EXIT_MEMORY;
-            Exit_Info.U.Memory.GPA := Arch.Virtualization.VMX.VMX_Read
-               (Arch.Virtualization.VMX.VMCS_GUEST_PHYS_ADDR);
-            declare
-               Qual : constant Unsigned_64 := Arch.Virtualization.VMX.VMX_Read
-                  (Arch.Virtualization.VMX.VMCS_EXIT_QUALIFICATION);
-               Prot_Val : Integer := 0;
-            begin
-               --  Bit 0: Read access
-               --  Bit 1: Write access
-               --  Bit 2: Execute access
-               if (Qual and 2) /= 0 then
-                  Prot_Val := Prot_Val + 2;  --  PROT_WRITE
-               elsif (Qual and 1) /= 0 then
-                  Prot_Val := Prot_Val + 1;  --  PROT_READ
-               end if;
-               if (Qual and 4) /= 0 then
-                  Prot_Val := Prot_Val + 4;  --  PROT_EXEC
-               end if;
-               Exit_Info.U.Memory.Prot := Prot_Val;
-            end;
-            --  Fetch instruction bytes from guest memory at RIP
-            --  Uses same logic as SVM: PT0 for first 2MB, identity elsewhere
-            declare
-               Guest_RIP   : constant Unsigned_64 :=
-                  Arch.Virtualization.VMX.VMX_Read
-                     (Arch.Virtualization.VMX.VMCS_GUEST_RIP);
-               Page_4KB    : constant Unsigned_64 := 16#1000#;
-               Page_2MB    : constant Unsigned_64 := 16#20_0000#;
-               NPT_Addr    : constant Integer_Address :=
-                  Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr;
-               type U64_Array is array (Natural range <>) of Unsigned_64;
-               type Byte_Array is array (0 .. 14) of Unsigned_8;
-               HPA         : Unsigned_64;
-               Page_Off    : Unsigned_64;
-               Inst_Addr   : Integer_Address;
-            begin
-               if Guest_RIP < Page_2MB then
-                  --  Look up in PT0 (page 6 of EPT allocation)
-                  declare
-                     PT0 : U64_Array (0 .. 511)
-                        with Import, Address => To_Address (NPT_Addr + 24576);
-                     PT_Idx : constant Natural :=
-                        Natural (Guest_RIP / Page_4KB);
-                  begin
-                     HPA := PT0 (PT_Idx) and 16#FFFF_FFFF_FFFF_F000#;
-                     Page_Off := Guest_RIP and (Page_4KB - 1);
-                     Inst_Addr := Integer_Address (HPA + Page_Off) +
-                        Arch.MMU.Memory_Offset;
-                  end;
-               else
-                  --  Identity mapped, GPA = HPA
-                  Inst_Addr := Integer_Address (Guest_RIP) +
-                     Arch.MMU.Memory_Offset;
-               end if;
-
-               declare
-                  Inst_Mem : Byte_Array
-                     with Import, Address => To_Address (Inst_Addr);
-               begin
-                  Exit_Info.U.Memory.Inst_Len := 15;  --  Max, userspace decode
-                  for I in 0 .. 14 loop
-                     Exit_Info.U.Memory.Inst_Bytes (I) := Inst_Mem (I);
-                  end loop;
-               end;
-            end;
-
-         when Arch.Virtualization.VMX.EXIT_REASON_XSETBV =>
-            --  XSETBV: Emulate XCR0 internally (same as SVM)
-            declare
-               XCR_Num : constant Unsigned_32 := Unsigned_32
-                  (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
-                               and 16#FFFF_FFFF#);
-               Guest_RAX : constant Unsigned_64 :=
-                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX;
-               XCR_Val : constant Unsigned_64 := Shift_Left
-                  (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX
-                               and 16#FFFF_FFFF#, 32) or
-                  (Guest_RAX and 16#FFFF_FFFF#);
-               XCR0_Valid : Boolean;
-               Inst_Len : Unsigned_64;
-               Guest_RIP : Unsigned_64;
-            begin
-               if XCR_Num = 0 then
-                  XCR0_Valid := (XCR_Val and 1) /= 0 and then
-                     ((XCR_Val and 2) /= 0 or (XCR_Val and 4) = 0) and then
-                     (XCR_Val and not Host_XCR0_Max) = 0;
-
-                  if XCR0_Valid then
-                     Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value :=
-                        XCR_Val;
-                     Inst_Len := Arch.Virtualization.VMX.VMX_Read
-                        (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
-                     Guest_RIP := Arch.Virtualization.VMX.VMX_Read
-                        (Arch.Virtualization.VMX.VMCS_GUEST_RIP);
-                     declare
-                        Dummy_OK : Boolean;
-                     begin
-                        Arch.Virtualization.VMX.VMX_Write
-                           (Arch.Virtualization.VMX.VMCS_GUEST_RIP,
-                            Guest_RIP + Inst_Len, Dummy_OK);
-                     end;
-                     Exit_Info.Reason := NVMM_EXIT_NONE;
-                  else
-                     Exit_Info.Reason := NVMM_EXIT_INVALID;
-                     Exit_Info.U.Invalid.HW_Code := Exit_Reason;
-                  end if;
-               else
-                  Exit_Info.Reason := NVMM_EXIT_INVALID;
-                  Exit_Info.U.Invalid.HW_Code := Exit_Reason;
-               end if;
-            end;
-
-         when others =>
-            --  Unknown/unhandled VMX exit
-            Exit_Info.Reason := NVMM_EXIT_INVALID;
-            Exit_Info.U.Invalid.HW_Code := Exit_Reason;
-      end case;
-
-      Release (Machines (Positive (Mach)).Lock);
-      return True;
-   exception
-      when Constraint_Error =>
-         return False;
-   end VCPU_Run_Ex_VMX;
-
    function VCPU_Stop
       (Mach : Machine_ID;
        CPU  : VCPU_ID) return Boolean
@@ -3715,4 +3311,408 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    begin
       return Unsigned_16 (Raw (2)) or Shift_Left (Unsigned_16 (Raw (3)), 8);
    end Get_Attrib_Raw;
+
+   function VCPU_Run_Ex_VMX
+      (Mach      : Machine_ID;
+       CPU       : VCPU_ID;
+       Exit_Info : in out VCPU_Exit_Info) return Boolean
+   is
+      VMCS_Phys  : Unsigned_64;
+      Exit_Reason : Unsigned_64;
+      Load_OK    : Boolean;
+   begin
+      VMCS_Phys := Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys;
+
+      --  Load the VMCS pointer
+      Arch.Virtualization.VMX.VMPTRLD (VMCS_Phys, Load_OK);
+      if not Load_OK then
+         Release (Machines (Positive (Mach)).Lock);
+         Exit_Info.Reason := NVMM_EXIT_INVALID;
+         Exit_Info.U.Invalid.HW_Code := 16#DEAD_0001#;
+         return False;
+      end if;
+
+      --  Check if stop was requested BEFORE running
+      if Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested then
+         Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
+         Exit_Info.Reason := NVMM_EXIT_STOPPED;
+         Release (Machines (Positive (Mach)).Lock);
+         return True;
+      end if;
+
+      --  FPU/XSAVE save/restore around VM entry
+      declare
+         FPU_Addr_Local : constant Integer_Address :=
+            Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
+         Guest_XCR0 : constant Unsigned_64 :=
+            Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
+         Saved_Host_XCR0 : Unsigned_64 := 0;
+      begin
+         if Has_XSAVE then
+            declare
+               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
+                  with Import, Address => To_Address (FPU_Addr_Local);
+               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
+                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
+            begin
+               Saved_Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
+               Arch.Virtualization.SVM.XSAVE_Save
+                  (Host_XSAVE, Saved_Host_XCR0);
+               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
+                  Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
+               end if;
+               Arch.Virtualization.SVM.XSAVE_Restore (Guest_XSAVE, Guest_XCR0);
+            end;
+         else
+            declare
+               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
+                  with Import, Address => To_Address (FPU_Addr_Local);
+               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
+                  with Import, Address => To_Address (FPU_Addr_Local + 512);
+            begin
+               Arch.Virtualization.SVM.FPU_Save (Host_FPU);
+               Arch.Virtualization.SVM.FPU_Restore (Guest_FPU);
+            end;
+         end if;
+
+         --  Save host FS and GS bases
+         declare
+            Host_FS_Base : constant Unsigned_64 := Arch.Snippets.Read_FS;
+            Host_GS_Base : constant Unsigned_64 := Arch.Snippets.Read_GS;
+            Is_Launch : constant Boolean :=
+               not Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched;
+            VM_Success : Boolean;
+         begin
+            --  Run the VCPU using VMLAUNCH or VMRESUME
+            Arch.Virtualization.VMX.VMLAUNCH_VMRESUME
+               (VMCS_PA   => VMCS_Phys,
+                GPRs      => Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs,
+                Is_Launch => Is_Launch,
+                Success   => VM_Success);
+
+            --  Check if VMLAUNCH/VMRESUME failed
+            if not VM_Success then
+               --  Restore FS/GS before returning
+               Arch.Snippets.Write_FS (Host_FS_Base);
+               Arch.Snippets.Write_GS (Host_GS_Base);
+               --  Continue to return invalid exit
+            end if;
+
+            --  After first successful launch, use VMRESUME for next entries
+            if Is_Launch and VM_Success then
+               Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := True;
+            end if;
+
+            --  Restore host FS and GS bases
+            Arch.Snippets.Write_FS (Host_FS_Base);
+            Arch.Snippets.Write_GS (Host_GS_Base);
+         end;
+
+         --  Save guest state and restore host state
+         if Has_XSAVE then
+            declare
+               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
+                  with Import, Address => To_Address (FPU_Addr_Local);
+               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
+                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
+            begin
+               Arch.Virtualization.SVM.XSAVE_Save (Guest_XSAVE, Guest_XCR0);
+               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
+                  Arch.Virtualization.SVM.Set_XCR0 (Saved_Host_XCR0);
+               end if;
+               Arch.Virtualization.SVM.XSAVE_Restore
+                  (Host_XSAVE, Saved_Host_XCR0);
+            end;
+         else
+            declare
+               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
+                  with Import, Address => To_Address (FPU_Addr_Local);
+               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
+                  with Import, Address => To_Address (FPU_Addr_Local + 512);
+            begin
+               Arch.Virtualization.SVM.FPU_Save (Guest_FPU);
+               Arch.Virtualization.SVM.FPU_Restore (Host_FPU);
+            end;
+         end if;
+      end;
+
+      --  Reload IDT after VM exit
+      Arch.IDT.Load_IDT;
+
+      --  Check if stop was requested after running
+      if Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested then
+         Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
+         Exit_Info.Reason := NVMM_EXIT_STOPPED;
+         Release (Machines (Positive (Mach)).Lock);
+         return True;
+      end if;
+
+      --  Get exit reason from VMCS
+      Exit_Reason := Arch.Virtualization.VMX.VMX_Read
+         (Arch.Virtualization.VMX.VMCS_EXIT_REASON);
+
+      --  Get exit state - read RFLAGS from VMCS
+      Exit_Info.Exit_State.RFLAGS := Arch.Virtualization.VMX.VMX_Read
+         (Arch.Virtualization.VMX.VMCS_GUEST_RFLAGS);
+      Exit_Info.Exit_State.CR8 := 0;
+      Exit_Info.Exit_State.Int_Shadow :=
+         (Arch.Virtualization.VMX.VMX_Read
+            (Arch.Virtualization.VMX.VMCS_GUEST_INTERRUPTIBILITY) and 1) /= 0;
+
+      --  Translate VMX exit reason to NVMM exit code
+      --  VMX exit reasons are in the low 16 bits
+      case Exit_Reason and 16#FFFF# is
+         when Arch.Virtualization.VMX.EXIT_REASON_EXCEPTION_NMI =>
+            --  Guest hit an intercepted exception
+            --  TODO: Properly handle different exception types
+            Exit_Info.Reason := NVMM_EXIT_INVALID;
+            Exit_Info.U.Invalid.HW_Code := Exit_Reason;
+
+         when Arch.Virtualization.VMX.EXIT_REASON_EXTERNAL_INTERRUPT =>
+            --  External interrupt arrived - just continue guest
+            Exit_Info.Reason := NVMM_EXIT_NONE;
+
+         when Arch.Virtualization.VMX.EXIT_REASON_TRIPLE_FAULT =>
+            Exit_Info.Reason := NVMM_EXIT_SHUTDOWN;
+
+         when Arch.Virtualization.VMX.EXIT_REASON_CPUID =>
+            --  Emulate CPUID (RAX is in VMX_GPRs, not VMCS)
+            declare
+               Guest_RAX : constant Unsigned_64 :=
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX;
+               Leaf    : constant Unsigned_32 :=
+                  Unsigned_32 (Guest_RAX and 16#FFFF_FFFF#);
+               Subleaf : constant Unsigned_32 := Unsigned_32
+                  (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
+                               and 16#FFFF_FFFF#);
+               Out_EAX, Out_EBX, Out_ECX, Out_EDX : Unsigned_32;
+               CPUID_OK : Boolean;
+               Inst_Len : Unsigned_64;
+               Guest_RIP : Unsigned_64;
+            begin
+               Arch.Snippets.Get_CPUID
+                  (Leaf    => Leaf,
+                   Subleaf => Subleaf,
+                   EAX     => Out_EAX,
+                   EBX     => Out_EBX,
+                   ECX     => Out_ECX,
+                   EDX     => Out_EDX,
+                   Success => CPUID_OK);
+
+               if CPUID_OK then
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX :=
+                     Unsigned_64 (Out_EAX);
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RBX :=
+                     Unsigned_64 (Out_EBX);
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX :=
+                     Unsigned_64 (Out_ECX);
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX :=
+                     Unsigned_64 (Out_EDX);
+               else
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX := 0;
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RBX := 0;
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX := 0;
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX := 0;
+               end if;
+
+               --  Advance RIP
+               Inst_Len := Arch.Virtualization.VMX.VMX_Read
+                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
+               Guest_RIP := Arch.Virtualization.VMX.VMX_Read
+                  (Arch.Virtualization.VMX.VMCS_GUEST_RIP);
+               declare
+                  Dummy_OK : Boolean;
+               begin
+                  Arch.Virtualization.VMX.VMX_Write
+                     (Arch.Virtualization.VMX.VMCS_GUEST_RIP,
+                      Guest_RIP + Inst_Len, Dummy_OK);
+               end;
+
+               Exit_Info.Reason := NVMM_EXIT_NONE;
+            end;
+
+         when Arch.Virtualization.VMX.EXIT_REASON_HLT =>
+            Exit_Info.Reason := NVMM_EXIT_HALTED;
+
+         when Arch.Virtualization.VMX.EXIT_REASON_IO_INSTRUCTION =>
+            Exit_Info.Reason := NVMM_EXIT_IO;
+            declare
+               Qual : constant Unsigned_64 := Arch.Virtualization.VMX.VMX_Read
+                  (Arch.Virtualization.VMX.VMCS_EXIT_QUALIFICATION);
+            begin
+               --  Bit 3: Direction (0=OUT, 1=IN)
+               Exit_Info.U.IO.Is_In := (Qual and 8) /= 0;
+               --  Bit 4: String instruction
+               Exit_Info.U.IO.Is_String := (Qual and 16) /= 0;
+               --  Bit 5: REP prefix
+               Exit_Info.U.IO.Is_Rep := (Qual and 32) /= 0;
+               --  Bits 0-2: Size (0=1, 1=2, 3=4)
+               case Qual and 7 is
+                  when 0 => Exit_Info.U.IO.Operand_Size := 1;
+                  when 1 => Exit_Info.U.IO.Operand_Size := 2;
+                  when 3 => Exit_Info.U.IO.Operand_Size := 4;
+                  when others => Exit_Info.U.IO.Operand_Size := 1;
+               end case;
+               Exit_Info.U.IO.Address_Size := 32;  --  Default
+               Exit_Info.U.IO.Segment := 0;
+               --  Bits 16-31: Port number
+               Exit_Info.U.IO.Port :=
+                  Unsigned_16 (Shift_Right (Qual, 16) and 16#FFFF#);
+            end;
+            Exit_Info.U.IO.Next_RIP := Arch.Virtualization.VMX.VMX_Read
+               (Arch.Virtualization.VMX.VMCS_GUEST_RIP) +
+               Arch.Virtualization.VMX.VMX_Read
+                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
+
+         when Arch.Virtualization.VMX.EXIT_REASON_RDMSR =>
+            Exit_Info.Reason := NVMM_EXIT_RDMSR;
+            Exit_Info.U.MSR_Read.MSR_Num :=
+               Unsigned_32 (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
+                            and 16#FFFF_FFFF#);
+            Exit_Info.U.MSR_Read.Next_RIP := Arch.Virtualization.VMX.VMX_Read
+               (Arch.Virtualization.VMX.VMCS_GUEST_RIP) +
+               Arch.Virtualization.VMX.VMX_Read
+                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
+
+         when Arch.Virtualization.VMX.EXIT_REASON_WRMSR =>
+            Exit_Info.Reason := NVMM_EXIT_WRMSR;
+            Exit_Info.U.MSR_Write.MSR_Num :=
+               Unsigned_32 (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
+                            and 16#FFFF_FFFF#);
+            Exit_Info.U.MSR_Write.MSR_Val :=
+               Shift_Left (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX
+                            and 16#FFFF_FFFF#, 32) or
+               (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX
+                            and 16#FFFF_FFFF#);
+            Exit_Info.U.MSR_Write.Next_RIP := Arch.Virtualization.VMX.VMX_Read
+               (Arch.Virtualization.VMX.VMCS_GUEST_RIP) +
+               Arch.Virtualization.VMX.VMX_Read
+                  (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
+
+         when Arch.Virtualization.VMX.EXIT_REASON_EPT_VIOLATION =>
+            Exit_Info.Reason := NVMM_EXIT_MEMORY;
+            Exit_Info.U.Memory.GPA := Arch.Virtualization.VMX.VMX_Read
+               (Arch.Virtualization.VMX.VMCS_GUEST_PHYS_ADDR);
+            declare
+               Qual : constant Unsigned_64 := Arch.Virtualization.VMX.VMX_Read
+                  (Arch.Virtualization.VMX.VMCS_EXIT_QUALIFICATION);
+               Prot_Val : Integer := 0;
+            begin
+               --  Bit 0: Read access
+               --  Bit 1: Write access
+               --  Bit 2: Execute access
+               if (Qual and 2) /= 0 then
+                  Prot_Val := Prot_Val + 2;  --  PROT_WRITE
+               elsif (Qual and 1) /= 0 then
+                  Prot_Val := Prot_Val + 1;  --  PROT_READ
+               end if;
+               if (Qual and 4) /= 0 then
+                  Prot_Val := Prot_Val + 4;  --  PROT_EXEC
+               end if;
+               Exit_Info.U.Memory.Prot := Prot_Val;
+            end;
+            --  Fetch instruction bytes from guest memory at RIP
+            --  Uses same logic as SVM: PT0 for first 2MB, identity elsewhere
+            declare
+               Guest_RIP   : constant Unsigned_64 :=
+                  Arch.Virtualization.VMX.VMX_Read
+                     (Arch.Virtualization.VMX.VMCS_GUEST_RIP);
+               Page_4KB    : constant Unsigned_64 := 16#1000#;
+               Page_2MB    : constant Unsigned_64 := 16#20_0000#;
+               NPT_Addr    : constant Integer_Address :=
+                  Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr;
+               type U64_Array is array (Natural range <>) of Unsigned_64;
+               type Byte_Array is array (0 .. 14) of Unsigned_8;
+               HPA         : Unsigned_64;
+               Page_Off    : Unsigned_64;
+               Inst_Addr   : Integer_Address;
+            begin
+               if Guest_RIP < Page_2MB then
+                  --  Look up in PT0 (page 6 of EPT allocation)
+                  declare
+                     PT0 : U64_Array (0 .. 511)
+                        with Import, Address => To_Address (NPT_Addr + 24576);
+                     PT_Idx : constant Natural :=
+                        Natural (Guest_RIP / Page_4KB);
+                  begin
+                     HPA := PT0 (PT_Idx) and 16#FFFF_FFFF_FFFF_F000#;
+                     Page_Off := Guest_RIP and (Page_4KB - 1);
+                     Inst_Addr := Integer_Address (HPA + Page_Off) +
+                        Arch.MMU.Memory_Offset;
+                  end;
+               else
+                  --  Identity mapped, GPA = HPA
+                  Inst_Addr := Integer_Address (Guest_RIP) +
+                     Arch.MMU.Memory_Offset;
+               end if;
+
+               declare
+                  Inst_Mem : Byte_Array
+                     with Import, Address => To_Address (Inst_Addr);
+               begin
+                  Exit_Info.U.Memory.Inst_Len := 15;  --  Max, userspace decode
+                  for I in 0 .. 14 loop
+                     Exit_Info.U.Memory.Inst_Bytes (I) := Inst_Mem (I);
+                  end loop;
+               end;
+            end;
+
+         when Arch.Virtualization.VMX.EXIT_REASON_XSETBV =>
+            --  XSETBV: Emulate XCR0 internally (same as SVM)
+            declare
+               XCR_Num : constant Unsigned_32 := Unsigned_32
+                  (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RCX
+                               and 16#FFFF_FFFF#);
+               Guest_RAX : constant Unsigned_64 :=
+                  Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RAX;
+               XCR_Val : constant Unsigned_64 := Shift_Left
+                  (Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.RDX
+                               and 16#FFFF_FFFF#, 32) or
+                  (Guest_RAX and 16#FFFF_FFFF#);
+               XCR0_Valid : Boolean;
+               Inst_Len : Unsigned_64;
+               Guest_RIP : Unsigned_64;
+            begin
+               if XCR_Num = 0 then
+                  XCR0_Valid := (XCR_Val and 1) /= 0 and then
+                     ((XCR_Val and 2) /= 0 or (XCR_Val and 4) = 0) and then
+                     (XCR_Val and not Host_XCR0_Max) = 0;
+
+                  if XCR0_Valid then
+                     Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value :=
+                        XCR_Val;
+                     Inst_Len := Arch.Virtualization.VMX.VMX_Read
+                        (Arch.Virtualization.VMX.VMCS_EXIT_INSTR_LENGTH);
+                     Guest_RIP := Arch.Virtualization.VMX.VMX_Read
+                        (Arch.Virtualization.VMX.VMCS_GUEST_RIP);
+                     declare
+                        Dummy_OK : Boolean;
+                     begin
+                        Arch.Virtualization.VMX.VMX_Write
+                           (Arch.Virtualization.VMX.VMCS_GUEST_RIP,
+                            Guest_RIP + Inst_Len, Dummy_OK);
+                     end;
+                     Exit_Info.Reason := NVMM_EXIT_NONE;
+                  else
+                     Exit_Info.Reason := NVMM_EXIT_INVALID;
+                     Exit_Info.U.Invalid.HW_Code := Exit_Reason;
+                  end if;
+               else
+                  Exit_Info.Reason := NVMM_EXIT_INVALID;
+                  Exit_Info.U.Invalid.HW_Code := Exit_Reason;
+               end if;
+            end;
+
+         when others =>
+            --  Unknown/unhandled VMX exit
+            Exit_Info.Reason := NVMM_EXIT_INVALID;
+            Exit_Info.U.Invalid.HW_Code := Exit_Reason;
+      end case;
+
+      Release (Machines (Positive (Mach)).Lock);
+      return True;
+   exception
+      when Constraint_Error =>
+         return False;
+   end VCPU_Run_Ex_VMX;
 end Arch.Virtualization;

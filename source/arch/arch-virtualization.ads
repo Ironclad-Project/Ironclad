@@ -275,11 +275,6 @@ package Arch.Virtualization with SPARK_Mode => Off is
        CPU       : VCPU_ID;
        Exit_Info : out VCPU_Exit_Info) return Boolean;
 
-   function VCPU_Run_Ex_VMX
-      (Mach      : Machine_ID;
-       CPU       : VCPU_ID;
-       Exit_Info : in out VCPU_Exit_Info) return Boolean;
-
    --  Request a running VCPU to stop.
    --  @param Mach  The machine ID.
    --  @param CPU   The VCPU ID.
@@ -384,5 +379,10 @@ private
           Limit       : Unsigned_32) return Unsigned_64;
 
       function Get_Attrib_Raw (S : NVMM_Segment) return Unsigned_16;
+
+      function VCPU_Run_Ex_VMX
+         (Mach      : Machine_ID;
+          CPU       : VCPU_ID;
+          Exit_Info : in out VCPU_Exit_Info) return Boolean;
    #end if;
 end Arch.Virtualization;
