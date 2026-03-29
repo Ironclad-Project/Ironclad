@@ -21,12 +21,19 @@ with Memory.MMU;
 with System; use System;
 
 package body Memory.Physical with SPARK_Mode => Off is
+   --  The physical memory allocator of Ironclad consists of two components.
+   --  - A bitmap allocator that manages memory blocks directly of arbitrary
+   --    size. It is slow and bulky but it takes care of every allocation size
+   --    always.
+   --  - An allocator pool/slab of one page objects for fast handing and
+   --    freeing, to increase responsiveness and reduce load from the main
+   --    bitmap.
+
+   --  Information that the bitmap allocator keeps track of.
    Block_Size :         constant := Memory.MMU.Page_Size;
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;
    type Bitmap is array (Unsigned_64 range <>) of Boolean with Pack;
-
-   --  Information that the allocator keeps track of.
    Total_Memory, Available_Memory, Free_Memory : Memory.Size;
    Block_Count      :              Unsigned_64 := 0;
    Bitmap_Length    :              Memory.Size := 0;
@@ -34,10 +41,23 @@ package body Memory.Physical with SPARK_Mode => Off is
    Bitmap_Last_Used :              Unsigned_64 := 0;
    Alloc_Mutex      : aliased Binary_Semaphore := Unlocked_Semaphore;
 
-   --  Header of each memory allocation.
+   --  Header of each memory allocation in the bitmap.
    type Allocation_Header is record
       Block_Count : Size;
    end record;
+
+   --  Slab information for the 1 page object slab.
+   Slab_Item_Count : constant := 10_000;
+   type Page_Data      is array (1 .. Block_Size) of Unsigned_8;
+   type Slab_Data      is array (1 .. Slab_Item_Count) of Page_Data;
+   type Slab_Data_Acc  is access Slab_Data;
+   type Slab_Stack     is array (1 .. Slab_Item_Count) of Unsigned_16;
+   type Slab_Stack_Acc is access Slab_Stack;
+   Slab_Init  : Boolean := False;
+   Slab_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Slab       : Slab_Data_Acc;
+   Slab_Track : Slab_Stack_Acc;
+   Slab_Idx   : Natural;
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       package Align is new Alignment (Memory.Size);
@@ -100,6 +120,15 @@ package body Memory.Physical with SPARK_Mode => Off is
             end if;
          end loop;
       end;
+
+      --  Initialize the slab.
+      Slab := new Slab_Data;
+      Slab_Track := new Slab_Stack;
+      for I in Slab_Track'Range loop
+         Slab_Track (I) := Unsigned_16 (I);
+      end loop;
+      Slab_Idx := Slab'Last;
+      Slab_Init := True;
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception initializing the allocator");
@@ -128,12 +157,26 @@ package body Memory.Physical with SPARK_Mode => Off is
       First_Found, Found_Count : Unsigned_64 := 0;
       Sz, Blocks_To_Allocate   : Memory.Size;
    begin
-      --  Calculate how many blocks to allocate, if we are doing alloconly, we
-      --  do not need to use blocks for headers and checksums.
+      --  Calculate how many blocks to allocate.
       Sz := Align.Align_Up (Memory.Size (Size), Block_Size);
-      Blocks_To_Allocate := (Sz / Block_Size) + 1;
+
+      --  If one block or below, lets use the faster stack.
+      if Slab_Init and then Sz = Block_Size then
+         Synchronization.Seize (Slab_Mutex);
+         if Slab_Idx /= 0 then
+            Addr :=
+               To_Integer (Slab (Natural (Slab_Track (Slab_Idx)))'Address);
+            Slab_Idx := Slab_Idx - 1;
+            Success := True;
+            Synchronization.Release (Slab_Mutex);
+            return;
+         else
+            Synchronization.Release (Slab_Mutex);
+         end if;
+      end if;
 
       --  Search for contiguous blocks, as many as needed.
+      Blocks_To_Allocate := (Sz / Block_Size) + 1;
       Synchronization.Seize (Alloc_Mutex);
    <<Search_Blocks>>
       for I in Bitmap_Last_Used .. Bitmap_Body'Last loop
@@ -215,6 +258,22 @@ package body Memory.Physical with SPARK_Mode => Off is
          return;
       elsif Real_Address < Memory_Offset then
          Real_Address := Real_Address + Memory_Offset;
+      end if;
+
+      if Slab_Init then
+         if Real_Address >= To_Integer (Slab (Slab'First)'Address) and
+            Real_Address <= To_Integer (Slab (Slab'Last)'Address)
+         then
+            Real_Block :=
+               (Unsigned_64 (Real_Address -
+                To_Integer (Slab (Slab'First)'Address)) / Block_Size) + 1;
+
+            Synchronization.Seize (Slab_Mutex);
+            Slab_Idx := Slab_Idx + 1;
+            Slab_Track (Slab_Idx) := Unsigned_16 (Real_Block);
+            Synchronization.Release (Slab_Mutex);
+            return;
+         end if;
       end if;
 
       --  Free the blocks in the header.
