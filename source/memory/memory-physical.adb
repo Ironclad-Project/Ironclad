@@ -105,125 +105,42 @@ package body Memory.Physical with SPARK_Mode => Off is
          Panic.Hard_Panic ("Exception initializing the allocator");
    end Init_Allocator;
    ----------------------------------------------------------------------------
-   procedure Alloc
-      (Sz : Interfaces.C.size_t; Result : out Memory.Virtual_Address)
-   is
-      Size : Interfaces.C.size_t := Sz;
+   procedure Alloc (Size : size_t; Result : out Memory.Virtual_Address) is
+      Success : Boolean;
    begin
-      --  Check the specific GNAT semantics.
-      if Size = Interfaces.C.size_t'Last then
-         Panic.Hard_Panic ("size_t'Last passed to 'new'");
-      elsif Size = 0 then
-         Size := 1;
-      end if;
-
-      Alloc_Pgs (Size, Result);
-      if Result = 0 then
+      User_Alloc (Result, Unsigned_64 (Size), Success);
+      if not Success then
          Panic.Hard_Panic ("Exhausted memory (OOM)");
       end if;
    end Alloc;
 
-   procedure Free (Address : Interfaces.C.size_t) is
-      Real_Address : Virtual_Address := Virtual_Address (Address);
-   begin
-      --  Ensure the address is in the higher half and not null.
-      if Real_Address = 0 then
-         return;
-      elsif Real_Address < Memory_Offset then
-         Real_Address := Real_Address + Memory_Offset;
-      end if;
-
-      Free_Pgs (size_t (Real_Address));
-   end Free;
-   ----------------------------------------------------------------------------
-   procedure Lower_Half_Alloc
-      (Addr    : out Memory.Virtual_Address;
-       Size    : Unsigned_64;
-       Success : out Boolean)
-   is
-   begin
-      --  Alloc_Pgs allocates from the bottom of memory, so if we can just wrap
-      --  the function with a simple sanity check.
-      Alloc_Pgs (size_t (Size), Addr);
-      Success := Addr /= 0 and Addr + Virtual_Address (Size) <= (16#100000000#
-       + Memory.Memory_Offset);
-   end Lower_Half_Alloc;
-
-   procedure Lower_Half_Free (Addr : Memory.Virtual_Address) is
-      Real_Address : Virtual_Address := Addr;
-   begin
-      --  Ensure the address is in the higher half and not null.
-      if Real_Address = 0 then
-         return;
-      elsif Real_Address < Memory_Offset then
-         Real_Address := Real_Address + Memory_Offset;
-      end if;
-
-      Free_Pgs (size_t (Real_Address));
-   end Lower_Half_Free;
-   ----------------------------------------------------------------------------
    procedure User_Alloc
       (Addr    : out Memory.Virtual_Address;
        Size    : Unsigned_64;
        Success : out Boolean)
    is
-   begin
-      Alloc_Pgs (size_t (Size), Addr);
-      Success := Addr /= 0;
-   end User_Alloc;
-
-   procedure User_Free (Addr : Memory.Virtual_Address) is
-      Real_Address : Virtual_Address := Addr;
-   begin
-      --  Ensure the address is in the higher half and not null.
-      if Real_Address = 0 then
-         return;
-      elsif Real_Address < Memory_Offset then
-         Real_Address := Real_Address + Memory_Offset;
-      end if;
-
-      Free_Pgs (size_t (Real_Address));
-   end User_Free;
-   ----------------------------------------------------------------------------
-   procedure Get_Statistics (Stats : out Statistics) is
-   begin
-      Synchronization.Seize (Alloc_Mutex);
-      Stats :=
-         (Total     => Total_Memory,
-          Available => Available_Memory,
-          Free      => Free_Memory);
-      Synchronization.Release (Alloc_Mutex);
-   end Get_Statistics;
-   ----------------------------------------------------------------------------
-   procedure Alloc_Pgs
-      (Sz     : Interfaces.C.size_t;
-       Result : out Memory.Virtual_Address)
-   is
       pragma SPARK_Mode (Off);
-
       package Align is new Alignment (Memory.Size);
 
-      Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
-      for Bitmap_Body'Address use To_Address (Bitmap_Address);
+      Bitmap_Body : Bitmap (0 .. Block_Count - 1)
+         with Import, Address => To_Address (Bitmap_Address);
 
-      First_Found_Index  : Unsigned_64 := 0;
-      Found_Count        : Unsigned_64 := 0;
-      Size               : Memory.Size := Memory.Size (Sz);
-      Blocks_To_Allocate : Memory.Size;
+      First_Found, Found_Count : Unsigned_64 := 0;
+      Sz, Blocks_To_Allocate   : Memory.Size;
    begin
       --  Calculate how many blocks to allocate, if we are doing alloconly, we
       --  do not need to use blocks for headers and checksums.
-      Size               := Align.Align_Up (Size, Block_Size);
-      Blocks_To_Allocate := (Size / Block_Size) + 1;
+      Sz := Align.Align_Up (Memory.Size (Size), Block_Size);
+      Blocks_To_Allocate := (Sz / Block_Size) + 1;
 
       --  Search for contiguous blocks, as many as needed.
       Synchronization.Seize (Alloc_Mutex);
    <<Search_Blocks>>
-      for I in Bitmap_Last_Used .. Block_Count - 1 loop
+      for I in Bitmap_Last_Used .. Bitmap_Body'Last loop
          if Bitmap_Body (I) = Block_Free then
-            if I /= First_Found_Index + Found_Count then
-               First_Found_Index := I;
-               Found_Count       := 1;
+            if I /= First_Found + Found_Count then
+               First_Found := I;
+               Found_Count := 1;
             else
                Found_Count := Found_Count + 1;
             end if;
@@ -243,42 +160,63 @@ package body Memory.Physical with SPARK_Mode => Off is
 
       --  Handle OOM.
       Synchronization.Release (Alloc_Mutex);
-      Result := 0;
+      Addr := 0;
+      Success := False;
       return;
 
    <<Fill_Bitmap>>
       for I in 1 .. Blocks_To_Allocate loop
-         Bitmap_Body (First_Found_Index + Unsigned_64 (I - 1)) := Block_Used;
+         Bitmap_Body (First_Found + Unsigned_64 (I - 1)) := Block_Used;
       end loop;
 
       --  Set statistic, global variables, the allocation header and return.
-      Bitmap_Last_Used := First_Found_Index;
+      Bitmap_Last_Used := First_Found + Unsigned_64 (Blocks_To_Allocate) - 1;
       Free_Memory      := Free_Memory - (Blocks_To_Allocate * Block_Size);
       Synchronization.Release (Alloc_Mutex);
 
-      --  If we are doing alloc only, we only have to return the allocated
-      --  address, else, we have to actually fill the header and checksums.
       declare
          Ret : constant Virtual_Address :=
-            Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
+            Virtual_Address (First_Found * Block_Size) + Memory_Offset;
          Header : Allocation_Header with Import, Address => To_Address (Ret);
       begin
          Header := (Block_Count => Blocks_To_Allocate);
-         Result := Ret + Block_Size;
+         Addr := Ret + Block_Size;
+         Success := True;
       end;
    exception
       when Constraint_Error =>
-         Result := 0;
-   end Alloc_Pgs;
+         Addr    := 0;
+         Success := False;
+   end User_Alloc;
 
-   procedure Free_Pgs (Address : Interfaces.C.size_t) is
+   procedure Lower_Half_Alloc
+      (Addr    : out Memory.Virtual_Address;
+       Size    : Unsigned_64;
+       Success : out Boolean)
+   is
+   begin
+      --  Alloc_Pgs allocates from the bottom of memory, so we can just wrap.
+      User_Alloc (Addr, Size, Success);
+      Success :=
+         Addr /= 0 and then
+         Addr + Virtual_Address (Size) <= 16#100000000# + Memory.Memory_Offset;
+   end Lower_Half_Alloc;
+
+   procedure Free (Address : size_t) is
       pragma SPARK_Mode (Off);
 
-      Real_Address : constant Virtual_Address := Virtual_Address (Address);
+      Real_Address : Virtual_Address := Virtual_Address (Address);
       Real_Block   : Unsigned_64;
       Bitmap_Body  : Bitmap (0 .. Block_Count - 1)
          with Address => To_Address (Bitmap_Address), Import;
    begin
+      --  Ensure the address is in the higher half and not null.
+      if Real_Address = 0 then
+         return;
+      elsif Real_Address < Memory_Offset then
+         Real_Address := Real_Address + Memory_Offset;
+      end if;
+
       --  Free the blocks in the header.
       declare
          IAddr  : constant Integer_Address := Real_Address - Block_Size;
@@ -298,5 +236,15 @@ package body Memory.Physical with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          null;
-   end Free_Pgs;
+   end Free;
+   ----------------------------------------------------------------------------
+   procedure Get_Statistics (Stats : out Statistics) is
+   begin
+      Synchronization.Seize (Alloc_Mutex);
+      Stats :=
+         (Total     => Total_Memory,
+          Available => Available_Memory,
+          Free      => Free_Memory);
+      Synchronization.Release (Alloc_Mutex);
+   end Get_Statistics;
 end Memory.Physical;

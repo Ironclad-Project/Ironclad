@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces.C;
 with Synchronization; use Synchronization;
 with Memory;
 with Memory.Physical; use Memory.Physical;
@@ -291,7 +292,7 @@ package body IPC.SHM is
    begin
       if Registry (ID).Refcount = 0 and Registry (ID).Is_Refcounted then
          Registry (ID).Is_Present := False;
-         User_Free (Registry (ID).Physical_Address);
+         Free (Interfaces.C.size_t (Registry (ID).Physical_Address));
       end if;
    end Check_And_Maybe_Free;
 end IPC.SHM;

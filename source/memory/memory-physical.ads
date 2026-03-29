@@ -28,49 +28,35 @@ package Memory.Physical is
    --  by the kernel.
 
    --  Called when doing 'new'.
-   --  @param Sz Size to allocate in bytes. Sz = size_t'Last will
-   --  unconditionally error, and Sz as 0 for allocating a small,
-   --  freeable block. These are Ada-mandated semantics for `new`.
+   --  @param Size Size to allocate in bytes, non zero.
    --  @return Address of the allocated object in the higher half.
    --  The block pointed by the address is:
-   --  - Not zero'd out, since SPARK requires us to initialize it ourselves.
-   --  - For Sz >= Page_Size, alignment is Page_Size. Else, it is unspecified.
-   --  - Never null, errors are handled internally, this includes OOM.
-   procedure Alloc
-      (Sz : Interfaces.C.size_t; Result : out Memory.Virtual_Address)
-      with Export, Convention => C, External_Name => "internal_alloc";
+   --  - Not zero'd out, this is up to the consumer.
+   --  - Alignment is always Page_Size.
+   --  - Never invalid, errors are handled internally, this includes OOM.
+   procedure Alloc (Size : size_t; Result : out Memory.Virtual_Address)
+      with Export, Convention => C, External_Name => "internal_alloc",
+           Pre => Size /= 0;
 
-   --  Called by Unchecked_Deallocation, it deallocates a previously allocated
-   --  block, apart of that, it has no special Ada semantics.
-   --  @param Address Address of the object to free, higher half or not.
-   procedure Free (Address : Interfaces.C.size_t)
-      with Export, Convention => C, External_Name => "internal_free";
-   ----------------------------------------------------------------------------
-   --  The functions above can allocate kernel memory past 4 GiB, some devices
-   --  require memory below this boundary for their 32 bit address registers.
-
-   --  Allocate.
-   procedure Lower_Half_Alloc
-      (Addr    : out Memory.Virtual_Address;
-       Size    : Unsigned_64;
-       Success : out Boolean);
-
-   --  Free.
-   procedure Lower_Half_Free (Addr : Memory.Virtual_Address);
-   ----------------------------------------------------------------------------
-   --  The functions above are only to be called by the kernel itself, these
-   --  ones are to be used by the kernel to give memory to userland. The memory
-   --  allocated can be remapped, passed to userland, and mangled in all other
-   --  ways.
-
-   --  Allocate.
+   --  Allocate function with the same semantics as the one above, but
+   --  fallible.
    procedure User_Alloc
       (Addr    : out Memory.Virtual_Address;
        Size    : Unsigned_64;
        Success : out Boolean);
 
-   --  Free.
-   procedure User_Free (Addr : Memory.Virtual_Address);
+   --  Allocate function with the same semantics as the one above, but
+   --  guarantees that Addr will end up in the lower half, and fallible.
+   procedure Lower_Half_Alloc
+      (Addr    : out Memory.Virtual_Address;
+       Size    : Unsigned_64;
+       Success : out Boolean);
+
+   --  Called by Unchecked_Deallocation, it deallocates a previously allocated
+   --  block, apart of that, it has no special Ada semantics.
+   --  @param Address Address of the object to free, higher half or not.
+   procedure Free (Address : size_t)
+      with Export, Convention => C, External_Name => "internal_free";
    ----------------------------------------------------------------------------
    --  Allocator-wide memory statistics.
    --  @field Total     Total physical memory of the system.
@@ -85,15 +71,4 @@ package Memory.Physical is
    --  Fetch memory statistics as defined in the Statistics record.
    --  @param Stats Where to return the stats.
    procedure Get_Statistics (Stats : out Statistics);
-
-private
-
-   procedure Alloc_Pgs
-      (Sz     : Interfaces.C.size_t;
-       Result : out Memory.Virtual_Address);
-
-   procedure Free_Pgs (Address : Interfaces.C.size_t);
-
-   function CLZ (Num : Unsigned_64) return Interfaces.C.int;
-   pragma Import (Intrinsic, CLZ, "__builtin_clzl");
 end Memory.Physical;

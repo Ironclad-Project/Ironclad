@@ -21,6 +21,13 @@ extern void internal_free(void *addr);
 
 void *__gnat_malloc(size_t size) {
     void *result;
+
+    // GNAT semantics for __gnat_malloc require us to to allocate a valid block
+    // if size = 0.
+    if (size == 0) {
+        size = 1;
+    }
+
     internal_alloc(size, &result);
     return result;
 }

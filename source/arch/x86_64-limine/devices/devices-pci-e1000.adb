@@ -567,25 +567,25 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
       --  Allocate receive descriptor ring
       Memory.Physical.Alloc
          (Result => RX_Ring_Mem,
-            Sz => A.Align_Up (RX_RING_SIZE * (RX_Descriptor'Size / 8),
+            Size => A.Align_Up (RX_RING_SIZE * (RX_Descriptor'Size / 8),
                Arch.MMU.Page_Size));
 
       --  Allocate transmit descriptor ring
       Memory.Physical.Alloc
          (Result => TX_Ring_Mem,
-            Sz => A.Align_Up (TX_RING_SIZE * (TX_Descriptor'Size / 8),
+            Size => A.Align_Up (TX_RING_SIZE * (TX_Descriptor'Size / 8),
                Arch.MMU.Page_Size));
 
       --  Allocate receive packet buffers
       Memory.Physical.Alloc
          (Result => RX_Bufs_Start,
-            Sz => A.Align_Up (RX_RING_SIZE * MAX_PACKET_SIZE,
+            Size => A.Align_Up (RX_RING_SIZE * MAX_PACKET_SIZE,
                               Arch.MMU.Page_Size));
 
       --  Allocate transmit packet buffers
       Memory.Physical.Alloc
          (Result => TX_Bufs_Start,
-            Sz => A.Align_Up (TX_RING_SIZE * MAX_PACKET_SIZE,
+            Size => A.Align_Up (TX_RING_SIZE * MAX_PACKET_SIZE,
                               Arch.MMU.Page_Size));
 
       --  Create controller data structure

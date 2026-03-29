@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces.C;
+with Interfaces.C; use Interfaces.C;
 with Ada.Unchecked_Deallocation;
 with Memory.Physical;
 with Panic;
@@ -348,7 +348,7 @@ package body Memory.MMU with SPARK_Mode => Off is
             Orig  := Arch.MMU.Clean_Entry (Entry_Body);
             Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
             if Perms.User_Flag and then Orig /= Phys then
-               Physical.User_Free (Memory.Memory_Offset + Orig);
+               Physical.Free (size_t (Memory.Memory_Offset + Orig));
             end if;
             Entry_Body := Arch.MMU.Construct_Entry
                (To_Address (Phys), Permissions, Caching, False);
@@ -419,7 +419,7 @@ package body Memory.MMU with SPARK_Mode => Off is
             Orig  := Arch.MMU.Clean_Entry (Entry_Body);
             Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
             if Perms.User_Flag and then Orig /= Phys then
-               Physical.User_Free (Memory.Memory_Offset + Orig);
+               Physical.Free (size_t (Memory.Memory_Offset + Orig));
             end if;
             Entry_Body := Arch.MMU.Construct_Entry
                (To_Address (Phys), Permissions, Caching, True);
@@ -515,7 +515,7 @@ package body Memory.MMU with SPARK_Mode => Off is
                Orig  := Arch.MMU.Clean_Entry (Entry_Body);
                Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
                if Perms.User_Flag then
-                  Physical.User_Free (Memory.Memory_Offset + Orig);
+                  Physical.Free (size_t (Memory.Memory_Offset + Orig));
                end if;
                Entry_Body := Arch.MMU.Make_Not_Present (Entry_Body);
                if Perms.Perms.Is_User_Accessible then
@@ -792,7 +792,7 @@ package body Memory.MMU with SPARK_Mode => Off is
                   when others =>
                      Perms := Arch.MMU.Clean_Entry_Perms (L);
                      if Perms.User_Flag then
-                        Physical.User_Free (Memory_Offset + A);
+                        Physical.Free (size_t (Memory_Offset + A));
                      end if;
                      goto Iter_End;
                end case;
