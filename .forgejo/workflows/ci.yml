@@ -61,9 +61,9 @@ jobs:
           export PATH="$PWD/toolchain_dir:$PWD/gnatprove/bin:$PWD/typos/bin:$PATH"
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
-              ./configure --host=riscv64-linux-gnu ;; \
+              GNATPROVE=gnatprove TYPOS=typos ./configure --host=riscv64-linux-gnu ;; \
             x86_64-limine) \
-              ./configure ;; \
+              GNATPROVE=gnatprove TYPOS=typos ./configure ;; \
           esac
 
       - name: Build
