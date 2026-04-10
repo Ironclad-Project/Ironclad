@@ -50,19 +50,18 @@ jobs:
           tar -xf gnatprove-x86_64-linux-15.1.0-1.tar.gz
           rm gnatprove-x86_64-linux-15.1.0-1.tar.gz
 
-          wget https://github.com/crate-ci/typos/releases/download/v1.42.0/typos-v1.42.0-x86_64-unknown-linux-musl.tar.gz
-          tar xf typos-v1.42.0-x86_64-unknown-linux-musl.tar.gz
-          rm typos-v1.42.0-x86_64-unknown-linux-musl.tar.gz
+          wget https://github.com/crate-ci/typos/releases/download/v1.45.0/typos-v1.45.0-x86_64-unknown-linux-musl.tar.gz
+          mkdir typos-v1.45.0-x86_64-unknown-linux-musl
+          tar xf typos-v1.45.0-x86_64-unknown-linux-musl.tar.gz -C typos-v1.45.0-x86_64-unknown-linux-musl
+          rm typos-v1.45.0-x86_64-unknown-linux-musl.tar.gz
 
       - name: Bootstrap
         run: ./bootstrap
 
-      - name: Build
+      - name: Configure step
         run: |
           set -ex
-
-          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/typos-v1.42.0-x86_64-unknown-linux-musl/bin:$PWD/toolchain_dir:$PATH"
-
+          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/typos-v1.45.0-x86_64-unknown-linux-musl/bin:$PWD/toolchain_dir:$PATH"
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
               ./configure --host=riscv64-linux-gnu ;; \
@@ -70,7 +69,26 @@ jobs:
               ./configure ;; \
           esac
 
-          make
-          make check-typos
-          make check-rts-stone
-          make check-kernel-stone
+      - name: Build
+        run: |
+          set -ex
+          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/typos-v1.45.0-x86_64-unknown-linux-musl/bin:$PWD/toolchain_dir:$PATH"
+          make -j$(nproc)
+
+      - name: Check typos
+        run: |
+          set -ex
+          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/typos-v1.45.0-x86_64-unknown-linux-musl/bin:$PWD/toolchain_dir:$PATH"
+          make check-typos -j$(nproc)
+
+      - name: Verify RTS
+        run: |
+          set -ex
+          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/typos-v1.45.0-x86_64-unknown-linux-musl/bin:$PWD/toolchain_dir:$PATH"
+          make check-rts -j$(nproc)
+
+      - name: Verify kernel
+        run: |
+          set -ex
+          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/typos-v1.45.0-x86_64-unknown-linux-musl/bin:$PWD/toolchain_dir:$PATH"
+          make check-kernel -j$(nproc)
