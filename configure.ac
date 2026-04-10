@@ -175,8 +175,6 @@ AC_ARG_VAR([GPRBUILD], [gprbuild command])
 GET_PROG([GPRBUILD], [gprbuild])
 AC_ARG_VAR([GNATPROVE], [gnatprove command])
 GET_PROG([GNATPROVE], [gnatprove], [], [no-err])
-AC_ARG_VAR([TYPOS], [typos command])
-GET_PROG([TYPOS], [typos], [], [no-err])
 
 # $1 - UPPERCASEVAR, $2 - default program
 AC_DEFUN([GET_TOOL_FROM_GPRBUILD], [

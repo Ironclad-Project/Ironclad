@@ -50,7 +50,6 @@ TEXI2HTML := @TEXI2HTML@
 TEXI2DVI := @TEXI2DVI@
 GPRBUILD := @GPRBUILD@
 GNATPROVE := @GNATPROVE@
-TYPOS := @TYPOS@
 STRIP := @STRIP@
 
 # Target information.
@@ -110,11 +109,7 @@ ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
 ###############################################################################
 # Rules for checks and formal verification.
 .PHONY: check
-check: check-typos check-rts check-kernel
-
-.PHONY: check-typos
-check-typos:
-	$(TYPOS) -c '$(call SHESCAPE,$(SRCDIR))'/.typos.toml '$(call SHESCAPE,$(SRCDIR))'
+check: check-rts check-kernel
 
 .PHONY: check-rts
 check-rts: rtsdir/adalib/libgnat.a

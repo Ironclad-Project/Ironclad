@@ -48,44 +48,34 @@ jobs:
           tar -xf gnatprove-x86_64-linux-15.1.0-1.tar.gz
           mv gnatprove-x86_64-linux-15.1.0-1.tar.gz gnatprove-tool
 
-          wget https://github.com/crate-ci/typos/releases/download/v1.45.0/typos-v1.45.0-x86_64-unknown-linux-musl.tar.gz
-          mkdir typos-tool
-          tar xf typos-v1.45.0-x86_64-unknown-linux-musl.tar.gz -C typos-tool
-
       - name: Bootstrap
         run: ./bootstrap
 
       - name: Configure step
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PATH"
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
-              GNATPROVE=gnatprove TYPOS=typos ./configure --host=riscv64-linux-gnu ;; \
+              GNATPROVE=gnatprove ./configure --host=riscv64-linux-gnu ;; \
             x86_64-limine) \
-              GNATPROVE=gnatprove TYPOS=typos ./configure ;; \
+              GNATPROVE=gnatprove ./configure ;; \
           esac
 
       - name: Build
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PATH"
           make -j$(nproc)
-
-      - name: Check typos
-        run: |
-          set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
-          make check-typos -j$(nproc)
 
       - name: Verify RTS
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PATH"
           make check-rts-stone -j$(nproc)
 
       - name: Verify kernel
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PATH"
           make check-kernel-stone -j$(nproc)
