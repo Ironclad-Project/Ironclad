@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   build_and_check:
     name: Build project and check
-    runs-on: codeberg-small
+    runs-on: docker
     container: debian:sid
     strategy:
       matrix:
