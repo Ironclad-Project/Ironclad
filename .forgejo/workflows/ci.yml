@@ -58,7 +58,7 @@ jobs:
       - name: Configure step
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool/bin:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
               GNATPROVE=gnatprove TYPOS=typos ./configure --host=riscv64-linux-gnu ;; \
@@ -69,23 +69,23 @@ jobs:
       - name: Build
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool/bin:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
           make -j$(nproc)
 
       - name: Check typos
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool/bin:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
           make check-typos -j$(nproc)
 
       - name: Verify RTS
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool/bin:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
           make check-rts-stone -j$(nproc)
 
       - name: Verify kernel
         run: |
           set -ex
-          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool/bin:$PATH"
+          export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PWD/typos-tool:$PATH"
           make check-kernel-stone -j$(nproc)
