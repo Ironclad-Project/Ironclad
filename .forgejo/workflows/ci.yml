@@ -12,17 +12,11 @@ jobs:
         target_arch: [riscv64-limine, x86_64-limine]
 
     steps:
-      - name: Create resolv.conf
-        run: |
-          set -ex
-          echo 'nameserver 8.8.8.8' >/etc/resolv.conf
-          echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
-
       - name: Sync and install basic dependencies
-        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget git
+        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y wget git
 
       - name: Checkout code
-        uses: https://code.forgejo.org/actions/checkout@v5
+        uses: https://code.forgejo.org/actions/checkout@v6
 
       - name: Install project dependencies
         run: |
