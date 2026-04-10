@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Sync and install basic dependencies
-        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y wget git
+        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget git
 
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v6
