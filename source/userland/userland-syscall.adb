@@ -5914,7 +5914,7 @@ package body Userland.Syscall is
             when SIG_BLOCK =>
                Set_Masked_Signals (Proc, C2 (New_Set or C1 (Old_Set)));
             when SIG_UNBLOCK =>
-               Set_Masked_Signals (Proc, C2 (New_Set and not C1 (Old_Set)));
+               Set_Masked_Signals (Proc, C2 (C1 (Old_Set) and not New_Set));
             when SIG_SETMASK =>
                Set_Masked_Signals (Proc, C2 (New_Set));
             when others =>
