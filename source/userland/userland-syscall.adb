@@ -8488,17 +8488,17 @@ package body Userland.Syscall is
          when 1 =>
             Trans1.Take_From_Userland (Map, Val1, SAddr, Success);
             if Success then
-               PCI.Read8 (Ret, Unsigned_16 (Offset), Val1);
+               PCI.Write8 (Ret, Unsigned_16 (Offset), Val1);
             end if;
          when 2 =>
             Trans2.Take_From_Userland (Map, Val2, SAddr, Success);
             if Success then
-               PCI.Read16 (Ret, Unsigned_16 (Offset), Val2);
+               PCI.Write16 (Ret, Unsigned_16 (Offset), Val2);
             end if;
          when 4 =>
             Trans3.Take_From_Userland (Map, Val3, SAddr, Success);
             if Success then
-               PCI.Read32 (Ret, Unsigned_16 (Offset), Val3);
+               PCI.Write32 (Ret, Unsigned_16 (Offset), Val3);
             end if;
          when others =>
             goto Invalid_Value_Error;
