@@ -8901,14 +8901,10 @@ package body Userland.Syscall is
    begin
       Success := True;
       case ID is
-         when CLOCK_MONOTONIC =>
-            Clock := Time.Monotonic_Clock;
-         when CLOCK_REALTIME =>
-            Clock := Time.Real_Time_Clock;
-         when CLOCK_PROCESS_CPUTIME_ID =>
-            Clock := Time.Thread_CPU_Time_Clock;
-         when CLOCK_THREAD_CPUTIME_ID =>
-            Clock := Time.Process_CPU_Time_Clock;
+         when CLOCK_MONOTONIC => Clock := Time.Monotonic_Clock;
+         when CLOCK_REALTIME => Clock := Time.Real_Time_Clock;
+         when CLOCK_PROCESS_CPUTIME_ID => Clock := Time.Process_CPU_Time_Clock;
+         when CLOCK_THREAD_CPUTIME_ID => Clock := Time.Thread_CPU_Time_Clock;
          when others =>
             Clock := Time.Monotonic_Clock;
             Success := False;
