@@ -5295,12 +5295,13 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Flags, Addr_Len);
+      pragma Unreferenced (Addr_Len);
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       AIAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
       ASAddr    : constant  System.Address := To_Address (AIAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Is_Block  : Boolean;
       File      : File_Description_Acc;
       Ret_Count : Natural;
       Success   : IPC.Socket.Socket_Status;
@@ -5319,6 +5320,8 @@ package body Userland.Syscall is
       else
          Final_Cnt := Natural (Count);
       end if;
+
+      Is_Block := ((Flags and MSG_DONTWAIT) = 0) and File.Is_Blocking;
 
       declare
          Final_Len : constant Natural := Final_Cnt;
@@ -5339,12 +5342,13 @@ package body Userland.Syscall is
                      Src_Port : Networking.IPv4_Port;
                   begin
                      IPC.Socket.Read
-                        (Sock      => File.Inner_Socket,
-                         Data      => Data.all,
-                         Ret_Count => Ret_Count,
-                         Addr      => Src_Addr,
-                         Port      => Src_Port,
-                         Success   => Success);
+                        (Sock        => File.Inner_Socket,
+                         Data        => Data.all,
+                         Is_Blocking => Is_Block,
+                         Ret_Count   => Ret_Count,
+                         Addr        => Src_Addr,
+                         Port        => Src_Port,
+                         Success     => Success);
 
                      --  Write source address back to userspace.
                      if Success = IPC.Socket.Plain_Success and AIAddr /= 0 then
@@ -5381,7 +5385,7 @@ package body Userland.Syscall is
                      IPC.Socket.Read
                         (Sock        => File.Inner_Socket,
                          Data        => Data.all,
-                         Is_Blocking => File.Is_Blocking,
+                         Is_Blocking => Is_Block,
                          Ret_Count   => Ret_Count,
                          Path        => Addr.Sun_Path (1 .. Len),
                          PID         => Unsigned_32 (Convert (Proc)),
@@ -5392,8 +5396,7 @@ package body Userland.Syscall is
             end case;
          else
             IPC.Socket.Read
-               (File.Inner_Socket, Data.all, File.Is_Blocking, Ret_Count,
-                Success);
+               (File.Inner_Socket, Data.all, Is_Block, Ret_Count, Success);
          end if;
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
 

@@ -219,7 +219,7 @@ package body IPC.Socket is
    begin
       case Sock.Dom is
          when IPv4 =>
-            Inner_IPv4_Read (Sock, Data, Ret_Count, Success);
+            Inner_IPv4_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
          when UNIX =>
             Inner_UNIX_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
       end case;
@@ -438,12 +438,13 @@ package body IPC.Socket is
    end Accept_Connection;
 
    procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Addr      : out Networking.IPv4_Address;
-       Port      : out Networking.IPv4_Port;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Addr        : out Networking.IPv4_Address;
+       Port        : out Networking.IPv4_Port;
+       Success     : out Socket_Status)
    is
       Succ : Devices.Dev_Status;
       Dev  : Devices.Device_Handle;
@@ -487,7 +488,7 @@ package body IPC.Socket is
                   (Handle      => Sock.IPv4_TCP_Handle,
                    Data        => Data,
                    Received    => Ret_Count,
-                   Is_Blocking => True,
+                   Is_Blocking => Is_Blocking,
                    Success     => TCP_Success);
                if TCP_Success then
                   --  TCP doesn't return source address per-read.
@@ -530,7 +531,7 @@ package body IPC.Socket is
                 Received    => Ret_Count,
                 Src_IP      => Recv_Src_IP,
                 Src_Port    => Recv_Src_Port,
-                Is_Blocking => True,
+                Is_Blocking => Is_Blocking,
                 Success     => UDP_Success);
             if UDP_Success then
                --  Return the source address to userspace.
@@ -913,10 +914,11 @@ package body IPC.Socket is
    end Set_Recv_Timeout;
    ----------------------------------------------------------------------------
    procedure Inner_IPv4_Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status)
    is
       TCP_Success : Boolean;
    begin
@@ -932,7 +934,7 @@ package body IPC.Socket is
                (Handle      => Sock.IPv4_TCP_Handle,
                 Data        => Data,
                 Received    => Ret_Count,
-                Is_Blocking => True,
+                Is_Blocking => Is_Blocking,
                 Success     => TCP_Success);
             if TCP_Success then
                Success := Plain_Success;
@@ -941,12 +943,13 @@ package body IPC.Socket is
             end if;
          when others =>
             Read
-               (Sock      => Sock,
-                Data      => Data,
-                Ret_Count => Ret_Count,
-                Addr      => Sock.IPv4_Remote_Addr,
-                Port      => Sock.IPv4_Remote_Port,
-                Success   => Success);
+               (Sock        => Sock,
+                Data        => Data,
+                Is_Blocking => Is_Blocking,
+                Ret_Count   => Ret_Count,
+                Addr        => Sock.IPv4_Remote_Addr,
+                Port        => Sock.IPv4_Remote_Port,
+                Success     => Success);
       end case;
    end Inner_IPv4_Read;
 

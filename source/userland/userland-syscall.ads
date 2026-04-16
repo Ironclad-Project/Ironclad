@@ -1023,6 +1023,7 @@ package Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value);
 
+   MSG_DONTWAIT : constant := 16#1000#;
    procedure RecvFrom
       (Sock_FD   : Unsigned_64;
        Buffer    : Unsigned_64;

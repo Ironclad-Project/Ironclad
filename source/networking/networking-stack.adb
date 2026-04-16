@@ -959,7 +959,7 @@ package body Networking.Stack with SPARK_Mode => Off is
          Synchronization.Release (UDP_Mutex);
 
          --  Try to receive and process a packet.
-         Devices.Read (Dev, 0, Recv_Buf, Recv_Cnt, Recv_Stat);
+         Devices.Read (Dev, 0, Recv_Buf, Recv_Cnt, Recv_Stat, Is_Blocking);
          if Recv_Stat = Devices.Dev_Success and Recv_Cnt > 0 then
             --  Dispatch to network stack (will buffer for matching socket).
             Process_Received_Frame (Dev, Recv_Buf (1 .. Recv_Cnt));

@@ -234,19 +234,21 @@ package IPC.Socket is
                   Get_Type (Sock) = Stream;
 
    --  Read from a connection-less socket.
-   --  @param Sock      Socket to read from, or its connection.
-   --  @param Data      Data to read to.
-   --  @param Ret_Count Count of data read.
-   --  @param Addr      IPv4 address (output: source address).
-   --  @param Port      IPv4 port (output: source port).
-   --  @param Success   Resulting status of the operation.
+   --  @param Sock        Socket to read from, or its connection.
+   --  @param Data        Data to read to.
+   --  @param Is_Blocking Whether the operation is blocking.
+   --  @param Ret_Count   Count of data read.
+   --  @param Addr        IPv4 address (output: source address).
+   --  @param Port        IPv4 port (output: source port).
+   --  @param Success     Resulting status of the operation.
    procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Addr      : out Networking.IPv4_Address;
-       Port      : out Networking.IPv4_Port;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Addr        : out Networking.IPv4_Address;
+       Port        : out Networking.IPv4_Port;
+       Success     : out Socket_Status)
       with Pre => Sock /= null             and then
                   Get_Domain (Sock) = IPv4 and then
                   Get_Type (Sock) /= Stream;
@@ -448,10 +450,11 @@ private
    ----------------------------------------------------------------------------
    --  IPv4 functions.
    procedure Inner_IPv4_Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status);
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status);
 
    procedure Inner_IPv4_Write
       (Sock      : Socket_Acc;
