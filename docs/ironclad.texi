@@ -1389,12 +1389,6 @@ Sets @code{argument} as the current thread's FS.
 
 @item ARCH_GET_FS (2)
 Stores the current thread's FS into the variable pointed to by @code{argument}.
-
-@item ARCH_SET_GS (3)
-Sets @code{argument} as the current thread's FS.
-
-@item ARCH_GET_GS (4)
-Stores the current thread's GS into the variable pointed to by @code{argument}.
 @end table
 
 For @code{riscv64}, the architecture makes it so there is no need for this

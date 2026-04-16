@@ -61,14 +61,6 @@ package body Arch.Hooks with SPARK_Mode => Off is
             Arg := Snippets.Read_FS;
             Write_Back := True;
             Success    := True;
-         when 3 =>
-            Snippets.Write_GS (Arg);
-            Write_Back := False;
-            Success    := True;
-         when 4 =>
-            Arg := Snippets.Read_GS;
-            Write_Back := True;
-            Success    := True;
          when others =>
             Arg        := 0;
             Write_Back := False;
