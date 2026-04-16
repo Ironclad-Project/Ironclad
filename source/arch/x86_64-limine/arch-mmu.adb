@@ -35,6 +35,11 @@ package body Arch.MMU is
    Page_USER  : constant Unsigned_64 := Shift_Left (1,  9);
    Page_NX    : constant Unsigned_64 := Shift_Left (1, 63);
 
+   --  Combinations for caching modes.
+   Page_Uncacheable_Mask : constant Unsigned_64 := Page_PWT or Page_PCD;
+   Page_Write_Combining_Mask : constant Unsigned_64 := Page_PWT or Page_PAT;
+   Page_Write_Through_Mask : constant Unsigned_64 := Page_PWT;
+
    --  Response is a pointer to an Kernel_Address_Response.
    Address_Request : Arch.Limine.Request :=
       (ID       => Arch.Limine.Kernel_Address_ID,
@@ -111,11 +116,12 @@ package body Arch.MMU is
           Can_Write          => (Entr and Page_RW) /= 0,
           Can_Execute        => (Entr and Page_NX) = 0,
           Is_Global          => (Entr and Page_G) /= 0);
-      if (Entr and (Page_PWT and Page_PCD)) /= 0 then
+      if (Entr and Page_Uncacheable_Mask) = Page_Uncacheable_Mask then
          Result.Caching := Uncacheable;
-      elsif (Entr and (Page_PWT and Page_PAT)) /= 0 then
+      elsif (Entr and Page_Write_Combining_Mask) = Page_Write_Combining_Mask
+      then
          Result.Caching := Write_Combining;
-      elsif (Entr and Page_PWT) /= 0 then
+      elsif (Entr and Page_Write_Through_Mask) = Page_Write_Through_Mask then
          Result.Caching := Write_Through;
       else
          Result.Caching := Write_Back;
@@ -141,9 +147,9 @@ package body Arch.MMU is
 
       case Caching is
          when Write_Back      => null;
-         when Write_Through   => Result := Result or Page_PWT;
-         when Write_Combining => Result := Result or Page_PAT or Page_PWT;
-         when Uncacheable     => Result := Result or Page_PWT or Page_PCD;
+         when Write_Through   => Result := Result or Page_Write_Through_Mask;
+         when Write_Combining => Result := Result or Page_Write_Combining_Mask;
+         when Uncacheable     => Result := Result or Page_Uncacheable_Mask;
       end case;
 
       return Unsigned_64 (To_Integer (Addr)) or Result;
