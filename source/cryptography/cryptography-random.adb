@@ -121,7 +121,7 @@ package body Cryptography.Random is
          --  fortuna-like approach, attempting for the higher pools to be used
          --  less than the earlier ones.
          for I in reverse 1 .. Pool_Count loop
-            if (I mod 2 ** (I - 1)) = 0 then
+            if (Reseeding_Count mod 2 ** (I - 1)) = 0 then
                Current_Seed.Hash1 := MD5.Digest (Entropy_Pool (I .. I));
                Current_Seed.Hash2 := Current_Seed.Hash1;
                Current_Seed_Block := 0;
@@ -131,7 +131,6 @@ package body Cryptography.Random is
                else
                   Reseeding_Count := Reseeding_Count + 1;
                end if;
-
                exit;
             end if;
          end loop;
@@ -178,6 +177,7 @@ package body Cryptography.Random is
 
       --  This function might be called before initialization.
       if Entropy_Pool = null or Data'Length = 0 then
+         Release (Accumulator_Mutex);
          return;
       end if;
 
@@ -203,8 +203,31 @@ package body Cryptography.Random is
    end Get_Integer;
 
    procedure Get_Integer (Min, Max : Unsigned_64; Result : out Unsigned_64) is
+      function CLZ (Num : Unsigned_64) return Natural;
+      pragma Import (Intrinsic, CLZ, "__builtin_clzl");
+
+      --  We can't get the modulo because of modulo bias, so we will use a
+      --  rejection sampling fix, essentially discarding numbers that fall out
+      --  of the range that would not result bias, which is:
+      --  Unsigned_64'Last mod Max == Max - 1
+      --
+      --  We are going to use the same algorithm that Apple uses on their
+      --  arc4random_uniform since it avoids multiplications on 128 bit ints.
+      Distribution : constant Unsigned_64 := Max - Min;
+      Mask : Unsigned_64;
    begin
-      Get_Integer (Result);
-      Result := (Result mod (Max + 1 - Min)) + Min;
+      if Distribution = 0 then
+         Result := Min;
+         return;
+      end if;
+
+      Mask := Shift_Right (Unsigned_64'Last, CLZ (Distribution));
+
+      loop
+         Get_Integer (Result);
+         Result := Result and Mask;
+         exit when Result <= Distribution;
+      end loop;
+      Result := Min + Result;
    end Get_Integer;
 end Cryptography.Random;
