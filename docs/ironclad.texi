@@ -96,7 +96,7 @@ Security and integrity facilities
 * Users and groups::                UIDs, EUIDs, GIDs, and all the fuzz.
 * Mandatory access control (MAC)::  MAC quickguide and configuration.
 * Resource limits::                 Limits on resources built into MAC.
-* Miscellaneous measures::          Miscellaneous security measures.
+* W^X enforcement::                 Memory permission policies.
 
 Debugging facilities
 
@@ -907,10 +907,8 @@ Limit of maximum address size space used by a process, by default
 -1 (max value).
 @end table
 
-@node Miscellaneous measures
-@section Miscellaneous measures
-
-@subsection W^X
+@node W^X enforcement
+@section W^X enforcement
 
 Ironclad does not allow mapping memory sections write and execute at the same
 time, this helps mitigate several kinds of memory corruption vulnerabilities
