@@ -81,6 +81,20 @@ package body Arch.MMU is
       end if;
    end Get_Load_Addr;
 
+   function Canonical_Hole_Offset return Integer_Address is
+      PagingPonse : Arch.Limine.Paging_Mode_Response
+         with Import, Address => Paging_Request.Base.Response;
+   begin
+      case PagingPonse.Mode is
+         when Arch.Limine.Paging_RISCV_64_SV39 =>
+            return 16#8000000000#;
+         when Arch.Limine.Paging_RISCV_64_SV48 =>
+            return 16#800000000000#;
+         when others =>
+            return 16#100000000000000#;
+      end case;
+   end Canonical_Hole_Offset;
+
    function Memory_Offset return Integer_Address is
       HHDM_Response : Arch.Limine.HHDM_Response
          with Import, Address => HHDM_Request.Response;

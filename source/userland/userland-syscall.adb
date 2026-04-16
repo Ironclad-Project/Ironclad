@@ -8780,10 +8780,15 @@ package body Userland.Syscall is
        Can_Map    : out Boolean)
    is
       pragma Unreferenced (Map);
+      Sz : constant Virtual_Address := Virtual_Address (Byte_Count);
    begin
-      Can_Map :=
-         Addr < Memory_Offset and then
-         Byte_Count <= Unsigned_64 (Memory_Offset - Addr);
+      --  Allow mapping all the way until the canonical hole - 1 page, so we
+      --  can avoid userland mapping the last page and result into jumps into
+      --  non canonical addresses.
+      --  FIXME: This is only needed on x86, yet we do it everywhere out of
+      --  precaution, check whether other targets have similar issues?
+      Can_Map := (Addr < Virtual_Address (Unsigned_64'Last) - Sz + 1) and then
+                 (Addr + Sz < Arch.MMU.Canonical_Hole_Offset);
    end Check_Userland_Mappability;
 
    procedure Resolve_AT_Directive
