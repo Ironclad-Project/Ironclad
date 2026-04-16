@@ -115,7 +115,7 @@ package body Arch.MMU is
 
    function Clean_Entry (Entry_Body : Unsigned_64) return Integer_Address is
    begin
-      return Integer_Address (Entry_Body and 16#FFFFFFF000#);
+      return Integer_Address (Entry_Body and 16#07FFFFFFFFFFF000#);
    end Clean_Entry;
 
    function Clean_Entry_Perms (Entr : Unsigned_64) return Clean_Result is
