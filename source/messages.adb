@@ -79,7 +79,7 @@ is
 
       Length := Log_Ring_Buffer'Length * Max_Line;
       if Buffer'Length < Length or Buffer'Length mod Max_Line /= 0 then
-         return;
+         goto Cleanup;
       end if;
 
       for Line of Log_Ring_Buffer.all loop
