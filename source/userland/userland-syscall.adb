@@ -5146,24 +5146,29 @@ package body Userland.Syscall is
          goto Invalid_Value_Error;
       end if;
 
+      Get_Common_Map (Proc, Map);
+
       case Operation is
          when CLOCK_GETRES =>
             Time.Get_Resolution (Clock, Stamp);
             Spec := (Stamp.Seconds, Stamp.Nanoseconds);
+            Trans.Paste_Into_Userland (Map, Spec, To_Address (IAddr), Succ);
          when CLOCK_GETTIME =>
             Time.Get_Time (Clock, Stamp);
             Spec := (Stamp.Seconds, Stamp.Nanoseconds);
+            Trans.Paste_Into_Userland (Map, Spec, To_Address (IAddr), Succ);
          when CLOCK_SETTIME =>
             if Clock /= Time.Real_Time_Clock then
                goto Invalid_Value_Error;
             end if;
-            Time.Set_Time (Clock, (Spec.Seconds, Spec.Nanoseconds));
+            Trans.Take_From_Userland (Map, Spec, To_Address (IAddr), Succ);
+            if Succ then
+               Time.Set_Time (Clock, (Spec.Seconds, Spec.Nanoseconds));
+            end if;
          when others =>
             goto Invalid_Value_Error;
       end case;
 
-      Get_Common_Map (Proc, Map);
-      Trans.Paste_Into_Userland (Map, Spec, To_Address (IAddr), Succ);
       if Succ then
          Returned := 0;
          Errno    := Error_No_Error;
