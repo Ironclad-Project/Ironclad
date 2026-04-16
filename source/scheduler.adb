@@ -759,8 +759,8 @@ package body Scheduler with SPARK_Mode => Off is
          Sz     : constant Natural := Natural (Stack_Size);
          Stk_64 : Thread_Stack_64 (1 .. Sz / 8)
             with Import, Address => To_Address (Virtual_Address (Stack_Top));
-         Info_Idx : constant Natural := Stk_64'Last - (Siginfo'Size / 64);
-         Cont_Idx : constant Natural := Info_Idx - (UContext'Size / 64);
+         Info_Idx : constant Natural := Stk_64'Last - (Siginfo'Size / 64) - 1;
+         Cont_Idx : constant Natural := Info_Idx - (UContext'Size / 64) - 1;
          Index_64 : Natural := Cont_Idx;
          Info : Siginfo with Import, Address => Stk_64 (Info_Idx)'Address;
          Cont : UContext with Import, Address => Stk_64 (Cont_Idx)'Address;
