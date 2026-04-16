@@ -752,6 +752,7 @@ package body Userland.Syscall is
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("munmap", Proc);
          Returned := Unsigned_64'Last;
+         return;
       end if;
 
       Unmap_Range (Map, Addr, Storage_Count (Length), Succ);
@@ -5814,6 +5815,7 @@ package body Userland.Syscall is
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("sched_setscheduler", Curr);
          Returned := Unsigned_64'Last;
+         return;
       end if;
 
       if PID = 0 then
@@ -6148,6 +6150,7 @@ package body Userland.Syscall is
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("getprio", Proc);
          Returned := Unsigned_64'Last;
+         return;
       end if;
 
       case Which is
