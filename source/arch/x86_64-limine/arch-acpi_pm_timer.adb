@@ -48,7 +48,7 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
             with Import, Address => To_Address (ACPI_Address.Virt_Addr);
       begin
          ACPI.Get_Revision (Rev);
-         if Rev <= 2 and then FADT.X_PMTImerBlock.Address /= 0 then
+         if Rev >= 2 and then FADT.X_PMTImerBlock.Address /= 0 then
             Use_IO_Ports := FADT.X_PMTImerBlock.Address_Space = 1;
             IO_Addr      := Integer_Address (FADT.X_PMTImerBlock.Address);
             if not Use_IO_Ports then
