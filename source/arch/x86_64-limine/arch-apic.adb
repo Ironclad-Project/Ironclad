@@ -341,9 +341,9 @@ package body Arch.APIC with SPARK_Mode => Off is
        Enable    : Boolean;
        Success   : out Boolean)
    is
-      GSIB        :          Unsigned_32 := 0;
-      Redirect    :          Unsigned_64 := Unsigned_64 (IDT_Entry) - 1;
-      IOREDTBL    : constant Unsigned_32 := (GSI - GSIB) * 2 + 16;
+      GSIB        : Unsigned_32 := 0;
+      Redirect    : Unsigned_64 := Unsigned_64 (IDT_Entry) - 1;
+      IOREDTBL    : Unsigned_32;
       IOAPIC_MMIO : Virtual_Address;
    begin
       --  Check if the IOAPIC could be found.
@@ -352,6 +352,8 @@ package body Arch.APIC with SPARK_Mode => Off is
          Success := False;
          return;
       end if;
+
+      IOREDTBL := (GSI - GSIB) * 2 + 16;
 
       --  Build the redirect value by translating the ISO flags into IOREDTBL
       --  flags and the enable.
