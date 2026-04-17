@@ -836,7 +836,7 @@ package body Scheduler with SPARK_Mode => Off is
           PID      => Userland.Process.Convert (Proc),
           TCB      => Arch.Local.Fetch_TCB,
           New_TID  => New_TID);
-      if not Success then
+      if New_TID = Error_TID then
          return;
       end if;
 
