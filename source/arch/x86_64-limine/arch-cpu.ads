@@ -79,15 +79,8 @@ private
 
    procedure Core_Bootstrap (Info : access Limine.SMP_CPU_Info)
       with Convention => C, Export;
-   procedure Init_Core
-      (Core_Number : Positive;
-       LAPIC_ID    : Unsigned_8;
-       Stack_Top   : Unsigned_64)
-      with Convention => C, Export, External_Name => "init_core";
-   procedure Init_Common
-      (Core_Number : Positive;
-       LAPIC       : Unsigned_32;
-       Stack_Top   : Unsigned_64);
 
+   procedure Init_Core (Core_Number : Positive; LAPIC_ID : Unsigned_8);
+   procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32);
    procedure Get_BSP_LAPIC_ID (ID : out Unsigned_32);
 end Arch.CPU;

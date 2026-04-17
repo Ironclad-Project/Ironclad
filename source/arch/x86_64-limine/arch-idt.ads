@@ -1,5 +1,5 @@
 --  arch-idt.ads: IDT driver.
---  Copyright (C) 2024 streaksu
+--  Copyright (C) 2026 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -32,12 +32,16 @@ package Arch.IDT is
    procedure Load_ISR
       (Index     : IDT_Index;
        Address   : System.Address;
-       Gate_Type : Gate := Gate_Interrupt);
+       Gate_Type : Gate := Gate_Interrupt;
+       IST       : IST_Index := 0);
+
    procedure Load_ISR
       (Address   : System.Address;
        Index     : out IRQ_Index;
        Success   : out Boolean;
-       Gate_Type : Gate := Gate_Interrupt);
+       Gate_Type : Gate := Gate_Interrupt;
+       IST       : IST_Index := 0);
+
    procedure Unload_ISR (Index : IDT_Index);
 
 private

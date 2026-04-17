@@ -1,5 +1,5 @@
 --  arch-idt.adb: IDT driver.
---  Copyright (C) 2024 streaksu
+--  Copyright (C) 2026 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,10 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;              use Interfaces;
+with Interfaces; use Interfaces;
 with Panic;
-with System;                  use System;
-with System.Machine_Code;     use System.Machine_Code;
+with System; use System;
+with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;
@@ -99,7 +99,10 @@ package body Arch.IDT with SPARK_Mode => Off is
 
       --  Load exceptions.
       for I in IDT_Index (1) .. IDT_Index (31) loop
-         Load_ISR (I, Interrupts.Exception_Handler'Address);
+         --  #MC and #DF get ISTs.
+         Load_ISR
+            (I, Interrupts.Exception_Handler'Address, Gate_Interrupt,
+             (if (I = 9) or (I = 19) then 1 else 0));
       end loop;
 
       --  Some special entries for several hardcoded hardware and syscalls.
@@ -131,18 +134,18 @@ package body Arch.IDT with SPARK_Mode => Off is
    procedure Load_ISR
       (Index     : IDT_Index;
        Address   : System.Address;
-       Gate_Type : Gate := Gate_Interrupt) is
+       Gate_Type : Gate := Gate_Interrupt;
+       IST       : IST_Index := 0)
+   is
    begin
       ISR_Table (Index) := Address;
-
       case Gate_Type is
          when Gate_Trap =>
             Global_IDT (Index).Gate_Type := Gate_Type_Trap;
          when Gate_Interrupt =>
             Global_IDT (Index).Gate_Type := Gate_Type_Interrupt;
       end case;
-
-      Global_IDT (Index).DPL := 0;
+      Global_IDT (Index).IST := IST;
    exception
       when Constraint_Error =>
          null;
@@ -152,14 +155,15 @@ package body Arch.IDT with SPARK_Mode => Off is
       (Address   : System.Address;
        Index     : out IRQ_Index;
        Success   : out Boolean;
-       Gate_Type : Gate := Gate_Interrupt)
+       Gate_Type : Gate := Gate_Interrupt;
+       IST       : IST_Index := 0)
    is
    begin
       --  Allocate an interrupt in the IRQ region.
       for I in IRQ_Index loop
          if ISR_Table (I) = Interrupts.Default_ISR_Handler'Address then
             Index := I;
-            Load_ISR (I, Address, Gate_Type);
+            Load_ISR (I, Address, Gate_Type, IST);
             Success := True;
             return;
          end if;
@@ -172,11 +176,13 @@ package body Arch.IDT with SPARK_Mode => Off is
    procedure Unload_ISR (Index : IDT_Index) is
    begin
       ISR_Table (Index) := Interrupts.Default_ISR_Handler'Address;
+      Global_IDT (Index).Gate_Type := Gate_Type_Interrupt;
+      Global_IDT (Index).IST := 0;
    exception
       when Constraint_Error =>
          null;
    end Unload_ISR;
-
+   ----------------------------------------------------------------------------
    procedure Load_IDT_ISR (Index : IDT_Index; Address : System.Address) is
       Addr   : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
       Low16  : constant Unsigned_64 := Addr                   and 16#FFFF#;

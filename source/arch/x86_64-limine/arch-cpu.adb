@@ -39,8 +39,6 @@ package body Arch.CPU with SPARK_Mode => Off is
 
    procedure Init_Cores is
       BSP_LAPIC_ID : Unsigned_32;
-      New_Stk      : constant Interrupt_Stack_Acc := new Interrupt_Stack;
-      New_Stk_Top  : constant System.Address := New_Stk (New_Stk'Last)'Address;
       Idx          : Natural := 2;
 
       SMPPonse : Limine.SMP_Response
@@ -57,7 +55,7 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       --  Initialize the locals list, and initialize the cores.
       Core_Locals := new Core_Local_Arr (1 .. Core_Count);
-      Init_Common (1, BSP_LAPIC_ID, Unsigned_64 (To_Integer (New_Stk_Top)));
+      Init_Common (1, BSP_LAPIC_ID);
       Context.Setup_XSAVE (Global_Use_XSAVE, Global_FPU_Size);
       Save_MTRRs;
 
@@ -164,23 +162,14 @@ package body Arch.CPU with SPARK_Mode => Off is
    end Restore_MTRRs;
 
    procedure Core_Bootstrap (Info : access Limine.SMP_CPU_Info) is
-      New_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
-      New_Stk_Top : constant System.Address := New_Stk (New_Stk'Last)'Address;
    begin
-      Init_Core
-         (Core_Number => Natural (Info.Extra_Arg),
-          LAPIC_ID    => Unsigned_8 (Info.LAPIC_ID),
-          Stack_Top   => Unsigned_64 (To_Integer (New_Stk_Top)));
+      Init_Core (Natural (Info.Extra_Arg), Unsigned_8 (Info.LAPIC_ID));
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception when bootstrapping core");
    end Core_Bootstrap;
 
-   procedure Init_Core
-      (Core_Number : Positive;
-       LAPIC_ID    : Unsigned_8;
-       Stack_Top   : Unsigned_64)
-   is
+   procedure Init_Core (Core_Number : Positive; LAPIC_ID : Unsigned_8) is
       Discard : Boolean;
    begin
       --  Load the global GDT, IDT, mappings, and LAPIC.
@@ -190,7 +179,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       APIC.Init_Core_LAPIC;
 
       --  Load several goodies.
-      Init_Common (Core_Number, Unsigned_32 (LAPIC_ID), Stack_Top);
+      Init_Common (Core_Number, Unsigned_32 (LAPIC_ID));
       Restore_MTRRs;
 
       --  Send the core to idle, waiting for the scheduler to tell it to do
@@ -198,11 +187,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       Scheduler.Idle_Core;
    end Init_Core;
 
-   procedure Init_Common
-      (Core_Number : Positive;
-       LAPIC       : Unsigned_32;
-       Stack_Top   : Unsigned_64)
-   is
+   procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
       package A is new Alignment (Unsigned_32);
 
       PAT_MSR   : constant := 16#00000277#;
@@ -226,6 +211,11 @@ package body Arch.CPU with SPARK_Mode => Off is
       Locals_Addr : Unsigned_64;
 
       procedure Syscall_Entry with Import, External_Name => "syscall_entry";
+
+      Int_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
+      IST_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
+      Int_Stk_Top : constant System.Address := Int_Stk (Int_Stk'Last)'Address;
+      IST_Stk_Top : constant System.Address := IST_Stk (IST_Stk'Last)'Address;
    begin
       --  Enable WP and SSE/2.
       CR0 := CR0 or Shift_Left (1, 16);
@@ -335,8 +325,10 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Write_Kernel_GS (Locals_Addr);
 
       --  Load the TSS.
-      Core_Locals (Core_Number).Core_TSS.Stack_Ring0 :=
-         To_Address (Integer_Address (Stack_Top));
+      --  As we have written in the interrupt files, we use IST1 for special
+      --  exceptions like #DF and #MC.
+      Core_Locals (Core_Number).Core_TSS.Stack_Ring0 := Int_Stk_Top;
+      Core_Locals (Core_Number).Core_TSS.IST1 := IST_Stk_Top;
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
    exception
       when Constraint_Error =>

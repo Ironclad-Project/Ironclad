@@ -467,7 +467,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
 
    procedure Spurious_Handler is
    begin
+      --  Intel SDM Section 10.9 says we don't do an EOI.
       Messages.Put_Line ("LAPIC Spurious interrupt occurred");
-      Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
 end Arch.Interrupts;

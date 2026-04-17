@@ -582,7 +582,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
 
    procedure Generic_uACPI_Handler (Num : Integer) is
    begin
-      Arch.APIC.LAPIC_EOI;
       for Int of Interrupts loop
          if Natural (Int.Idx - 1) = Num then
             declare
@@ -590,10 +589,11 @@ package body Arch.ACPI with SPARK_Mode => Off is
                   with Import, Convention => C, Address => Int.Callback;
             begin
                A (Int.Argument);
-               return;
+               exit;
             end;
          end if;
       end loop;
+      Arch.APIC.LAPIC_EOI;
    end Generic_uACPI_Handler;
 
    function Install_Interrupt_Handler
