@@ -203,6 +203,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       Synchronization.Release (Map.Mutex);
    exception
       when Constraint_Error =>
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
          Forked := null;
    end Fork_Table;
 
@@ -235,7 +240,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       F (Map);
    exception
       when Constraint_Error =>
-         return;
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
    end Destroy_Table;
 
    function Make_Active (Map : Page_Table_Acc) return Boolean is
@@ -314,6 +323,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       Synchronization.Release (Map.Mutex);
    exception
       when Constraint_Error =>
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
          Physical           := System.Null_Address;
          Is_Mapped          := False;
          Is_User_Accessible := False;
@@ -374,6 +388,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       Success := True;
    exception
       when Constraint_Error =>
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
          Success := False;
    end Map_Range;
 
@@ -439,6 +458,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       Success := True;
    exception
       when Constraint_Error =>
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
          Success := False;
    end Map_Allocated_Range;
 
@@ -489,6 +513,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       Success := True;
    exception
       when Constraint_Error =>
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
          Success := False;
    end Remap_Range;
 
@@ -530,6 +559,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       Success := True;
    exception
       when Constraint_Error =>
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
          Success := False;
    end Unmap_Range;
 
@@ -565,6 +599,11 @@ package body Memory.MMU with SPARK_Mode => Off is
       Synchronization.Release (Map.Mutex);
    exception
       when Constraint_Error =>
+         declare
+            pragma Suppress (All_Checks);
+         begin
+            Synchronization.Release (Map.Mutex);
+         end;
          Sz := 0;
    end Get_User_Mapped_Size;
 
