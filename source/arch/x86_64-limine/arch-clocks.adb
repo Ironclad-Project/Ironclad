@@ -57,7 +57,7 @@ is
       --  We need to calibrate the TSC. For this we can check CPUID.
       Snippets.Get_CPUID (16#15#, 0, EAX, EBX, ECX, EDX, Success);
       if Success then
-         if EBX /= 0 and EBX /= 0 then
+         if EAX /= 0 and EBX /= 0 then
             Messages.Put_Line ("Monotonic TSC calibration using CPUID 1");
             TSC_Ticks_Per_Res := Unsigned_64 (ECX) * Unsigned_64 (EBX / EAX);
             Normalize_TSC_Hz;
