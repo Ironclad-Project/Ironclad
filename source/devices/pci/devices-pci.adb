@@ -361,7 +361,7 @@ package body Devices.PCI with SPARK_Mode => Off is
       Write32 (Dev, MSI_Off + Reg1, Unsigned_32 (Vector));
 
       Message_Control := (Message_Control or 1) and not Shift_Left (2#111#, 4);
-      Write16 (Dev, MSI_Off + 1, Message_Control);
+      Write16 (Dev, MSI_Off + 2, Message_Control);
    end Set_MSI_Vector;
 
    function Enumerate_Capability
