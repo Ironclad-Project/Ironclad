@@ -1296,7 +1296,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          Status := FS_IO_Failure;
       else
          Kind             := Get_Inode_Type (Inod.Permissions);
-         Inod.Permissions := Get_Permissions (Kind) or Unsigned_16 (Mode);
+         Inod.Permissions := Get_Inode_Type (Kind, Mode);
          RW_Inode
             (Data            => FS,
              Inode_Index     => Unsigned_32 (Ino),
@@ -1842,7 +1842,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       if Data.Block_Size < 2048 then
          Offset := Offset * 2;
       end if;
-
       Offset := Offset + (Descr_Size * Unsigned_64 (Descriptor_Index));
 
       if Write_Operation then
@@ -2547,18 +2546,18 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          Curr_Block := 0;
          for J in Bitmap'Range loop
-            if Bitmap (J) = 16#FF# then
-               goto Next_Next_Iteration;
+            if Bitmap (J) /= 16#FF# then
+               for Bit in 0 .. 7 loop
+                  if (Bitmap (J) and Shift_Right (2#10000000#, Bit)) = 0 then
+                     Bitmap (J) := Bitmap (J) or
+                                      Shift_Right (2#10000000#, Bit);
+                     Curr_Block := (I * FS_Data.Super.Blocks_Per_Group) +
+                                   (Unsigned_32 (J - 1) * 8) +
+                                   Unsigned_32 (Bit);
+                     goto End_Search_Loop;
+                  end if;
+               end loop;
             end if;
-            for Bit in 0 .. 7 loop
-               if (Bitmap (J) and 2 ** Bit) = 0 then
-                  Bitmap (J) := Bitmap (J) or 2 ** Bit;
-                  Curr_Block := (I * FS_Data.Super.Blocks_Per_Group) +
-                                 (Unsigned_32 (J - 1) * 8) + Unsigned_32 (Bit);
-                  goto End_Search_Loop;
-               end if;
-            end loop;
-         <<Next_Next_Iteration>>
          end loop;
       <<End_Search_Loop>>
          if Curr_Block = 0 then
@@ -2659,22 +2658,22 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          Curr_Block := 0;
          for J in Bitmap'Range loop
-            if Bitmap (J) = 16#FF# then
-               goto Next_Next_Iteration;
-            end if;
-            for Bit in 0 .. 7 loop
-               if (Bitmap (J) and 2 ** Bit) = 0 then
-                  Curr_Block := (I * FS_Data.Super.Inodes_Per_Group) +
-                                 (Unsigned_32 (J - 1) * 8) + Unsigned_32 (Bit);
-                  if Curr_Block > FS_Data.Super.First_Non_Reserved and
-                     Curr_Block > 11
-                  then
-                     Bitmap (J) := Bitmap (J) or 2 ** Bit;
-                     goto End_Search_Loop;
+            if Bitmap (J) /= 16#FF# then
+               for Bit in 0 .. 7 loop
+                  if (Bitmap (J) and Shift_Right (2#10000000#, Bit)) = 0 then
+                     Curr_Block := (I * FS_Data.Super.Blocks_Per_Group) +
+                                   (Unsigned_32 (J - 1) * 8) +
+                                   Unsigned_32 (Bit);
+                     if Curr_Block > FS_Data.Super.First_Non_Reserved and
+                        Curr_Block > 11
+                     then
+                        Bitmap (J) := Bitmap (J) or
+                                      Shift_Right (2#10000000#, Bit);
+                        goto End_Search_Loop;
+                     end if;
                   end if;
-               end if;
-            end loop;
-         <<Next_Next_Iteration>>
+               end loop;
+            end if;
          end loop;
       <<End_Search_Loop>>
          if Curr_Block = 0 then
@@ -2951,7 +2950,8 @@ package body VFS.EXT with SPARK_Mode => Off is
          when 2      => return File_Directory;
          when 3      => return File_Character_Device;
          when 4      => return File_Block_Device;
-         when others => return File_Symbolic_Link;
+         when 7      => return File_Symbolic_Link;
+         when others => return File_Regular;
       end case;
    end Get_Dir_Type;
 
@@ -2962,7 +2962,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          when File_Directory        => return 2;
          when File_Character_Device => return 3;
          when File_Block_Device     => return 4;
-         when others                => return 5;
+         when File_Symbolic_Link    => return 7;
       end case;
    exception
       when Constraint_Error =>
@@ -3006,8 +3006,8 @@ package body VFS.EXT with SPARK_Mode => Off is
          when File_Character_Device => return Ret or 16#2000#;
          when File_Directory        => return Ret or 16#4000#;
          when File_Block_Device     => return Ret or 16#6000#;
+         when File_Regular          => return Ret or 16#8000#;
          when File_Symbolic_Link    => return Ret or 16#A000#;
-         when others                => return Ret or 16#8000#;
       end case;
    exception
       when Constraint_Error =>
@@ -3058,7 +3058,9 @@ package body VFS.EXT with SPARK_Mode => Off is
             Messages.Put_Line (Message);
             Data.Is_Read_Only := True;
          when others =>
-            Panic.Hard_Panic ("ext is dead, and we killed it");
+            Messages.Put_Line (Message);
+            Messages.Put_Line ("Undetected policy: We are remounting RO");
+            Data.Is_Read_Only := True;
       end case;
    exception
       when Constraint_Error =>
