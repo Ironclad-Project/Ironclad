@@ -970,7 +970,14 @@ package body Userland.Process with SPARK_Mode => Off is
       Flush_Threads (Process);
       Flush_Files   (Process);
       Free (Registry (Process).File_Table);
-      Issue_Exit (Process, Killer);
+
+      Registry (Process).Did_Exit     := True;
+      Registry (Process).Signal_Exit  := True;
+      Registry (Process).Which_Signal := Killer;
+
+      if Registry (Process).Parent /= Error_PID then
+         Raise_Signal (Registry (Process).Parent, Signal_Child);
+      end if;
 
       if Exiting_Ourselves then
          Scheduler.Bail;
