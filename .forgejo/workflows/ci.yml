@@ -67,10 +67,10 @@ jobs:
         run: |
           set -ex
           export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PATH"
-          make check-rts-stone -j$(nproc)
+          make check-rts -j$(nproc)
 
       - name: Verify kernel
         run: |
           set -ex
           export PATH="$PWD/toolchain_dir:$PWD/gnatprove-tool/bin:$PATH"
-          make check-kernel-stone -j$(nproc)
+          make check-kernel -j$(nproc)
