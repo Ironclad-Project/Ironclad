@@ -97,11 +97,11 @@ package body Time is
          when Real_Time_Clock =>
             Arch.Clocks.Get_Real_Time (Stamp);
          when Thread_CPU_Time_Clock =>
-            Userland.Process.Get_Runtime_Times
-               (Arch.Local.Get_Current_Process, Stamp, Discard);
-         when Process_CPU_Time_Clock =>
             Scheduler.Get_Runtimes
                (Arch.Local.Get_Current_Thread, Stamp, Discard);
+         when Process_CPU_Time_Clock =>
+            Userland.Process.Get_Runtime_Times
+               (Arch.Local.Get_Current_Process, Stamp, Discard);
       end case;
    end Get_Time;
 
