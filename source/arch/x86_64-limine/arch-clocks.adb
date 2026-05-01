@@ -43,10 +43,9 @@ is
    TSC_Ticks_Per_Res : Unsigned_64 := Nanoseconds_In_Second;
 
    procedure Initialize_Sources is
-      TSC_Start, TSC_End     : Unsigned_64;
-      EAX, EBX, ECX, EDX     : Unsigned_32;
-      EAX1, EBX1, ECX1, EDX1 : Unsigned_32;
-      Success                : Boolean;
+      TSC_Start, TSC_End : Unsigned_64;
+      EAX, EBX, ECX, EDX : Unsigned_32;
+      Success            : Boolean;
    begin
       --  We require invariant TSC.
       Snippets.Get_CPUID (16#80000007#, 0, EAX, EBX, ECX, EDX, Success);
@@ -56,23 +55,11 @@ is
 
       --  We need to calibrate the TSC. For this we can check CPUID.
       Snippets.Get_CPUID (16#15#, 0, EAX, EBX, ECX, EDX, Success);
-      if Success then
-         if EAX /= 0 and EBX /= 0 then
-            Messages.Put_Line ("Monotonic TSC calibration using CPUID 1");
-            TSC_Ticks_Per_Res := Unsigned_64 (ECX) * Unsigned_64 (EBX / EAX);
-            Normalize_TSC_Hz;
-            goto Found_TSC_Frequency;
-         end if;
-
-         Snippets.Get_CPUID (16#16#, 0, EAX1, EBX1, ECX1, EDX1, Success);
-         if Success and EAX1 /= 0 then
-            Messages.Put_Line ("Monotonic TSC calibration using CPUID 2");
-            Snippets.Get_CPUID (16#16#, 0, EAX1, EBX1, ECX1, EDX1, Success);
-            TSC_Ticks_Per_Res := Unsigned_64 (EAX1 * 10_000_000) *
-                                 Unsigned_64 (EAX / EBX);
-            Normalize_TSC_Hz;
-            goto Found_TSC_Frequency;
-         end if;
+      if Success and EAX /= 0 and EBX /= 0 and ECX /= 0 then
+         Messages.Put_Line ("Monotonic TSC calibration using CPUID");
+         TSC_Ticks_Per_Res := Unsigned_64 (ECX) * Unsigned_64 (EBX / EAX);
+         Normalize_TSC_Hz;
+         goto Found_TSC_Frequency;
       end if;
 
       --  If CPUID does not have the info, we can start checking for clocks.
