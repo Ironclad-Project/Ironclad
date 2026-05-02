@@ -755,15 +755,24 @@ package body Userland.Syscall is
          return;
       end if;
 
-      Unmap_Range (Map, Addr, Storage_Count (Length), Succ);
-
-      if Succ then
-         Errno := Error_No_Error;
-         Returned := 0;
-      else
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
+      --  Check the address is at least not kernel space.
+      Check_Userland_Mappability (Map, To_Integer (Addr), Length, Succ);
+      if not Succ then
+         goto Invalid_Value_Return;
       end if;
+
+      Unmap_Range (Map, Addr, Storage_Count (Length), Succ);
+      if not Succ then
+         goto Invalid_Value_Return;
+      end if;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Value_Return>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Munmap");
@@ -2713,15 +2722,25 @@ package body Userland.Syscall is
          return;
       end if;
 
+      --  Check the address is at least not kernel space.
+      Check_Userland_Mappability (Map, To_Integer (Addr), Length, Succ);
+      if not Succ then
+         goto Invalid_Value_Return;
+      end if;
+
       Get_Common_Map (Proc, Map);
       Remap_Range (Map, Addr, Storage_Count (Length), Flags, Succ);
-      if Succ then
-         Errno := Error_No_Error;
-         Returned := 0;
-      else
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
+      if not Succ then
+         goto Invalid_Value_Return;
       end if;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Value_Return>>
+      Errno := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing MProtect");
@@ -6589,6 +6608,12 @@ package body Userland.Syscall is
 
       if Ret_Size /= 0 then
          Userland.Process.Get_Common_Map (Proc, Map);
+         Check_Userland_Mappability
+            (Map, Integer_Address (VAddr), Ret_Size, Success);
+         if not Success then
+            goto Invalid_Error;
+         end if;
+
          Memory.MMU.Map_Range
             (Map            => Map,
              Virtual_Start  => To_Address (Integer_Address (VAddr)),
