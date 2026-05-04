@@ -92,6 +92,7 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       Local : Core_Local_Acc;
       Stk   : Kernel_Stack_Acc;
+      SStatus : Unsigned_64;
    begin
       Stk       := new Kernel_Stack'[others => 0];
       Local     := Core_Locals (Core_Number)'Access;
@@ -104,10 +105,29 @@ package body Arch.CPU with SPARK_Mode => Off is
           Current_Thread  => Scheduler.Error_TID,
           Current_Process => Userland.Process.Error_PID);
 
+      --  Enable floating point on sstatus by setting it [13:14] to dirty (11).
+      --  TODO: We could do lazy FP by only saving registers on context
+      --  switches when the flags are dirty, and setting them to clean (10)
+      --  after save.
+      System.Machine_Code.Asm
+         ("csrr %0, sstatus",
+          Outputs  => Unsigned_64'Asm_Output ("=r", SStatus),
+          Clobber  => "memory",
+          Volatile => True);
+      SStatus := SStatus or Shift_Left (2, 13);
+      System.Machine_Code.Asm
+         ("csrw sstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", SStatus),
+          Clobber  => "memory",
+          Volatile => True);
+
+      --  Set local for core local info.
       System.Machine_Code.Asm
          ("csrw sscratch, %0",
           Inputs   => Core_Local_Acc'Asm_Input ("r", Local),
           Volatile => True);
+
+      --  Enable interrupts.
       System.Machine_Code.Asm
          ("csrs sie, %0",
           Inputs   => Unsigned_64'Asm_Input ("r", 32),

@@ -40,7 +40,10 @@ package body Arch.Context with SPARK_Mode => Off is
           SEPC    => Unsigned_64 (To_Integer (Start_Addr)),
           --  Clear SPP to switch to user and force enable interrupts on return
           --  by setting SPIE and SIE.
-          SSTATUS => (Val and not Shift_Left (1, 8)) or Shift_Left (1, 5) or 2,
+          --  Enable FPU by setting [14:13] like arch-cpu.adb.
+          --  Same TODO applies as there.
+          SSTATUS => (Val and not Shift_Left (1, 8)) or Shift_Left (2, 13) or
+                     Shift_Left (1, 5) or 2,
           others  => 0);
    end Init_GP_Context;
 
