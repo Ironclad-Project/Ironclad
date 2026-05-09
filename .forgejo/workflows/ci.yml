@@ -1,6 +1,24 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - 'source/**'
+      - 'bootstrap'
+      - 'configure.ac'
+      - 'GNUmakefile.in'
+      - 'ironclad.gpr.in'
+      - 'rts.gpr.in'
+      - 'version.sh'
+  pull_request:
+    paths:
+      - 'source/**'
+      - 'bootstrap'
+      - 'configure.ac'
+      - 'GNUmakefile.in'
+      - 'ironclad.gpr.in'
+      - 'rts.gpr.in'
+      - 'version.sh'
 
 jobs:
   build_and_check:
