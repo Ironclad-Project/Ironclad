@@ -9,7 +9,8 @@ priority. The code just changes too much to be able to make any guarantees of
 the sort.
 
 Once Ironclad enters 1.X, this section will contain a list of the currently
-supported versions, support deadlines, and the like.
+supported versions, support deadlines, and the like. These versions will be the
+ones actively getting security fixes.
 
 ## Reporting a Vulnerability
 
@@ -27,3 +28,7 @@ lineup of which can be found [here](https://ironclad-os.org/orgstructure.html).
 Once a vulnerability is submitted and confirmed, we will fix it at earnest and
 disclose it when fixed and released in an official release. We will eagerly
 make releases for this, as to get fixes quickly to the user.
+
+If possible, we ask that vulnerability reporters wait until a release that
+fixes the issue for releasing their own documents and information on the
+vulnerability, as well as example code or example exploitations.
