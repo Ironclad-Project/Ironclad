@@ -24,9 +24,11 @@ with Memory; use Memory;
 with Panic;
 with Arch.MMU;
 with Arch.PCI;
+with Messages;
 
 package body Devices.PCI with SPARK_Mode => Off is
    --  Maximum number of different PCI entities.
+   PCI_Max_Bus      : constant Unsigned_8 := 255;
    PCI_Max_Function : constant Unsigned_8 := 7;
    PCI_Max_Slot     : constant Unsigned_8 := 31;
 
@@ -43,25 +45,14 @@ package body Devices.PCI with SPARK_Mode => Off is
          return;
       end if;
 
-      Fetch_Device (0, 0, 0, Root_Bus, Success);
-      if not Success then
-         Panic.Hard_Panic ("Could not read root bus");
-      end if;
-
-      Read32 (Root_Bus, 16#C#, Val);
-      if (Val and 16#800000#) = 0 then
-         Check_Bus (0);
-      else
-         for I in 0 .. PCI_Max_Function loop
-            Fetch_Device (0, 0, I, Host_Bridge, Success);
-            if Success then
-               Read32 (Host_Bridge, 0, Val);
-               if Val /= 16#FFFFFFFF# then
-                  Check_Bus (I);
-               end if;
-            end if;
+      Messages.Put_Line ("Brute-force scanning PCI instead of using ACPI");
+      for Bus in 0 .. PCI_Max_Bus loop
+         for Slot in 0 .. PCI_Max_Slot loop
+            for Func in 0 .. PCI_Max_Function loop
+               Check_Function (Bus, Slot, Func);
+            end loop;
          end loop;
-      end if;
+      end loop;
 
       Success := True;
    end Init;
@@ -657,15 +648,6 @@ package body Devices.PCI with SPARK_Mode => Off is
           (Unsigned_64 (Func))) * 4096);
    end Get_ECAM_Addr;
 
-   procedure Check_Bus (Bus : Unsigned_8) is
-   begin
-      for Slot in 0 .. PCI_Max_Slot loop
-         for Func in 0 .. PCI_Max_Function loop
-            Check_Function (Bus, Slot, Func);
-         end loop;
-      end loop;
-   end Check_Bus;
-
    procedure Check_Function (Bus, Slot, Func : Unsigned_8) is
       Success : Boolean;
       Config8 : Unsigned_32;
@@ -679,13 +661,6 @@ package body Devices.PCI with SPARK_Mode => Off is
 
       --  Check for placeholder devices.
       if Result.Device_ID = 16#FFFF# and Result.Vendor_ID = 16#FFFF# then
-         return;
-      end if;
-
-      --  Check for PCI bridge, and take it.
-      if Result.Device_Class = 6 and Result.Subclass = 4 then
-         Read32 (Result, 16#18#, Config8);
-         Check_Bus (Unsigned_8 (Shift_Right (Config8, 8) and 16#FF#));
          return;
       end if;
 

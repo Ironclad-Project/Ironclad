@@ -188,7 +188,6 @@ private
 
    procedure Ensure_Initialized (Success : out Boolean);
    function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64;
-   procedure Check_Bus (Bus : Unsigned_8);
    procedure Check_Function (Bus, Slot, Func : Unsigned_8);
    procedure Fetch_Device
       (Bus     : Unsigned_8;
