@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Storage_Elements; use System.Storage_Elements;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
@@ -368,7 +369,7 @@ package body IPC.PTY is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Result_Info :   Main_Data with Import, Address => Argument;
       Result_Size :    Win_Size with Import, Address => Argument;
-      Action      :     Integer with Import, Address => Argument;
+      Action      : constant Integer_Address := To_Integer (Argument);
       Group       : Unsigned_32 with Import, Address => Argument;
       Do_R, Do_T  :   Boolean;
    begin
