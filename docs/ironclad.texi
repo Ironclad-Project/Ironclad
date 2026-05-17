@@ -5290,22 +5290,13 @@ standard operations, like being manipulated by the usual file-related
 syscalls like @code{read} or @code{write}, while sporting device-specific
 interfaces in the form of device-specific @code{devctl} requests.
 
-When querying device-specific information, Ironclad exposes information a bit
-different than other kernels like Linux. Here is a quick list of the most
-notable differences:
+All devices in Ironclad have the following @code{devctl} calls implemented:
 
-@itemize @bullet
-@item
-The @code{BLKGETSIZE}/@code{BLKGETSIZE64} @code{devctl} calls are not available,
-instead, the block count and block size values of @code{stat} are used.
-@end itemize
-
-All devices in Ironclad have the @code{devctl} call @code{DEV_PARTUUID}
-implemented, with the signature:
+@table @code
+@item DEV_PARTUUID
 
 @example c
 #define DEV_PARTUUID 0x9821
-
 devctl(fd, DEV_PARTUUID, &pointer_to_uuid, 0, NULL); -- uuids being uint8_t[16];
 @end example
 
@@ -5313,6 +5304,34 @@ This call will write the UUID of the device pointed to by @code{fd}. If
 all zeros, will mean that the device has no associated UUID. This UUID is the
 UUID of the partition, not of the FS, like, for example, the GPT's partition
 UUID.
+
+@item BLKSSZGET
+
+@example c
+#define BLKSSZGET 0x9822
+devctl(fd, BLKSSZGET, &pointer_to_u32, 0, NULL);
+@end example
+
+This call gets the sector size of @code{fd} if it is a block device.
+
+@item BLKGETSIZE
+
+@example c
+#define BLKGETSIZE 0x9823
+devctl(fd, BLKGETSIZE, &pointer_to_u64, 0, NULL);
+@end example
+
+This call gets the size of @code{fd} in sectors if it is a block device.
+
+@item BLKGETSIZE64
+
+@example c
+#define BLKGETSIZE64 0x9824
+devctl(fd, BLKGETSIZE64, &pointer_to_u64, 0, NULL);
+@end example
+
+This call gets the size of @code{fd} in bytes if it is a block device.
+@end table
 
 @node Common devices
 @section Common devices

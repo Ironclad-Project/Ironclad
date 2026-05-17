@@ -346,6 +346,9 @@ package body VFS.Dev is
       pragma Unreferenced (Data);
 
       DEV_PARTUUID : constant := 16#9821#;
+      BLKSSZGET    : constant := 16#9822#;
+      BLKGETSIZE   : constant := 16#9823#;
+      BLKGETSIZE64 : constant := 16#9824#;
       Success  : Boolean;
    begin
       Extra := 0;
@@ -357,6 +360,8 @@ package body VFS.Dev is
       else
          declare
             Arg_UUID : Devices.UUID with Import, Address => Arg;
+            Arg_64 : Unsigned_64  with Import, Address => Arg;
+            Arg_32 : Unsigned_32  with Import, Address => Arg;
             Handle : constant Device_Handle := From_Unique_ID (Natural (Ino));
          begin
             if Handle = Devices.Error_Handle then
@@ -364,17 +369,40 @@ package body VFS.Dev is
                return;
             end if;
 
-            if Req = DEV_PARTUUID then
-               Arg_UUID := Fetch_Part_UUID (Handle);
-               Status   := FS_Success;
-            else
-               IO_Control (Handle, Req, Arg, Extra, Success);
-               if Success then
-                  Status := FS_Success;
-               else
-                  Status := FS_IO_Failure;
-               end if;
-            end if;
+            case Req is
+               when DEV_PARTUUID =>
+                  Arg_UUID := Fetch_Part_UUID (Handle);
+                  Status   := FS_Success;
+               when BLKSSZGET =>
+                  if Devices.Is_Block_Device (Handle) then
+                     Arg_32 := Unsigned_32 (Get_Block_Size (Handle));
+                     Status := FS_Success;
+                  else
+                     Status := FS_Invalid_Value;
+                  end if;
+               when BLKGETSIZE =>
+                  if Devices.Is_Block_Device (Handle) then
+                     Arg_64 := Get_Block_Count (Handle);
+                     Status := FS_Success;
+                  else
+                     Status := FS_Invalid_Value;
+                  end if;
+               when BLKGETSIZE64 =>
+                  if Devices.Is_Block_Device (Handle) then
+                     Arg_64 := Unsigned_64 (Get_Block_Size (Handle)) *
+                               Get_Block_Count (Handle);
+                     Status := FS_Success;
+                  else
+                     Status := FS_Invalid_Value;
+                  end if;
+               when others =>
+                  IO_Control (Handle, Req, Arg, Extra, Success);
+                  if Success then
+                     Status := FS_Success;
+                  else
+                     Status := FS_IO_Failure;
+                  end if;
+            end case;
          end;
       end if;
    end IO_Control;
