@@ -103,9 +103,10 @@ package body Devices.Partitions is
    end record;
    type GPT_Entries is array (Natural range <>) of GPT_Partition_Entry;
 
-   --  Datatypes for easing reading sectors up.
    procedure Free is new Ada.Unchecked_Deallocation
       (Devices.Operation_Data, Devices.Operation_Data_Acc);
+   procedure Free is new Ada.Unchecked_Deallocation
+      (Partition_Data, Partition_Data_Acc);
 
    --  Packages for conversions.
    package Con1 is new System.Address_To_Access_Conversions (Partition_Data);
@@ -115,27 +116,28 @@ package body Devices.Partitions is
    procedure Parse_Partitions
       (Name    : String;
        Dev     : Device_Handle;
+       Parts   : out Partition_Arr;
        Success : out Boolean)
    is
-      Found_Partitions : Boolean;
    begin
+      Parts := [others => Devices.Error_Handle];
       if not Devices.Is_Block_Device (Dev) then
          Success := False;
          return;
       end if;
 
-      Parse_GPT_Partitions (Name, Dev, Found_Partitions, Success);
-      if Success and Found_Partitions then
+      Parse_GPT_Partitions (Name, Dev, Parts, Success);
+      if Success and (Parts (Parts'First) /= Devices.Error_Handle) then
          return;
       end if;
-      Parse_MBR_Partitions (Name, Dev, Found_Partitions, Success);
+      Parse_MBR_Partitions (Name, Dev, Parts, Success);
    end Parse_Partitions;
-
+   ----------------------------------------------------------------------------
    procedure Parse_GPT_Partitions
-      (Name             : String;
-       Dev              : Device_Handle;
-       Found_Partitions : out Boolean;
-       Success          : out Boolean)
+      (Name    : String;
+       Dev     : Device_Handle;
+       Parts   : out Partition_Arr;
+       Success : out Boolean)
    is
       pragma SPARK_Mode (Off);
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
@@ -151,8 +153,8 @@ package body Devices.Partitions is
       Added_Index      : Natural := 1;
       Block_Return     : Natural;
    begin
-      Success          := True;
-      Found_Partitions := False;
+      Parts := [others => Devices.Error_Handle];
+      Success := True;
       Sector := new Devices.Operation_Data (1 .. Block_Size);
       S_Addr := Sector (1)'Address;
 
@@ -201,18 +203,16 @@ package body Devices.Partitions is
                if Partition.Type_GUID_High /= 0 and
                   Partition.Type_GUID_Low  /= 0
                then
-                  Found_Partitions := True;
-                  Part := new Partition_Data'(
-                     Inner_Device => Dev,
-                     Block_Size   => Block_Size,
-                     LBA_Offset   => Partition.Starting_LBA,
-                     LBA_Length   => Partition.Ending_LBA -
-                                     Partition.Starting_LBA
-                  );
+                  Part := new Partition_Data'
+                     (Inner_Device => Dev,
+                      Block_Size   => Block_Size,
+                      LBA_Offset   => Partition.Starting_LBA,
+                      LBA_Length   => Partition.Ending_LBA -
+                                      Partition.Starting_LBA);
                   Set_Part
                      (Name, Added_Index, Block_Size, Part, Partition.GUID,
-                      Success);
-                  if not Success then
+                      Parts (Added_Index));
+                  if Parts (Added_Index) = Devices.Error_Handle then
                      goto Return_End;
                   end if;
                   Added_Index := Added_Index + 1;
@@ -227,15 +227,14 @@ package body Devices.Partitions is
       Free (Sector);
    exception
       when Constraint_Error =>
-         Found_Partitions := False;
-         Success          := False;
+         Success := False;
    end Parse_GPT_Partitions;
 
    procedure Parse_MBR_Partitions
-      (Name             : String;
-       Dev              : Device_Handle;
-       Found_Partitions : out Boolean;
-       Success          : out Boolean)
+      (Name    : String;
+       Dev     : Device_Handle;
+       Parts   : out Partition_Arr;
+       Success : out Boolean)
    is
       pragma SPARK_Mode (Off);
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
@@ -245,9 +244,10 @@ package body Devices.Partitions is
       MBR     : MBR_Data_Acc;
       Part    : Partition_Data_Acc;
       Block_Return : Natural;
+      Added_Index : Natural := 1;
    begin
-      Success          := True;
-      Found_Partitions := False;
+      Parts := [others => Devices.Error_Handle];
+      Success := True;
       Sector := new Devices.Operation_Data (1 .. Block_Size);
       S_Addr := Sector (1)'Address;
       Devices.Read
@@ -269,16 +269,17 @@ package body Devices.Partitions is
 
       for I in MBR.Entries'Range loop
          if MBR.Entries (I).Sector_Count /= 0 then
-            Found_Partitions := True;
             Part := new Partition_Data'
                (Inner_Device => Dev,
                 Block_Size   => Block_Size,
                 LBA_Offset   => Unsigned_64 (MBR.Entries (I).First_Sector),
                 LBA_Length   => Unsigned_64 (MBR.Entries (I).Sector_Count));
-            Set_Part (Name, I, Block_Size, Part, [others => 0], Success);
-            if not Success then
+            Set_Part (Name, I, Block_Size, Part, [others => 0],
+                      Parts (Added_Index));
+            if Parts (Added_Index) = Devices.Error_Handle then
                goto Return_End;
             end if;
+            Added_Index := Added_Index + 1;
          end if;
       end loop;
 
@@ -286,8 +287,7 @@ package body Devices.Partitions is
       Free (Sector);
    exception
       when Constraint_Error =>
-         Found_Partitions := False;
-         Success          := False;
+         Success := False;
    end Parse_MBR_Partitions;
 
    procedure Set_Part
@@ -296,10 +296,10 @@ package body Devices.Partitions is
        Block_Size : Natural;
        Part       : Partition_Data_Acc;
        ID         : UUID;
-       Success    : out Boolean)
+       Handle     : out Devices.Device_Handle)
    is
       pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
-      Handle : Device_Handle;
+      Success : Boolean;
    begin
       Register ((
          Data        => Con1.To_Address (Con1.Object_Pointer (Part)),
@@ -313,17 +313,19 @@ package body Devices.Partitions is
          IO_Control  => null,
          Mmap        => null,
          Poll        => null,
-         Remove      => null
+         Remove      => Remove'Access
       ), Name & [1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))],
          Success);
       if Success then
          Handle := Fetch
          (Name & [1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))]);
          Devices.Set_Partition_UUID (Handle, ID);
+      else
+         Handle := Devices.Error_Handle;
       end if;
    exception
       when Constraint_Error =>
-         Success := False;
+         Handle := Devices.Error_Handle;
    end Set_Part;
    ----------------------------------------------------------------------------
    procedure Read
@@ -438,4 +440,13 @@ package body Devices.Partitions is
       when Constraint_Error =>
          Success := False;
    end Sync_Range;
+
+   procedure Remove (Key : System.Address; Success : out Boolean) is
+      Part : Partition_Data_Acc := Partition_Data_Acc (Con1.To_Pointer (Key));
+   begin
+      Sync (Key, Success);
+      if Success then
+         Free (Part);
+      end if;
+   end Remove;
 end Devices.Partitions;

@@ -16,6 +16,7 @@
 
 with Synchronization;
 with Devices.Drive_Cache;
+with Devices.Partitions;
 
 package Devices.PCI.NVMe with SPARK_Mode => Off is
    procedure Init (Success : out Boolean);
@@ -613,12 +614,15 @@ private
    --  I/O functions
    package Caching is new Devices.Drive_Cache (Sector_Size => 512);
 
+   type String_Acc is access String;
    type Namespace_Data is record
       Queue : IO_Queue_Acc;
       Namespace_Id : Unsigned_32;
       LBA_Size : Natural;
       LBA_Count : Unsigned_64;
       Cache_Reg : aliased Caching.Cache_Registry;
+      Parts : Partitions.Partition_Arr;
+      Name  : String_Acc;
       Mutex : aliased Synchronization.Mutex
          := Synchronization.Unlocked_Mutex;
    end record;
@@ -659,6 +663,13 @@ private
        Offset  : Unsigned_64;
        Count   : Unsigned_64;
        Success : out Boolean);
+
+   procedure IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean);
 
    --  Operations on the Controller
    procedure Controller_Await_Ready

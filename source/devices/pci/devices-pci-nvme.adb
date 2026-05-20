@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.Partitions;
 with Alignment;
 with Messages;
 with Panic;
@@ -261,11 +260,9 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
             LBA_Count => NS_LBAs,
             Namespace_Id => NS_Id,
             Queue => IO_Queue,
+            Name  => new String'(Base_Name & Drive_Idx'Image &
+               "n" & NS_Id'Image),
             others => <>);
-
-         Final_Name : constant String
-            := Base_Name & Drive_Idx'Image &
-               "n" & NS_Id'Image;
       begin
          Memory.Physical.Free
             (size_t (To_Integer (NS_Identify.all'Address)));
@@ -285,13 +282,13 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
              Write       => Write'Access,
              Sync        => Sync'Access,
              Sync_Range  => Sync_Range'Access,
-             IO_Control  => null,
+             IO_Control  => IO_Control'Access,
              Mmap        => null,
              Poll        => null,
-             Remove      => null), Final_Name, Success);
+             Remove      => null), NS.Name.all, Success);
          if Success then
             Partitions.Parse_Partitions
-               (Final_Name, Fetch (Final_Name), Success);
+               (NS.Name.all, Fetch (NS.Name.all), NS.Parts, Success);
          end if;
          if not Success then
             return;
@@ -807,6 +804,37 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       when Constraint_Error =>
          Success := False;
    end Sync_Range;
+
+   procedure IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
+   is
+      pragma Unreferenced (Argument);
+      BLKRRPART : constant := 16#9825#;
+      Drive : constant Namespace_Data_Acc :=
+         Namespace_Data_Acc (C5.To_Pointer (Key));
+   begin
+      Extra := 0;
+      if Request = BLKRRPART then
+         for Part of Drive.Parts loop
+            exit when Part = Devices.Error_Handle;
+            Devices.Remove (Part, Success);
+            if not Success then
+               return;
+            end if;
+         end loop;
+         Partitions.Parse_Partitions
+            (Drive.Name.all, Fetch (Drive.Name.all), Drive.Parts, Success);
+      else
+         Success := False;
+      end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end IO_Control;
 
    procedure NS_Read
       (Drive : System.Address;

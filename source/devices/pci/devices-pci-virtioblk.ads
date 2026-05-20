@@ -17,6 +17,7 @@
 with Synchronization;
 with Devices.Drive_Cache;
 with Devices.PCI.Virtio;
+with Devices.Partitions;
 
 package Devices.PCI.VirtioBlk with SPARK_Mode => Off is
    type Blk_Req_Type is (Blk_In, Blk_Out);
@@ -52,12 +53,15 @@ package Devices.PCI.VirtioBlk with SPARK_Mode => Off is
 
    package Caching is new Devices.Drive_Cache (Sector_Size => 512);
 
+   type String_Acc is access String;
    pragma Warnings (Off, "may call Last_Chance_Handler");
    type Blk_Data is record
       Queue : Devices.PCI.Virtio.Virtio_Queue_Acc;
       LBA_Count : Unsigned_64;
       Cache_Reg : aliased Caching.Cache_Registry;
       Mutex : aliased Synchronization.Mutex;
+      Parts : Partitions.Partition_Arr;
+      Name : String_Acc;
    end record;
    type Blk_Data_Acc is not null access all Blk_Data;
    pragma Warnings (On, "may call Last_Chance_Handler");
@@ -104,4 +108,11 @@ package Devices.PCI.VirtioBlk with SPARK_Mode => Off is
        Offset  : Unsigned_64;
        Count   : Unsigned_64;
        Success : out Boolean);
+
+   procedure IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean);
 end Devices.PCI.VirtioBlk;

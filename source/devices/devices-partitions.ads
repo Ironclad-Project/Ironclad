@@ -15,31 +15,38 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Devices.Partitions is
+   --  GPT allows as a maximum 128 partitions, so we can just dedicate a
+   --  fixed amount. It is a lot of space, but disk devices already handle
+   --  a massive amount of RAM, so this is a drop in the bucket really.
+   type Partition_Arr is array (1 .. 128) of Devices.Device_Handle;
+
    --  Register the partitions of the passed device as separate devices.
    --  The resulting support read/write, and that's it.
    --  @param Name    Name to prepend p<index> with.
    --  @param Dev     Device to scan partitions for.
+   --  @param Parts   Resulting partitions, only to be used in success.
    --  @param Success True if everything is nominal, regardless of whether
    --  any partitions were found. False if one of the systems
    --  failed unexpectedly or a non-block device was passed.
    procedure Parse_Partitions
       (Name    : String;
        Dev     : Device_Handle;
+       Parts   : out Partition_Arr;
        Success : out Boolean);
 
 private
 
    --  Scan partitions for GPT and MBR.
    procedure Parse_GPT_Partitions
-      (Name             : String;
-       Dev              : Device_Handle;
-       Found_Partitions : out Boolean;
-       Success          : out Boolean);
+      (Name    : String;
+       Dev     : Device_Handle;
+       Parts   : out Partition_Arr;
+       Success : out Boolean);
    procedure Parse_MBR_Partitions
-      (Name             : String;
-       Dev              : Device_Handle;
-       Found_Partitions : out Boolean;
-       Success          : out Boolean);
+      (Name    : String;
+       Dev     : Device_Handle;
+       Parts   : out Partition_Arr;
+       Success : out Boolean);
 
    --  Register data for a partition.
    type Partition_Data is record
@@ -55,7 +62,7 @@ private
        Block_Size : Natural;
        Part       : Partition_Data_Acc;
        ID         : UUID;
-       Success    : out Boolean);
+       Handle     : out Devices.Device_Handle);
    ----------------------------------------------------------------------------
    procedure Read
       (Key         : System.Address;
@@ -80,4 +87,6 @@ private
        Offset  : Unsigned_64;
        Count   : Unsigned_64;
        Success : out Boolean);
+
+   procedure Remove (Key : System.Address; Success : out Boolean);
 end Devices.Partitions;

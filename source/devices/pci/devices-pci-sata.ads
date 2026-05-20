@@ -16,6 +16,7 @@
 
 with Synchronization;
 with Devices.Drive_Cache;
+with Devices.Partitions;
 
 package Devices.PCI.SATA with SPARK_Mode => Off is
    --  Probe for ATA drives and add em.
@@ -360,16 +361,19 @@ private
 
    package Caching is new Devices.Drive_Cache (Sector_Size => 512);
 
+   type String_Acc is access String;
    type SATA_Identify is array (1 .. 256) of Unsigned_16;
    type SATA_Identify_Acc is access all SATA_Identify;
    type SATA_Data is record
       Mutex        : aliased Synchronization.Binary_Semaphore;
+      Name         : String_Acc;
       FIS          : HBA_FIS_Acc;
       Command_Area : HBA_Command_Area_Acc;
       Command_TBLs : HBA_Command_TBL_Arr (1 .. Ports_Per_Controller);
       Port_Data    : HBA_Port_Acc;
       Sector_Count : Unsigned_64;
       Cache_Reg    : aliased Caching.Cache_Registry;
+      Parts        : Partitions.Partition_Arr;
    end record;
    type SATA_Data_Acc is access all SATA_Data;
 
@@ -429,4 +433,11 @@ private
        Offset  : Unsigned_64;
        Count   : Unsigned_64;
        Success : out Boolean);
+
+   procedure IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean);
 end Devices.PCI.SATA;

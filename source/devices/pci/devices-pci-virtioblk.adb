@@ -16,7 +16,6 @@
 
 with Alignment;
 with Devices.PCI.Virtio; use Devices.PCI.Virtio;
-with Devices.Partitions;
 with Messages;
 with System.Address_To_Access_Conversions;
 
@@ -129,20 +128,20 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
 
          declare
             Base_Name : constant String := "virtio-blk";
-            Final_Name : constant String := Base_Name & Drive_Idx'Image;
-
             Queue : constant Devices.PCI.Virtio.Virtio_Queue_Acc :=
                Devices.PCI.Virtio.Setup_Queue
                   (Common_Config, 0, Notification);
 
-            NS_Addr : System.Address;
-         begin
-            NS_Addr := C3.To_Address (new Blk_Data'(
+            Dev_Data : constant Blk_Data_Acc := new Blk_Data'(
                LBA_Count => Blk_Config.Capacity,
                Queue => Queue,
                Mutex => Synchronization.Unlocked_Mutex,
-               Cache_Reg => <>));
-
+               Cache_Reg => <>,
+               Parts => <>,
+               Name => new String'(Base_Name & Drive_Idx'Image));
+            NS_Addr : constant System.Address :=
+               C3.To_Address (Dev_Data.all'Access);
+         begin
             Common_Config.Device_Status := 15;
 
             Caching.Init
@@ -163,11 +162,12 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
                 IO_Control  => null,
                 Mmap        => null,
                 Poll        => null,
-                Remove      => null), Final_Name, Success);
+                Remove      => null), Dev_Data.Name.all, Success);
 
             if Success then
                Partitions.Parse_Partitions
-                  (Final_Name, Fetch (Final_Name), Success);
+                  (Dev_Data.Name.all, Fetch (Dev_Data.Name.all),
+                   Dev_Data.Parts, Success);
             end if;
          end;
 
@@ -393,4 +393,34 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
       when Constraint_Error =>
          Success := False;
    end Sync_Range;
+
+   procedure IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
+   is
+      pragma Unreferenced (Argument);
+      BLKRRPART : constant := 16#9825#;
+      Drive : constant Blk_Data_Acc := Blk_Data_Acc (C3.To_Pointer (Key));
+   begin
+      Extra := 0;
+      if Request = BLKRRPART then
+         for Part of Drive.Parts loop
+            exit when Part = Devices.Error_Handle;
+            Devices.Remove (Part, Success);
+            if not Success then
+               return;
+            end if;
+         end loop;
+         Partitions.Parse_Partitions
+            (Drive.Name.all, Fetch (Drive.Name.all), Drive.Parts, Success);
+      else
+         Success := False;
+      end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end IO_Control;
 end Devices.PCI.VirtioBlk;

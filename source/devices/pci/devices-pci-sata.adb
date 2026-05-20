@@ -18,7 +18,6 @@ with Arch.Snippets;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Messages;
-with Devices.Partitions;
 with Memory.MMU;
 with Memory;
 with Alignment;
@@ -80,32 +79,30 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
             Drive_Data := Init_Port (Dev_Mem, I);
             if Drive_Data /= null then
                Drive_Idx := Drive_Idx + 1;
+               Drive_Data.Name := new String'(Base_Name & Drive_Idx'Image);
 
-               declare
-                  Final_Name : constant String := Base_Name & Drive_Idx'Image;
-               begin
-                  Register (
-                     (Data => C1.To_Address (C1.Object_Pointer (Drive_Data)),
-                      Is_Block    => True,
-                      Block_Size  => Sector_Size,
-                      Block_Count => Drive_Data.Sector_Count,
-                      Read        => Read'Access,
-                      Write       => Write'Access,
-                      Sync        => Sync'Access,
-                      Sync_Range  => Sync_Range'Access,
-                      IO_Control  => null,
-                      Mmap        => null,
-                      Poll        => null,
-                      Remove      => null), Final_Name, Success);
-                  if not Success then
-                     return;
-                  end if;
-                  Partitions.Parse_Partitions
-                        (Final_Name, Fetch (Final_Name), Success);
-                  if not Success then
-                     return;
-                  end if;
-               end;
+               Register (
+                  (Data => C1.To_Address (C1.Object_Pointer (Drive_Data)),
+                   Is_Block    => True,
+                   Block_Size  => Sector_Size,
+                   Block_Count => Drive_Data.Sector_Count,
+                   Read        => Read'Access,
+                   Write       => Write'Access,
+                   Sync        => Sync'Access,
+                   Sync_Range  => Sync_Range'Access,
+                   IO_Control  => IO_Control'Access,
+                   Mmap        => null,
+                   Poll        => null,
+                   Remove      => null), Drive_Data.Name.all, Success);
+               if not Success then
+                  return;
+               end if;
+               Partitions.Parse_Partitions
+                  (Drive_Data.Name.all, Fetch (Drive_Data.Name.all),
+                   Drive_Data.Parts, Success);
+               if not Success then
+                  return;
+               end if;
             end if;
          end loop;
       end loop;
@@ -182,13 +179,15 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       Tmp      := To_Integer  (Identify.all'Address);
       Tmp2     := Unsigned_64 (Tmp - Memory.Memory_Offset);
       Dev_Data := new SATA_Data'
-         (Mutex         => Synchronization.Unlocked_Semaphore,
-          FIS           => Port_FIS,
-          Command_Area  => Cmd_Area,
-          Command_TBLs  => Cmd_TBLs,
-          Port_Data     => Port_Data,
-          Sector_Count  => 0,
-          Cache_Reg     => <>);
+         (Mutex        => Synchronization.Unlocked_Semaphore,
+          Name         => null,
+          FIS          => Port_FIS,
+          Command_Area => Cmd_Area,
+          Command_TBLs => Cmd_TBLs,
+          Port_Data    => Port_Data,
+          Sector_Count => 0,
+          Cache_Reg    => <>,
+          Parts        => <>);
       Caching.Init
          (Dev_Data.all'Address,
           Read_Sector'Access,
@@ -479,4 +478,34 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       when Constraint_Error =>
          Success := False;
    end Sync_Range;
+
+   procedure IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Extra    : out Unsigned_64;
+       Success  : out Boolean)
+   is
+      pragma Unreferenced (Argument);
+      BLKRRPART : constant := 16#9825#;
+      Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
+   begin
+      Extra := 0;
+      if Request = BLKRRPART then
+         for Part of Drive.Parts loop
+            exit when Part = Devices.Error_Handle;
+            Devices.Remove (Part, Success);
+            if not Success then
+               return;
+            end if;
+         end loop;
+         Partitions.Parse_Partitions
+            (Drive.Name.all, Fetch (Drive.Name.all), Drive.Parts, Success);
+      else
+         Success := False;
+      end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end IO_Control;
 end Devices.PCI.SATA;
