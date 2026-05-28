@@ -568,7 +568,9 @@ package VFS is
        Status : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
-   --  Change the owner of an inode.
+   --  Change the owner of an inode. If either the owner or group are
+   --  Unsigned_32'Last, this acts as a "check of posibility" rather than a
+   --  UID change.
    --  @param Key    FS Handle to use.
    --  @param Ino    Inode to change the mode of.
    --  @param Owner  Owner to change ownership to.

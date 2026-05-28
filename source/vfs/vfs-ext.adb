@@ -1342,7 +1342,9 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success         => Success);
       if not Success then
          Status := FS_IO_Failure;
-      else
+      elsif Owner <= Unsigned_32 (Unsigned_16'Last) and
+            Group <= Unsigned_32 (Unsigned_16'Last)
+      then
          Inod.UID := Unsigned_16 (Owner);
          Inod.GID := Unsigned_16 (Group);
          RW_Inode
@@ -1352,6 +1354,8 @@ package body VFS.EXT with SPARK_Mode => Off is
              Write_Operation => True,
              Success         => Success);
          Status := (if Success then FS_Success else FS_IO_Failure);
+      else
+         Status := FS_Success;
       end if;
 
    <<Cleanup>>
