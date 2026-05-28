@@ -2666,7 +2666,7 @@ package body Userland.Syscall is
          Execute_MAC_Failure ("getentropy", Proc);
          Returned := Unsigned_64'Last;
       elsif Length > Entropy_Max_Len then
-         Errno := Error_IO;
+         Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       else
          declare

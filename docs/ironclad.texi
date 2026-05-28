@@ -2339,7 +2339,7 @@ following errno:
 @item
 @code{EACCES}: MAC disallowed this.
 @item
-@code{EIO}: The buffer is bigger than 256 bytes.
+@code{EINVAL}: @code{length} is bigger than 256 bytes.
 @end itemize
 
 @node mac_capabilities
@@ -4495,12 +4495,12 @@ failure, with the following errno:
 
 @example c
 struct utsname @{
-    char sysname[65];
-    char nodename[65];
-    char release[65];
-    char version[65];
-    char machine[65];
-    char domainname[65];
+    char sysname[64];
+    char nodename[256];
+    char release[64];
+    char version[64];
+    char machine[64];
+    char domainname[64];
 @} __attribute__((packed));
 
 int uname(struct utsname *addr);

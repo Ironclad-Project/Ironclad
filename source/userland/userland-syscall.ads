@@ -427,12 +427,12 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    type UTS_Name is record
-      System_Name : String (1 .. 65);
-      Node_Name   : String (1 .. 65);
-      Release     : String (1 .. 65);
-      Version     : String (1 .. 65);
-      Machine     : String (1 .. 65);
-      Domain      : String (1 .. 65);
+      System_Name : String (1 .. 64);
+      Node_Name   : String (1 .. 256);
+      Release     : String (1 .. 64);
+      Version     : String (1 .. 64);
+      Machine     : String (1 .. 64);
+      Domain      : String (1 .. 64);
    end record;
 
    procedure Uname

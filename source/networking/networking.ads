@@ -59,12 +59,12 @@ package Networking is
 
 private
 
-   Hostname_Max_Len : constant Natural := 64;
-   Domain_Name_Max_Len : constant Natural := 64;
+   Hostname_Max_Len : constant Natural := 255;
+   Domain_Name_Max_Len : constant Natural := 63;
 
    Names_Lock : aliased Mutex := Unlocked_Mutex;
    Hostname_Length : Natural range 0 .. Hostname_Max_Len := 4;
-   Hostname : String (1 .. Hostname_Max_Len) := "none" & [1 .. 60 => ' '];
+   Hostname : String (1 .. Hostname_Max_Len) := "none" & [1 .. 251 => ' '];
    Domain_Length : Natural range 0 .. Domain_Name_Max_Len := 4;
-   Domain : String (1 .. Domain_Name_Max_Len) := "none" & [1 .. 60 => ' '];
+   Domain : String (1 .. Domain_Name_Max_Len) := "none" & [1 .. 59 => ' '];
 end Networking;
