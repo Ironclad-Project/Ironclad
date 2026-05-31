@@ -3269,6 +3269,10 @@ since fork, which is not allowed as per POSIX.
 
 @item ESRCH
 The passed PID is not a valid PID, or is not a child of the caller.
+
+@item EINVAL
+A negative @code{pgid} was passed to @code{setpgid}, which as per POSIX is not
+allowed.
 @end table
 
 @node getsid/setsid

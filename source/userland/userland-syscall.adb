@@ -4786,6 +4786,7 @@ package body Userland.Syscall is
    is
       Proc, Parent, Curr : PID;
       Was_Exec : Boolean;
+      Inner_PGID : Unsigned_32;
    begin
       if ID = 0 then
          Proc := Arch.Local.Get_Current_Process;
@@ -4814,7 +4815,13 @@ package body Userland.Syscall is
       if PGID = 0 then
          Userland.Process.Set_PGID (Proc, Unsigned_32 (Convert (Proc)));
       else
-         Userland.Process.Set_PGID (Proc, Unsigned_32 (PGID and 16#FFFFFFFF#));
+         Inner_PGID := Unsigned_32 (PGID and 16#FFFFFFFF#);
+         if (Inner_PGID and Shift_Left (1, 31)) /= 0 then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+            return;
+         end if;
+         Userland.Process.Set_PGID (Proc, Inner_PGID);
       end if;
 
       Returned := 0;
