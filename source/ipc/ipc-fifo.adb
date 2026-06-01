@@ -31,6 +31,8 @@ package body IPC.FIFO is
       return new Inner'
          (Reader_Closed => False,
           Writer_Closed => False,
+          Read_Index    => 1,
+          Write_Index   => 1,
           Mutex         => Synchronization.Unlocked_Semaphore,
           Data_Count    => 0,
           Data          => Data);
@@ -105,19 +107,32 @@ package body IPC.FIFO is
    end Get_Size;
 
    procedure Set_Size (P : Inner_Acc; Size : Natural; Success : out Boolean) is
-      New_Buffer : Devices.Operation_Data_Acc;
+      New_Buffer, Old_Buffer : Devices.Operation_Data_Acc := null;
+      New_Idx : Natural := 1;
    begin
+      New_Buffer := new Devices.Operation_Data'[1 .. Size => 0];
+
       Synchronization.Seize (P.Mutex);
-      if Size >= P.Data_Count then
-         New_Buffer := new Devices.Operation_Data'[1 .. Size => 0];
-         New_Buffer (1 .. P.Data_Count) := P.Data (1 .. P.Data_Count);
-         Free (P.Data);
-         P.Data  := New_Buffer;
+      if Size = P.Data_Count then
+         Success := True;
+      elsif Size > P.Data_Count then
+         while P.Read_Index /= P.Write_Index loop
+            New_Buffer (New_Idx) := P.Data (P.Read_Index);
+            Advance_Index (P, P.Read_Index);
+            New_Idx := New_Idx + 1;
+         end loop;
+         Old_Buffer := P.Data;
+         P.Data := New_Buffer;
+         P.Read_Index := 1;
+         P.Write_Index := P.Data_Count + 1;
          Success := True;
       else
          Success := False;
       end if;
       Synchronization.Release (P.Mutex);
+      if Success and Old_Buffer /= null then
+         Free (Old_Buffer);
+      end if;
    end Set_Size;
 
    procedure Read
@@ -127,10 +142,8 @@ package body IPC.FIFO is
        Ret_Count   : out Natural;
        Success     : out Pipe_Status)
    is
-      Final_Len : Natural := Data'Length;
+      Read_Count : Natural := 0;
    begin
-      Data := [others => 0];
-
       if Is_Blocking then
          loop
             Synchronization.Seize (To_Read.Mutex);
@@ -158,28 +171,16 @@ package body IPC.FIFO is
          end if;
       end if;
 
-      if Final_Len > To_Read.Data_Count then
-         Final_Len := To_Read.Data_Count;
-      end if;
-      if Data'First > Natural'Last - Final_Len then
-         Final_Len := Natural'Last - Data'First;
-      end if;
-
-      Data (Data'First .. Data'First + Final_Len - 1) :=
-         To_Read.Data (1 .. Final_Len);
-      for I in 1 .. Final_Len loop
-         for J in To_Read.Data'First .. To_Read.Data'Last - 1 loop
-            To_Read.Data (J) := To_Read.Data (J + 1);
-         end loop;
-         if To_Read.Data_Count > 0 then
-            To_Read.Data_Count := To_Read.Data_Count - 1;
-         else
-            exit;
-         end if;
+      for C of Data loop
+         exit when To_Read.Data_Count = 0;
+         C := To_Read.Data (To_Read.Read_Index);
+         Advance_Index (To_Read, To_Read.Read_Index);
+         Read_Count := Read_Count + 1;
+         To_Read.Data_Count := To_Read.Data_Count - 1;
       end loop;
 
       Synchronization.Release (To_Read.Mutex);
-      Ret_Count := Final_Len;
+      Ret_Count := Read_Count;
       Success   := Pipe_Success;
    end Read;
 
@@ -190,8 +191,7 @@ package body IPC.FIFO is
        Ret_Count   : out Natural;
        Success     : out Pipe_Status)
    is
-      Len   : Natural := Data'Length;
-      Final : Natural;
+      Written_Count : Natural := 0;
    begin
       if Is_Blocking then
          loop
@@ -217,40 +217,31 @@ package body IPC.FIFO is
             return;
          end if;
          if To_Write.Data_Count = To_Write.Data'Length then
+            Synchronization.Release (To_Write.Mutex);
             Ret_Count := 0;
             Success   := Would_Block_Failure;
-            Synchronization.Release (To_Write.Mutex);
             return;
          end if;
       end if;
 
-      if Len > To_Write.Data'Length or else
-         Len > To_Write.Data'Length - To_Write.Data_Count
-      then
-         Final := To_Write.Data'Length;
-         Len   := To_Write.Data'Length - To_Write.Data_Count;
-      else
-         Final := To_Write.Data_Count + Len;
-      end if;
-      if Data'First > Natural'Last - Len then
-         Len   := Natural'Last - Data'First;
-         Final := To_Write.Data_Count + Len;
-      end if;
-
-      if To_Write.Data_Count /= Natural'Last then
-         To_Write.Data (To_Write.Data_Count + 1 .. Final) :=
-            Data (Data'First .. Data'First + Len - 1);
-         To_Write.Data_Count := Final;
-         Ret_Count := Len;
-         Success   := Pipe_Success;
-      else
-         Ret_Count := 0;
-         Success   := Would_Block_Failure;
-      end if;
+      for C of Data loop
+         exit when To_Write.Data_Count = To_Write.Data'Length;
+         To_Write.Data (To_Write.Write_Index) := C;
+         Advance_Index (To_Write, To_Write.Write_Index);
+         Written_Count := Written_Count + 1;
+         To_Write.Data_Count := To_Write.Data_Count + 1;
+      end loop;
 
       Synchronization.Release (To_Write.Mutex);
+      Ret_Count := Written_Count;
+      Success   := Pipe_Success;
    end Write;
    ----------------------------------------------------------------------------
+   procedure Advance_Index (P : Inner_Acc; Idx : in out Natural) is
+   begin
+      Idx := (if Idx = P.Data'Last then P.Data'First else Idx + 1);
+   end Advance_Index;
+
    procedure Common_Close (To_Close : in out Inner_Acc) is
       pragma Annotate
          (GNATprove,

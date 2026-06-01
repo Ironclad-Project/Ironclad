@@ -16,7 +16,6 @@
 
 with Synchronization;
 with Devices; use Devices;
-with Memory.MMU;
 
 package IPC.FIFO is
    --  FIFOs are the simplest and most versatile IPC methods of Ironclad.
@@ -129,11 +128,13 @@ package IPC.FIFO is
 
 private
 
-   Default_Data_Length : constant Natural := Memory.MMU.Page_Size * 10;
+   Default_Data_Length : constant Natural := 4096;
    type Inner is record
       Mutex         : aliased Synchronization.Binary_Semaphore;
       Reader_Closed : Boolean;
       Writer_Closed : Boolean;
+      Read_Index    : Natural;
+      Write_Index   : Natural;
       Data_Count    : Natural;
       Data          : Devices.Operation_Data_Acc;
    end record;
@@ -144,6 +145,7 @@ private
        P.Data_Count <= P.Data'Length and then
        P.Data'First = 1);
 
+   procedure Advance_Index (P : Inner_Acc; Idx : in out Natural);
    procedure Common_Close (To_Close : in out Inner_Acc)
       with Pre => To_Close /= null, Post => To_Close = null;
 end IPC.FIFO;
