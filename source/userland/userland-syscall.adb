@@ -4302,7 +4302,12 @@ package body Userland.Syscall is
 
       --  If we have 0 items, we just eep.
       if FDs_Count = 0 then
-         Scheduler.Suspend_Until (Time.Monotonic_Clock, Final);
+         loop
+            Time.Get_Time (Time.Monotonic_Clock, Curr);
+            Clear_Process_Signals (Proc, Handled);
+            exit when Handled or else Curr >= Final;
+            Scheduler.Yield_If_Able;
+         end loop;
          goto Success_Return;
       end if;
 
