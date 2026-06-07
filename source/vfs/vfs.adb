@@ -583,16 +583,24 @@ package body VFS is
                    Symlink_Depth => Symlink_Depth + 1);
                goto Cleanup_Only_Return;
             elsif Entry_Stat.Type_Of_File = File_Directory then
-               --  Check whether we are dealing with a mount.
-               for I in Mounts'Range loop
-                  if Mounts (I).Base_Key = Actual_Key and
-                     Mounts (I).Base_Ino = Actual_Ino
-                  then
-                     Actual_Key := I;
-                     Actual_Ino := Mounts (I).Root_Ino;
-                     exit;
-                  end if;
-               end loop;
+               --  Check whether we are going up on mounts.
+               if Actual_Key /= Root_Idx and then
+                  Mounts (Actual_Key).Root_Ino = Actual_Ino and then
+                  Path (Path'First + Path_Idx .. Path'First + Path_Last) = ".."
+               then
+                  Actual_Ino := Mounts (Root_Idx).Root_Ino;
+                  Actual_Key := Root_Idx;
+               else
+                  for I in Mounts'Range loop
+                     if Mounts (I).Base_Key = Actual_Key and
+                        Mounts (I).Base_Ino = Actual_Ino
+                     then
+                        Actual_Key := I;
+                        Actual_Ino := Mounts (I).Root_Ino;
+                        exit;
+                     end if;
+                  end loop;
+               end if;
             end if;
             exit;
          end if;
@@ -602,19 +610,31 @@ package body VFS is
          --  we are at a symlink or directory.
          case Entry_Stat.Type_Of_File is
             when File_Directory =>
-               for I in Mounts'Range loop
-                  if Mounts (I).Base_Key = Actual_Key and
-                     Mounts (I).Base_Ino = Actual_Ino
-                  then
-                     Actual_Key := I;
-                     Actual_Ino := Mounts (I).Root_Ino;
-                     VFS.Stat (Actual_Key, Actual_Ino, Entry_Stat, Success);
-                     if Success /= FS_Success then
-                        goto Invalid_Value_Return;
-                     end if;
-                     exit;
+               if Actual_Key /= Root_Idx and then
+                  Mounts (Actual_Key).Root_Ino = Actual_Ino and then
+                  Path (Path'First + Path_Idx .. Path'First + Path_Last) = ".."
+               then
+                  Actual_Ino := Mounts (Root_Idx).Root_Ino;
+                  Actual_Key := Root_Idx;
+                  VFS.Stat (Actual_Key, Actual_Ino, Entry_Stat, Success);
+                  if Success /= FS_Success then
+                     goto Invalid_Value_Return;
                   end if;
-               end loop;
+               else
+                  for I in Mounts'Range loop
+                     if Mounts (I).Base_Key = Actual_Key and
+                        Mounts (I).Base_Ino = Actual_Ino
+                     then
+                        Actual_Key := I;
+                        Actual_Ino := Mounts (I).Root_Ino;
+                        VFS.Stat (Actual_Key, Actual_Ino, Entry_Stat, Success);
+                        if Success /= FS_Success then
+                           goto Invalid_Value_Return;
+                        end if;
+                        exit;
+                     end if;
+                  end loop;
+               end if;
 
                --  Check that we have a permission to keep going.
                if not Can_Access_File
@@ -736,12 +756,29 @@ package body VFS is
        Group    : Unsigned_32;
        Status   : out FS_Status)
    is
+      Final_Key : FS_Handle;
+      Final_Ino : File_Inode_Number;
+      Idx : Natural := 0;
    begin
-      case Mounts (Key).Mounted_FS is
+      Open_Parent
+         (Key        => Key,
+          Relative   => Relative,
+          Path       => Path,
+          User       => User,
+          Rela_Final => Final_Key,
+          Ino        => Final_Ino,
+          End_Idx    => Idx,
+          Status     => Status);
+      if Status /= FS_Success then
+         return;
+      end if;
+
+      case Mounts (Final_Key).Mounted_FS is
          when FS_EXT =>
             EXT.Create_Node
-               (Mounts (Key).FS_Data, Relative, Path, Kind, Mode, User, Group,
-                Status);
+               (Mounts (Final_Key).FS_Data, Final_Ino,
+                Path (Path'Last - Idx + 1 .. Path'Last), Kind, Mode, User,
+                Group, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -756,11 +793,28 @@ package body VFS is
        User     : Unsigned_32;
        Status   : out FS_Status)
    is
+      Final_Key : FS_Handle;
+      Final_Ino : File_Inode_Number;
+      Idx : Natural := 0;
    begin
-      case Mounts (Key).Mounted_FS is
+      Open_Parent
+         (Key        => Key,
+          Relative   => Relative,
+          Path       => Path,
+          User       => User,
+          Rela_Final => Final_Key,
+          Ino        => Final_Ino,
+          End_Idx    => Idx,
+          Status     => Status);
+      if Status /= FS_Success then
+         return;
+      end if;
+
+      case Mounts (Final_Key).Mounted_FS is
          when FS_EXT =>
             EXT.Create_Symbolic_Link
-               (Mounts (Key).FS_Data, Relative, Path, Target, Mode, User,
+               (Mounts (Final_Key).FS_Data, Final_Ino,
+                Path (Path'Last - Idx + 1 .. Path'Last), Target, Mode, User,
                 Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
@@ -776,12 +830,49 @@ package body VFS is
        User            : Unsigned_32;
        Status          : out FS_Status)
    is
+      Final_Key_Source, Final_Key_Target : FS_Handle;
+      Final_Ino_Source, Final_Ino_Target : File_Inode_Number;
+      Idx_Source, Idx_Target : Natural := 0;
    begin
-      case Mounts (Key).Mounted_FS is
+      Open_Parent
+         (Key        => Key,
+          Relative   => Relative_Path,
+          Path       => Path,
+          User       => User,
+          Rela_Final => Final_Key_Source,
+          Ino        => Final_Ino_Source,
+          End_Idx    => Idx_Source,
+          Status     => Status);
+      if Status /= FS_Success then
+         return;
+      end if;
+      Open_Parent
+         (Key        => Key,
+          Relative   => Relative_Target,
+          Path       => Target,
+          User       => User,
+          Rela_Final => Final_Key_Target,
+          Ino        => Final_Ino_Target,
+          End_Idx    => Idx_Target,
+          Status     => Status);
+      if Status /= FS_Success then
+         return;
+      end if;
+
+      --  Sadly hard links require the same FS for source and target.
+      if Final_Key_Source /= Final_Key_Target then
+         Status := FS_Not_Allowed;
+         return;
+      end if;
+
+      case Mounts (Final_Key_Source).Mounted_FS is
          when FS_EXT =>
             EXT.Create_Hard_Link
-               (Mounts (Key).FS_Data, Relative_Path, Path, Relative_Target,
-                Target, User, Status);
+               (Mounts (Key).FS_Data, Final_Ino_Source,
+                Path (Path'Last - Idx_Source + 1 .. Path'Last),
+                Final_Ino_Target,
+                Target (Target'Last - Idx_Target + 1 .. Target'Last),
+                User, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -797,12 +888,50 @@ package body VFS is
        User            : Unsigned_32;
        Status          : out FS_Status)
    is
+      Final_Key_Source, Final_Key_Target : FS_Handle;
+      Final_Ino_Source, Final_Ino_Target : File_Inode_Number;
+      Idx_Source, Idx_Target : Natural := 0;
    begin
-      case Mounts (Key).Mounted_FS is
+      Open_Parent
+         (Key        => Key,
+          Relative   => Relative_Source,
+          Path       => Source,
+          User       => User,
+          Rela_Final => Final_Key_Source,
+          Ino        => Final_Ino_Source,
+          End_Idx    => Idx_Source,
+          Status     => Status);
+      if Status /= FS_Success then
+         return;
+      end if;
+      Open_Parent
+         (Key        => Key,
+          Relative   => Relative_Target,
+          Path       => Target,
+          User       => User,
+          Rela_Final => Final_Key_Target,
+          Ino        => Final_Ino_Target,
+          End_Idx    => Idx_Target,
+          Status     => Status);
+      if Status /= FS_Success then
+         return;
+      end if;
+
+      --  We sadly don't support this.
+      if Final_Key_Source /= Final_Key_Target then
+         Status := FS_Not_Supported;
+         return;
+      end if;
+
+      --  Do the actual rename.
+      case Mounts (Final_Key_Source).Mounted_FS is
          when FS_EXT =>
             EXT.Rename
-               (Mounts (Key).FS_Data, Relative_Source, Source, Relative_Target,
-                Target, Keep, User, Status);
+               (Mounts (Final_Key_Source).FS_Data, Final_Ino_Source,
+                Source (Source'Last - Idx_Source + 1 .. Source'Last),
+                Final_Ino_Target,
+                Target (Target'Last - Idx_Target + 1 .. Target'Last),
+                Keep, User, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -816,11 +945,28 @@ package body VFS is
        Do_Dir   : Boolean;
        Status   : out FS_Status)
    is
+      Final_Key : FS_Handle;
+      Final_Ino : File_Inode_Number;
+      Idx : Natural := 0;
    begin
-      case Mounts (Key).Mounted_FS is
+      Open_Parent
+         (Key        => Key,
+          Relative   => Relative,
+          Path       => Path,
+          User       => User,
+          Rela_Final => Final_Key,
+          Ino        => Final_Ino,
+          End_Idx    => Idx,
+          Status     => Status);
+      if Status /= FS_Success then
+         return;
+      end if;
+
+      case Mounts (Final_Key).Mounted_FS is
          when FS_EXT =>
-            EXT.Unlink (Mounts (Key).FS_Data, Relative, Path, User, Do_Dir,
-                        Status);
+            EXT.Unlink
+               (Mounts (Final_Key).FS_Data, Final_Ino,
+                Path (Path'Last - Idx + 1 .. Path'Last), User, Do_Dir, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -1304,4 +1450,48 @@ package body VFS is
 
       return True;
    end Can_Access_File;
+   ----------------------------------------------------------------------------
+   procedure Open_Parent
+      (Key        : FS_Handle;
+       Relative   : File_Inode_Number;
+       Path       : String;
+       User       : Unsigned_32;
+       Rela_Final : out FS_Handle;
+       Ino        : out File_Inode_Number;
+       End_Idx    : out Natural;
+       Status     : out FS_Status)
+   is
+   begin
+      --  Get the last character of the parent.
+      End_Idx := 0;
+      for C of reverse Path loop
+         exit when C = '/';
+         End_Idx := End_Idx + 1;
+      end loop;
+
+      if End_Idx /= Path'Length then
+         --  Accomodate root-based paths like '/mnt', if we dont do this, we
+         --  will open empty strings next step.
+         if End_Idx + 1 = Path'Length and then Path (Path'First) = '/' then
+            Rela_Final := Root_Idx;
+            Ino := Mounts (Root_Idx).Root_Ino;
+            Status := FS_Success;
+         else
+            Open
+               (Key           => Key,
+                Relative      => Relative,
+                Path          => Path (Path'First .. Path'Last - 1 - End_Idx),
+                Final_Key     => Rela_Final,
+                Ino           => Ino,
+                Success       => Status,
+                User          => User,
+                Want_Read     => False,
+                Want_Write    => False);
+         end if;
+      else
+         Rela_Final := Key;
+         Ino := Relative;
+         Status := FS_Success;
+      end if;
+   end Open_Parent;
 end VFS;

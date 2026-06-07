@@ -54,14 +54,14 @@ package VFS.EXT is
    function Get_Max_Length (FS : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
    procedure Create_Node
-      (FS       : System.Address;
-       Relative : File_Inode_Number;
-       Path     : String;
-       Kind     : File_Type;
-       Mode     : File_Mode;
-       User     : Unsigned_32;
-       Group    : Unsigned_32;
-       Status   : out FS_Status);
+      (FS         : System.Address;
+       Parent_Ino : File_Inode_Number;
+       Name       : String;
+       Kind       : File_Type;
+       Mode       : File_Mode;
+       User       : Unsigned_32;
+       Group      : Unsigned_32;
+       Status     : out FS_Status);
 
    procedure Create_Symbolic_Link
       (FS       : System.Address;
@@ -73,31 +73,31 @@ package VFS.EXT is
        Status   : out FS_Status);
 
    procedure Create_Hard_Link
-      (FS              : System.Address;
-       Relative_Path   : File_Inode_Number;
-       Path            : String;
-       Relative_Target : File_Inode_Number;
-       Target          : String;
-       User            : Unsigned_32;
-       Status          : out FS_Status);
+      (FS            : System.Address;
+       Source_Parent : File_Inode_Number;
+       Source_Name   : String;
+       Target_Parent : File_Inode_Number;
+       Target_Name   : String;
+       User          : Unsigned_32;
+       Status        : out FS_Status);
 
    procedure Rename
-      (FS              : System.Address;
-       Relative_Source : File_Inode_Number;
-       Source          : String;
-       Relative_Target : File_Inode_Number;
-       Target          : String;
-       Keep            : Boolean;
-       User            : Unsigned_32;
-       Status          : out FS_Status);
+      (FS            : System.Address;
+       Source_Parent : File_Inode_Number;
+       Source_Name   : String;
+       Target_Parent : File_Inode_Number;
+       Target_Name   : String;
+       Keep          : Boolean;
+       User          : Unsigned_32;
+       Status        : out FS_Status);
 
    procedure Unlink
-      (FS       : System.Address;
-       Relative : File_Inode_Number;
-       Path     : String;
-       User     : Unsigned_32;
-       Do_Dirs  : Boolean;
-       Status   : out FS_Status);
+      (FS      : System.Address;
+       Parent  : File_Inode_Number;
+       Name    : String;
+       User    : Unsigned_32;
+       Do_Dirs : Boolean;
+       Status  : out FS_Status);
 
    procedure Read_Entries
       (FS_Data   : System.Address;
@@ -384,17 +384,15 @@ private
    Root_Inode         : constant := 2;
    Max_File_Name_Size : constant := 255;
 
-   type String_Acc is access String;
    procedure Inner_Open_Inode
-      (Data           : EXT_Data_Acc;
-       Relative       : Unsigned_32;
-       Path           : String;
-       Last_Component : out String_Acc;
-       Target_Index   : out Unsigned_32;
-       Target_Inode   : out Inode;
-       Parent_Index   : out Unsigned_32;
-       Parent_Inode   : out Inode;
-       Success        : out Boolean);
+      (Data         : EXT_Data_Acc;
+       Parent_Index : Unsigned_32;
+       Name         : String;
+       Target_Index : out Unsigned_32;
+       Target_Inode : out Inode;
+       Parent_Inode : out Inode;
+       Success      : out Boolean;
+       Parent_Open  : out Boolean);
 
    procedure Inner_Read_Symbolic_Link
       (FS_Data   : EXT_Data_Acc;

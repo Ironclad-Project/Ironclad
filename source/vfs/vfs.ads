@@ -731,4 +731,14 @@ private
       Synchronization.Unlocked_Semaphore;
 
    function Is_Initialized return Boolean is (Mounts /= null);
+
+   procedure Open_Parent
+      (Key        : FS_Handle;
+       Relative   : File_Inode_Number;
+       Path       : String;
+       User       : Unsigned_32;
+       Rela_Final : out FS_Handle;
+       Ino        : out File_Inode_Number;
+       End_Idx    : out Natural;
+       Status     : out FS_Status);
 end VFS;

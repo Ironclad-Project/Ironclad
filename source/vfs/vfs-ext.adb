@@ -25,7 +25,6 @@ with Ada.Characters.Latin_1;
 
 package body VFS.EXT with SPARK_Mode => Off is
    package   Conv is new System.Address_To_Access_Conversions (EXT_Data);
-   procedure Free is new Ada.Unchecked_Deallocation (String,   String_Acc);
    procedure Free is new Ada.Unchecked_Deallocation (EXT_Data, EXT_Data_Acc);
    procedure Free is new Ada.Unchecked_Deallocation (Inode,    Inode_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
@@ -256,27 +255,26 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Get_Max_Length;
    ----------------------------------------------------------------------------
    procedure Create_Node
-      (FS       : System.Address;
-       Relative : File_Inode_Number;
-       Path     : String;
-       Kind     : File_Type;
-       Mode     : File_Mode;
-       User     : Unsigned_32;
-       Group    : Unsigned_32;
-       Status   : out FS_Status)
+      (FS         : System.Address;
+       Parent_Ino : File_Inode_Number;
+       Name       : String;
+       Kind       : File_Type;
+       Mode       : File_Mode;
+       User       : Unsigned_32;
+       Group      : Unsigned_32;
+       Status     : out FS_Status)
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Perms    : constant  Unsigned_16 := Get_Permissions (Kind);
       Dir_Type : constant   Unsigned_8 := Get_Dir_Type (Kind);
-      Last_Component             : String_Acc;
-      Target_Index, Parent_Index : Unsigned_32;
+      Target_Index               : Unsigned_32;
       Target_Inode, Parent_Inode : Inode_Acc := new Inode;
       Descriptor                 : Block_Group_Descriptor;
       Desc_Index                 : Unsigned_32;
       Ent                        : Directory_Entry;
-      Name                       : String (1 .. 2);
+      Entry_Name                 : String (1 .. 2);
       Temp                       : Natural;
-      Success                    : Boolean;
+      Success, Parent_Open       : Boolean;
       Stamp                      : Time.Timestamp;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
@@ -284,7 +282,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Path'Length = 0 then
+      elsif Name'Length = 0 then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
@@ -292,18 +290,17 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Checking the file doesn't exist but the parent is found along perms.
       Inner_Open_Inode
          (Data           => Data,
-          Relative       => Unsigned_32 (Relative),
-          Path           => Path,
-          Last_Component => Last_Component,
+          Parent_Index   => Unsigned_32 (Parent_Ino),
+          Name           => Name,
           Target_Index   => Target_Index,
           Target_Inode   => Target_Inode.all,
-          Parent_Index   => Parent_Index,
           Parent_Inode   => Parent_Inode.all,
-          Success        => Success);
+          Success        => Success,
+          Parent_Open    => Parent_Open);
       if Success then
          Status := FS_Exists;
          goto Cleanup;
-      elsif Parent_Index = 0 then
+      elsif not Parent_Open then
          Status := FS_Not_Found;
          goto Cleanup;
       elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
@@ -346,10 +343,10 @@ package body VFS.EXT with SPARK_Mode => Off is
          (FS_Data     => Data,
           Inode_Data  => Parent_Inode.all,
           Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
-          Inode_Index => Parent_Index,
+          Inode_Index => Unsigned_32 (Parent_Ino),
           Added_Index => Target_Index,
           Dir_Type    => Dir_Type,
-          Name        => Last_Component.all,
+          Name        => Name,
           Success     => Success);
       if not Success then
          Status := FS_IO_Failure;
@@ -361,7 +358,7 @@ package body VFS.EXT with SPARK_Mode => Off is
             Ent_Data  : Operation_Data (1 .. Ent'Size / 8)
                with Import, Address => Ent'Address;
             Name_Data : Operation_Data (1 .. 2)
-               with Import, Address => Name'Address;
+               with Import, Address => Entry_Name'Address;
          begin
             Grow_Inode
                (FS_Data    => Data,
@@ -387,7 +384,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Data        => Ent_Data,
                 Ret_Count   => Temp,
                 Success     => Success);
-            Name := ['.', Ada.Characters.Latin_1.NUL];
+            Entry_Name := ['.', Ada.Characters.Latin_1.NUL];
             Write_To_Inode
                (FS_Data     => Data,
                 Inode_Data  => Target_Inode.all,
@@ -400,7 +397,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Success     => Success);
 
             Ent :=
-               (Inode_Index => Parent_Index,
+               (Inode_Index => Unsigned_32 (Parent_Ino),
                 Entry_Count => Unsigned_16 (Data.Block_Size) - 12,
                 Name_Length => 2,
                 Dir_Type    => Dir_Type);
@@ -414,7 +411,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Data        => Ent_Data,
                 Ret_Count   => Temp,
                 Success     => Success);
-            Name := "..";
+            Entry_Name := "..";
             Write_To_Inode
                (FS_Data     => Data,
                 Inode_Data  => Target_Inode.all,
@@ -453,7 +450,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success         => Success);
       RW_Inode
          (Data            => Data,
-          Inode_Index     => Parent_Index,
+          Inode_Index     => Unsigned_32 (Parent_Ino),
           Result          => Parent_Inode.all,
           Write_Operation => True,
           Success         => Success);
@@ -464,7 +461,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       Synchronization.Release_Writer (Data.Mutex);
       Free (Target_Inode);
       Free (Parent_Inode);
-      Free (Last_Component);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while creating an EXT node");
@@ -480,9 +476,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        User     : Unsigned_32;
        Status   : out FS_Status)
    is
-      pragma Unreferenced (Mode);
-      pragma Unreferenced (Relative);
-      pragma Unreferenced (User);
+      pragma Unreferenced (Mode, Relative, User);
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Synchronization.Seize_Writer (Data.Mutex);
@@ -502,26 +496,27 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Create_Symbolic_Link;
 
    procedure Create_Hard_Link
-      (FS              : System.Address;
-       Relative_Path   : File_Inode_Number;
-       Path            : String;
-       Relative_Target : File_Inode_Number;
-       Target          : String;
-       User            : Unsigned_32;
-       Status          : out FS_Status)
+      (FS            : System.Address;
+       Source_Parent : File_Inode_Number;
+       Source_Name   : String;
+       Target_Parent : File_Inode_Number;
+       Target_Name   : String;
+       User          : Unsigned_32;
+       Status        : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Last_Component                         : String_Acc;
-      Path_Index, Target_Index, Parent_Index : Unsigned_32;
-      Path_Inode, Target_Inode, Parent_Inode : Inode_Acc := new Inode;
-      Success                                : Boolean;
+      Source_Index, Target_Index : Unsigned_32;
+      Source_Inode, Source_Parent_Inode : Inode_Acc := new Inode;
+      Target_Inode, Target_Parent_Inode : Inode_Acc := new Inode;
+      Success, Parent_Open : Boolean;
+      Sz : Unsigned_64;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Path'Length = 0 or Target'Length = 0 then
+      elsif Source_Name'Length = 0 or Target_Name'Length = 0 then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
@@ -529,39 +524,37 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Open the source.
       Inner_Open_Inode
          (Data           => Data,
-          Relative       => Unsigned_32 (Relative_Path),
-          Path           => Path,
-          Last_Component => Last_Component,
-          Target_Index   => Path_Index,
-          Target_Inode   => Path_Inode.all,
-          Parent_Index   => Parent_Index,
-          Parent_Inode   => Parent_Inode.all,
-          Success        => Success);
+          Parent_Index   => Unsigned_32 (Source_Parent),
+          Name           => Source_Name,
+          Target_Index   => Source_Index,
+          Target_Inode   => Source_Inode.all,
+          Parent_Inode   => Source_Parent_Inode.all,
+          Success        => Success,
+          Parent_Open    => Parent_Open);
       if not Success then
-         Status := FS_IO_Failure;
+         Status := FS_Not_Found;
          goto Cleanup;
       end if;
-      Free (Last_Component);
 
       --  Checking the target file doesn't exist but the parent is found.
       --  Also check some permissions.
       Inner_Open_Inode
          (Data           => Data,
-          Relative       => Unsigned_32 (Relative_Target),
-          Path           => Target,
-          Last_Component => Last_Component,
+          Parent_Index   => Unsigned_32 (Target_Parent),
+          Name           => Target_Name,
           Target_Index   => Target_Index,
           Target_Inode   => Target_Inode.all,
-          Parent_Index   => Parent_Index,
-          Parent_Inode   => Parent_Inode.all,
-          Success        => Success);
+          Parent_Inode   => Target_Parent_Inode.all,
+          Success        => Success,
+          Parent_Open    => Parent_Open);
       if Success then
          Status := FS_Exists;
          goto Cleanup;
-      elsif Parent_Index = 0 then
+      elsif not Parent_Open then
          Status := FS_Not_Found;
          goto Cleanup;
-      elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
+      elsif not Check_User_Access
+         (User, Target_Parent_Inode.all, False, True, False)
       then
          Status := FS_Not_Allowed;
          goto Cleanup;
@@ -570,19 +563,19 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Once we can commit to it, update the hard link count.
       RW_Inode
          (Data            => Data,
-          Inode_Index     => Path_Index,
-          Result          => Path_Inode.all,
+          Inode_Index     => Source_Index,
+          Result          => Source_Inode.all,
           Write_Operation => False,
           Success         => Success);
       if not Success then
          Status := FS_IO_Failure;
          goto Cleanup;
       end if;
-      Path_Inode.Hard_Link_Count := Path_Inode.Hard_Link_Count + 1;
+      Source_Inode.Hard_Link_Count := Source_Inode.Hard_Link_Count + 1;
       RW_Inode
          (Data            => Data,
-          Inode_Index     => Path_Index,
-          Result          => Path_Inode.all,
+          Inode_Index     => Source_Index,
+          Result          => Source_Inode.all,
           Write_Operation => True,
           Success         => Success);
       if not Success then
@@ -590,24 +583,25 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
+      Sz := Get_Size (Target_Parent_Inode.all, Data.Has_64bit_Filesizes);
       Add_Directory_Entry
          (FS_Data     => Data,
-          Inode_Data  => Parent_Inode.all,
-          Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
-          Inode_Index => Parent_Index,
-          Added_Index => Path_Index,
+          Inode_Data  => Target_Parent_Inode.all,
+          Inode_Size  => Sz,
+          Inode_Index => Unsigned_32 (Target_Parent),
+          Added_Index => Source_Index,
           Dir_Type    => Get_Dir_Type (File_Regular),
-          Name        => Last_Component.all,
+          Name        => Target_Name,
           Success     => Success);
 
       Status := (if Success then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
       Synchronization.Release_Writer (Data.Mutex);
-      Free (Path_Inode);
+      Free (Source_Inode);
+      Free (Source_Parent_Inode);
       Free (Target_Inode);
-      Free (Parent_Inode);
-      Free (Last_Component);
+      Free (Target_Parent_Inode);
    exception
       when Constraint_Error =>
          Synchronization.Release_Writer (Data.Mutex);
@@ -616,60 +610,55 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Create_Hard_Link;
 
    procedure Rename
-      (FS              : System.Address;
-       Relative_Source : File_Inode_Number;
-       Source          : String;
-       Relative_Target : File_Inode_Number;
-       Target          : String;
-       Keep            : Boolean;
-       User            : Unsigned_32;
-       Status          : out FS_Status)
+      (FS            : System.Address;
+       Source_Parent : File_Inode_Number;
+       Source_Name   : String;
+       Target_Parent : File_Inode_Number;
+       Target_Name   : String;
+       Keep          : Boolean;
+       User          : Unsigned_32;
+       Status        : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Last_Component                           : String_Acc;
       Source_Index, Target_Index               : Unsigned_32;
-      Source_Parent_Index, Target_Parent_Index : Unsigned_32;
       Source_Inode, Target_Inode               : Inode_Acc := new Inode;
       Source_Parent_Inode, Target_Parent_Inode : Inode_Acc := new Inode;
       Target_Parent_Size                       : Unsigned_64;
-      Success1, Success2                       : Boolean;
+      Success1, Success2, Parent_O1, Parent_O2 : Boolean;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Source'Length = 0 or Target'Length = 0 then
+      elsif Source_Name'Length = 0 or Target_Name'Length = 0 then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
 
       Inner_Open_Inode
          (Data         => Data,
-          Relative     => Unsigned_32 (Relative_Source),
-          Path         => Source,
-          Last_Component   => Last_Component,
+          Parent_Index => Unsigned_32 (Source_Parent),
+          Name         => Source_Name,
           Target_Index => Source_Index,
           Target_Inode => Source_Inode.all,
-          Parent_Index => Source_Parent_Index,
           Parent_Inode => Source_Parent_Inode.all,
-          Success      => Success1);
-      Free (Last_Component);
+          Success      => Success1,
+          Parent_Open  => Parent_O1);
       Inner_Open_Inode
          (Data         => Data,
-          Relative     => Unsigned_32 (Relative_Target),
-          Path         => Target,
-          Last_Component   => Last_Component,
+          Parent_Index => Unsigned_32 (Target_Parent),
+          Name         => Target_Name,
           Target_Index => Target_Index,
           Target_Inode => Target_Inode.all,
-          Parent_Index => Target_Parent_Index,
           Parent_Inode => Target_Parent_Inode.all,
-          Success      => Success2);
+          Success      => Success2,
+          Parent_Open  => Parent_O2);
 
       --  Check that the source exists, that the parent of the target exists,
       --  and that we do not want to keep the file if it exists, along with
       --  permissions.
-      if not Success1 or Target_Parent_Index = 0 then
+      if not Success1 or not Parent_O2 then
          Status := FS_Not_Found;
          goto Cleanup;
       elsif Keep and Success2 then
@@ -691,7 +680,7 @@ package body VFS.EXT with SPARK_Mode => Off is
             (FS_Data     => Data,
              Inode_Data  => Target_Parent_Inode.all,
              Inode_Size  => Target_Parent_Size,
-             Inode_Index => Target_Parent_Index,
+             Inode_Index => Unsigned_32 (Target_Parent),
              Added_Index => Target_Index,
              Success     => Success1);
          if not Success1 then
@@ -706,7 +695,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Inode_Data  => Source_Parent_Inode.all,
           Inode_Size  => Get_Size (Source_Parent_Inode.all,
                                    Data.Has_64bit_Filesizes),
-          Inode_Index => Source_Parent_Index,
+          Inode_Index => Unsigned_32 (Source_Parent),
           Added_Index => Source_Index,
           Success     => Success1);
       if not Success1 then
@@ -719,10 +708,10 @@ package body VFS.EXT with SPARK_Mode => Off is
          (FS_Data     => Data,
           Inode_Data  => Target_Parent_Inode.all,
           Inode_Size  => Target_Parent_Size,
-          Inode_Index => Target_Parent_Index,
+          Inode_Index => Unsigned_32 (Target_Parent),
           Added_Index => Source_Index,
           Dir_Type => Get_Dir_Type (Get_Inode_Type (Source_Inode.Permissions)),
-          Name        => Last_Component.all,
+          Name        => Target_Name,
           Success     => Success1);
 
       Status := (if Success1 then FS_Success else FS_IO_Failure);
@@ -733,7 +722,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Target_Inode);
       Free (Source_Parent_Inode);
       Free (Target_Parent_Inode);
-      Free (Last_Component);
    exception
       when Constraint_Error =>
          Synchronization.Release_Writer (Data.Mutex);
@@ -742,18 +730,17 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Rename;
 
    procedure Unlink
-      (FS       : System.Address;
-       Relative : File_Inode_Number;
-       Path     : String;
-       User     : Unsigned_32;
-       Do_Dirs  : Boolean;
-       Status   : out FS_Status)
+      (FS      : System.Address;
+       Parent  : File_Inode_Number;
+       Name    : String;
+       User    : Unsigned_32;
+       Do_Dirs : Boolean;
+       Status  : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Last_Component           : String_Acc;
-      Path_Index, Parent_Index : Unsigned_32;
+      Path_Index               : Unsigned_32;
       Path_Inode, Parent_Inode : Inode_Acc := new Inode;
-      Success                  : Boolean;
+      Success, Parent_Open     : Boolean;
       Curr_Index, Next_Index   : Unsigned_64 := 0;
       Entity                   : Directory_Entity;
    begin
@@ -762,21 +749,20 @@ package body VFS.EXT with SPARK_Mode => Off is
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Path'Length = 0 then
+      elsif Name'Length = 0 then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
 
       Inner_Open_Inode
          (Data         => Data,
-          Relative     => Unsigned_32 (Relative),
-          Path         => Path,
-          Last_Component   => Last_Component,
+          Parent_Index => Unsigned_32 (Parent),
+          Name         => Name,
           Target_Index => Path_Index,
           Target_Inode => Path_Inode.all,
-          Parent_Index => Parent_Index,
           Parent_Inode => Parent_Inode.all,
-          Success      => Success);
+          Success      => Success,
+          Parent_Open  => Parent_Open);
       if not Success then
          Status := FS_Not_Found;
          goto Cleanup;
@@ -818,7 +804,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          (FS_Data     => Data,
           Inode_Data  => Parent_Inode.all,
           Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
-          Inode_Index => Parent_Index,
+          Inode_Index => Unsigned_32 (Parent),
           Added_Index => Path_Index,
           Success     => Success);
 
@@ -828,7 +814,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       Synchronization.Release_Writer (Data.Mutex);
       Free (Path_Inode);
       Free (Parent_Inode);
-      Free (Last_Component);
    exception
       when Constraint_Error =>
          Synchronization.Release_Writer (Data.Mutex);
@@ -846,11 +831,9 @@ package body VFS.EXT with SPARK_Mode => Off is
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode_Acc := new Inode;
-      Curr_Index    : Unsigned_64;
-      Next_Index    : Unsigned_64;
-      Entry_Count   : Unsigned_64;
-      Entity        : Directory_Entity;
-      Succ          : Boolean;
+      Curr_Index, Next_Index, Entry_Count : Unsigned_64;
+      Entity : Directory_Entity;
+      Succ   : Boolean;
    begin
       Synchronization.Seize_Reader (FS.Mutex);
 
@@ -1277,7 +1260,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Inod    : Inode_Acc := new Inode;
       Success : Boolean;
-      Kind     : File_Type;
+      Kind    : File_Type;
    begin
       Synchronization.Seize_Writer (FS.Mutex);
 
@@ -1468,189 +1451,73 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Synchronize;
    ----------------------------------------------------------------------------
    procedure Inner_Open_Inode
-      (Data           : EXT_Data_Acc;
-       Relative       : Unsigned_32;
-       Path           : String;
-       Last_Component : out String_Acc;
-       Target_Index   : out Unsigned_32;
-       Target_Inode   : out Inode;
-       Parent_Index   : out Unsigned_32;
-       Parent_Inode   : out Inode;
-       Success        : out Boolean)
+      (Data         : EXT_Data_Acc;
+       Parent_Index : Unsigned_32;
+       Name         : String;
+       Target_Index : out Unsigned_32;
+       Target_Inode : out Inode;
+       Parent_Inode : out Inode;
+       Success      : out Boolean;
+       Parent_Open  : out Boolean)
    is
-      type String_Acc is access String;
-      procedure Free  is new Ada.Unchecked_Deallocation (String, String_Acc);
-
-      Name_Start             : Natural;
-      Target_Type            : File_Type;
-      Target_Sz              : Unsigned_64;
-      Entity                 : Directory_Entity;
-      First_I, Last_I        : Natural;
-      Curr_Index, Next_Index : Unsigned_64;
-      Symlink                : String_Acc;
-      Symlink_Len            : Natural;
+      Entity : Directory_Entity;
+      Curr_Index, Next_Index, Parent_Sz : Unsigned_64;
    begin
-      Last_Component := null;
-      Name_Start := 0;
-      if Is_Absolute (Path) then
-         Target_Index := Root_Inode;
-         Target_Inode := Data.Root;
-         Parent_Index := Root_Inode;
-         Parent_Inode := Data.Root;
-         Target_Sz    := Get_Size (Target_Inode, Data.Has_64bit_Filesizes);
-         Target_Type  := File_Directory;
-
-         if Path'Length = 1 then
-            goto Perfect_Hit_Return;
-         end if;
-
-         First_I := Path'First + 1;
-         Last_I  := Path'First + 1;
-      elsif Path'Length > 0 then
-         RW_Inode
-            (Data            => Data,
-             Inode_Index     => Relative,
-             Result          => Target_Inode,
-             Write_Operation => False,
-             Success         => Success);
-         if not Success or else
-            Get_Inode_Type (Target_Inode.Permissions) /= File_Directory
-         then
-            goto Absolute_Miss_Return;
-         end if;
-
-         Target_Index := Relative;
-         Parent_Index := Relative;
-         Parent_Inode := Target_Inode;
-         Target_Sz    := Get_Size (Target_Inode, Data.Has_64bit_Filesizes);
-         Target_Type  := File_Directory;
-
-         if Path'Length = 0 then
-            goto Perfect_Hit_Return;
-         end if;
-
-         First_I := Path'First;
-         Last_I  := Path'First;
-      else
-         goto Absolute_Miss_Return;
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Parent_Index,
+          Result          => Parent_Inode,
+          Write_Operation => False,
+          Success         => Success);
+      if not Success then
+         Parent_Open := False;
+         goto Failure_Return;
       end if;
-
-      while Last_I <= Path'Last loop
-      <<Retry_Component>>
-         while Last_I <= Path'Last and then Path (Last_I) /= '/' loop
-            Last_I := Last_I + 1;
-         end loop;
-         if First_I = Last_I and First_I < Path'Last then
-            Last_I  := Last_I  + 1;
-            First_I := First_I + 1;
-            goto Retry_Component;
+      Parent_Open := True;
+      Parent_Sz := Get_Size (Parent_Inode, Data.Has_64bit_Filesizes);
+      Curr_Index := 0;
+      loop
+         Inner_Read_Entry
+            (FS_Data     => Data,
+             Inode_Sz    => Parent_Sz,
+             File_Ino    => Parent_Inode,
+             Inode_Index => Curr_Index,
+             Entity      => Entity,
+             Next_Index  => Next_Index,
+             Success     => Success);
+         if not Success then
+            goto Failure_Return;
          end if;
 
-         if Target_Type /= File_Directory then
-            goto Absolute_Miss_Return;
-         end if;
+         Curr_Index := Next_Index;
 
-         Name_Start   := First_I;
-         Curr_Index   := 0;
-         Next_Index   := 0;
-         Parent_Index := Target_Index;
-         Parent_Inode := Target_Inode;
-
-         loop
-            Inner_Read_Entry
-               (FS_Data     => Data,
-                Inode_Sz    => Target_Sz,
-                File_Ino    => Parent_Inode,
-                Inode_Index => Curr_Index,
-                Entity      => Entity,
-                Next_Index  => Next_Index,
-                Success     => Success);
+         if Entity.Name_Buffer (1 .. Entity.Name_Len) = Name then
+            Target_Index := Unsigned_32 (Entity.Inode_Number);
+            RW_Inode
+               (Data            => Data,
+                Inode_Index     => Target_Index,
+                Result          => Target_Inode,
+                Write_Operation => False,
+                Success         => Success);
             if not Success then
-               if Last_I >= Path'Last then
-                  goto Target_Miss_Parent_Hit_Return;
-               else
-                  goto Absolute_Miss_Return;
-               end if;
+               goto Failure_Return;
             end if;
-
-            Curr_Index := Next_Index;
-
-            if Entity.Name_Buffer (1 .. Entity.Name_Len) =
-               Path (First_I .. Last_I - 1)
-            then
-               Target_Index := Unsigned_32 (Entity.Inode_Number);
-               RW_Inode
-                  (Data            => Data,
-                   Inode_Index     => Target_Index,
-                   Result          => Target_Inode,
-                   Write_Operation => False,
-                   Success         => Success);
-               Target_Sz := Get_Size (Target_Inode, Data.Has_64bit_Filesizes);
-               Target_Type := Get_Inode_Type (Target_Inode.Permissions);
-               if not Success then
-                  goto Absolute_Miss_Return;
-               end if;
-
-               if Last_I < Path'Last and Target_Type = File_Symbolic_Link then
-                  Symlink := new String'(1 .. Natural (Target_Sz) => ' ');
-                  Inner_Read_Symbolic_Link
-                     (Data,
-                      Target_Inode,
-                      Target_Sz,
-                      Symlink.all,
-                      Symlink_Len);
-                  if Symlink_Len /= Symlink.all'Length then
-                     goto Absolute_Miss_Return;
-                  end if;
-
-                  Inner_Open_Inode
-                     (Data,
-                      Parent_Index,
-                      Symlink.all (1 .. Symlink_Len) &
-                        Path (Last_I .. Path'Last),
-                      Last_Component,
-                      Target_Index,
-                      Target_Inode,
-                      Parent_Index,
-                      Parent_Inode,
-                      Success);
-                  Free (Symlink);
-                  return;
-               end if;
-               goto Next_Iteration;
-            end if;
-         end loop;
-
-      <<Next_Iteration>>
-         Last_I  := Last_I + 1;
-         First_I := Last_I;
+            exit;
+         end if;
       end loop;
 
-   <<Perfect_Hit_Return>>
       Success := True;
-      goto Fix_Last_Component;
-
-   <<Target_Miss_Parent_Hit_Return>>
-      Target_Index := 0;
-      Success := False;
-      goto Fix_Last_Component;
-
-   <<Absolute_Miss_Return>>
-      Target_Index := 0;
-      Parent_Index := 0;
-      Success := False;
       return;
 
-   <<Fix_Last_Component>>
-      if Path'First <= Name_Start and Name_Start <= Path'Last then
-         Last_Component := new String'(Path (Name_Start .. Path'Last));
-      end if;
+   <<Failure_Return>>
+      Target_Index := 0;
+      Success := False;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while opening an EXT inode");
          Target_Index := 0;
-         Parent_Index := 0;
          Success      := False;
+         Parent_Open  := False;
    end Inner_Open_Inode;
 
    procedure Inner_Read_Symbolic_Link
@@ -1963,14 +1830,9 @@ package body VFS.EXT with SPARK_Mode => Off is
        Inode_Data  : Inode;
        Searched    : Unsigned_32) return Unsigned_32
    is
-      Adjusted_Block        : Unsigned_32 := Searched;
-      Block_Level           : Unsigned_32;
-      Block_Index           : Unsigned_32;
-      Single_Index          : Unsigned_32;
-      Indirect_Offset       : Unsigned_32;
-      Indirect_Block        : Unsigned_32;
-      Double_Indirect       : Unsigned_32;
-      Single_Indirect_Index : Unsigned_32;
+      Adjusted_Block : Unsigned_32 := Searched;
+      Block_Level, Block_Index, Single_Index, Indirect_Offset : Unsigned_32;
+      Indirect_Block, Double_Indirect, Single_Indirect_Index  : Unsigned_32;
 
       Single_Indirect_Index_Data : Operation_Data (1 .. 4)
          with Import, Address => Single_Indirect_Index'Address;
@@ -2071,13 +1933,12 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count   : out Natural;
        Success     : out Boolean)
    is
-      Succ           : Devices.Dev_Status;
-      Final_Count    : Natural;
-      Final_Offset   : Unsigned_64 := Offset;
-      Block_Searched : Unsigned_64;
-      Block_Index    : Unsigned_32;
-      Step_Size      : Unsigned_64;
-      Bytes_Read     : Natural := 0;
+      Succ                      : Devices.Dev_Status;
+      Final_Count               : Natural;
+      Final_Offset              : Unsigned_64 := Offset;
+      Block_Searched, Step_Size : Unsigned_64;
+      Block_Index               : Unsigned_32;
+      Bytes_Read                : Natural := 0;
    begin
       Final_Count := Data'Length;
       if Offset > Inode_Size then
@@ -2137,12 +1998,11 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count   : out Natural;
        Success     : out Boolean)
    is
-      Succ           : Devices.Dev_Status;
-      Final_Offset   : Unsigned_64 := Offset;
-      Block_Searched : Unsigned_64;
-      Block_Index    : Unsigned_32;
-      Step_Size      : Unsigned_64;
-      Bytes_Read     : Natural := 0;
+      Succ                      : Devices.Dev_Status;
+      Final_Offset              : Unsigned_64 := Offset;
+      Block_Searched, Step_Size : Unsigned_64;
+      Block_Index               : Unsigned_32;
+      Bytes_Read                : Natural := 0;
    begin
       if Offset + Unsigned_64 (Data'Length) > Inode_Size then
          Grow_Inode
@@ -2299,15 +2159,10 @@ package body VFS.EXT with SPARK_Mode => Off is
        Wired_Block : Unsigned_32;
        Success     : out Boolean)
    is
-      Adjusted_Block        : Unsigned_32 := Block_Index;
-      Block_Level           : Unsigned_32;
-      DBlock                : Unsigned_32 := Wired_Block;
-      Single_Index          : Unsigned_32;
-      Indirect_Offset       : Unsigned_32;
-      Indirect_Block        : Unsigned_32;
-      Double_Indirect       : Unsigned_32;
-      Single_Indirect_Index : Unsigned_32;
-      Temp                  : Unsigned_32;
+      Adjusted_Block : Unsigned_32 := Block_Index;
+      DBlock         : Unsigned_32 := Wired_Block;
+      Block_Level, Single_Index, Indirect_Offset, Indirect_Block : Unsigned_32;
+      Double_Indirect, Single_Indirect_Index, Temp               : Unsigned_32;
 
       Single_Indirect_Index_Data : Operation_Data (1 .. 4)
          with Import, Address => Single_Indirect_Index'Address;
@@ -2736,13 +2591,10 @@ package body VFS.EXT with SPARK_Mode => Off is
        Name        : String;
        Success     : out Boolean)
    is
-      Buffer     : Operation_Data_Acc;
-      Required   : Unsigned_64;
-      Offset     : Natural;
-      Contracted : Unsigned_64;
-      Available  : Unsigned_64;
-      Ret_Count  : Natural;
-      Ino_Size   : Unsigned_64 := Inode_Size;
+      Buffer                           : Operation_Data_Acc;
+      Offset, Ret_Count                : Natural;
+      Required, Contracted, Available  : Unsigned_64;
+      Ino_Size                         : Unsigned_64 := Inode_Size;
    begin
       Buffer := new Operation_Data (1 .. Natural (Inode_Size));
       Read_From_Inode
