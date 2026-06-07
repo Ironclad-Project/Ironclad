@@ -1209,7 +1209,7 @@ package body Userland.Syscall is
       case Domain is
          when AF_INET  => Dom := IPC.Socket.IPv4;
          when AF_UNIX  => Dom := IPC.Socket.UNIX;
-         when others   => goto Invalid_Value_Return;
+         when others   => goto AF_Unsupported_Return;
       end case;
 
       case DataType and 16#FFF# is
@@ -1244,6 +1244,11 @@ package body Userland.Syscall is
 
    <<Invalid_Value_Return>>
       Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<AF_Unsupported_Return>>
+      Errno    := Error_AF_Unsupported;
       Returned := Unsigned_64'Last;
    end Socket;
 
@@ -8703,7 +8708,9 @@ package body Userland.Syscall is
             Errno    := Error_No_Error;
             Returned := Success_Return;
             return;
-         when Broken_Failure => Errno := Error_Invalid_Value;
+         when Broken_Failure =>
+            Errno := Error_Broken_Pipe;
+            Raise_Signal (Arch.Local.Get_Current_Process, Signal_Broken_Pipe);
          when Would_Block_Failure => Errno := Error_Would_Block;
       end case;
       Returned := Unsigned_64'Last;

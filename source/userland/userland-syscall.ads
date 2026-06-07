@@ -38,6 +38,7 @@ package Userland.Syscall is
       (Error_No_Error,        --  No error
        Error_Not_Big_Enough,  --  ERANGE
        Error_Bad_Access,      --  EACCES
+       Error_AF_Unsupported,  --  EAFNOSUPPORT
        Error_Would_Block,     --  EAGAIN
        Error_Bad_File,        --  EBADF
        Error_Busy,            --  EBUSY
@@ -63,6 +64,7 @@ package Userland.Syscall is
        Error_Not_A_TTY,       --  ENOTTY
        Error_Not_Supported,   --  ENOTSUPP
        Error_Bad_Permissions, --  EPERM
+       Error_Broken_Pipe,     --  EPIPE
        Error_Read_Only_FS,    --  EROFS
        Error_Invalid_Seek,    --  ESPIPE
        Error_Bad_Search);     --  ESRCH
@@ -70,6 +72,7 @@ package Userland.Syscall is
       (Error_No_Error        => 0,
        Error_Not_Big_Enough  => 3,
        Error_Bad_Access      => 1002,
+       Error_AF_Unsupported  => 1005,
        Error_Would_Block     => 1006,
        Error_Bad_File        => 1008,
        Error_Busy            => 1010,
@@ -95,6 +98,7 @@ package Userland.Syscall is
        Error_Not_A_TTY       => 1058,
        Error_Not_Supported   => 1060,
        Error_Bad_Permissions => 1063,
+       Error_Broken_Pipe     => 1064,
        Error_Read_Only_FS    => 1068,
        Error_Invalid_Seek    => 1069,
        Error_Bad_Search      => 1070);
