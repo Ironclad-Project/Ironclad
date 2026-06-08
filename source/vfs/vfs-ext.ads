@@ -60,17 +60,16 @@ package VFS.EXT is
        Kind       : File_Type;
        Mode       : File_Mode;
        User       : Unsigned_32;
-       Group      : Unsigned_32;
        Status     : out FS_Status);
 
    procedure Create_Symbolic_Link
-      (FS       : System.Address;
-       Relative : File_Inode_Number;
-       Path     : String;
-       Target   : String;
-       Mode     : Unsigned_32;
-       User     : Unsigned_32;
-       Status   : out FS_Status);
+      (FS         : System.Address;
+       Parent_Ino : File_Inode_Number;
+       Name       : String;
+       Target     : String;
+       Mode       : Unsigned_32;
+       User       : Unsigned_32;
+       Status     : out FS_Status);
 
    procedure Create_Hard_Link
       (FS            : System.Address;

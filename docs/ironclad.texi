@@ -2596,7 +2596,9 @@ int mknod(int dir_fd, const char *path, int path_len, int mode, int dev);
 @end example
 
 This syscall creates files in the passed path and dir. The type is chosen by
-@code{code}, which uses the same format as @code{stat}'s mode field.
+@code{code}, which uses the same format as @code{stat}'s mode field. The
+user ID of the file will be the effective UID of the calling process, and the
+GID will be the GID of the parent directory where the file is made.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
@@ -2689,7 +2691,9 @@ int symlink(int dir_fd, const char *path, int path_len,
             const char *target, int target_len, int mode);
 @end example
 
-This syscall creates symlinks for the passed path and mode.
+This syscall creates symlinks for the passed path and mode. The
+user ID of the created link will be the effective UID of the calling process,
+and the GID will be the GID of the parent directory where the file is made.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 

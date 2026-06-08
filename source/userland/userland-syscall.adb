@@ -3272,7 +3272,6 @@ package body Userland.Syscall is
       Status     : VFS.FS_Status;
       Umask      : VFS.File_Mode;
       User       : Unsigned_32;
-      Group      : Unsigned_32;
       Map        : Page_Table_Acc;
       Success    : Boolean;
       Type_Mode  : constant Unsigned_64 := Mode and Stat_IFMT;
@@ -3319,7 +3318,6 @@ package body Userland.Syscall is
          end case;
 
          Process.Get_Effective_UID (Proc, User);
-         Process.Get_Effective_GID (Proc, Group);
          Userland.Process.Get_Umask (Proc, Umask);
 
          Create_Node
@@ -3329,7 +3327,6 @@ package body Userland.Syscall is
              Kind     => Node_Type,
              Mode     => VFS.Apply_Umask (File_Mode (Mode and 8#777#), Umask),
              User     => User,
-             Group    => Group,
              Status   => Status);
          Translate_Status (Status, 0, Returned, Errno);
       end;
@@ -3703,6 +3700,7 @@ package body Userland.Syscall is
       Add_File (Proc, P_Desc, Result (1), Succ1);
       Add_File (Proc, S_Desc, Result (2), Succ2);
       if not Succ1 or not Succ2 then
+   --  @param Group   GID to check against, 0 for root/bypass checks.
          Close (Res_PTY);
          Close (Res_PTY);
          Close (P_Desc);
@@ -3864,6 +3862,7 @@ package body Userland.Syscall is
             return;
       end case;
 
+   --  @param Group   GID to check against, 0 for root/bypass checks.
       Errno := Error_No_Error;
       Returned := 0;
       return;

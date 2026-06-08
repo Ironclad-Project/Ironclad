@@ -753,7 +753,6 @@ package body VFS is
        Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
-       Group    : Unsigned_32;
        Status   : out FS_Status)
    is
       Final_Key : FS_Handle;
@@ -778,7 +777,7 @@ package body VFS is
             EXT.Create_Node
                (Mounts (Final_Key).FS_Data, Final_Ino,
                 Path (Path'Last - Idx + 1 .. Path'Last), Kind, Mode, User,
-                Group, Status);
+                Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -1378,8 +1377,7 @@ package body VFS is
        Kind    : File_Type;
        Mode    : File_Mode;
        Success : out FS_Status;
-       User    : Unsigned_32;
-       Group   : Unsigned_32)
+       User    : Unsigned_32)
    is
    begin
       if Root_Idx = Error_Handle then
@@ -1394,7 +1392,6 @@ package body VFS is
           Kind     => Kind,
           Mode     => Mode,
           User     => User,
-          Group    => Group,
           Status   => Success);
    end Create_Node;
    ----------------------------------------------------------------------------

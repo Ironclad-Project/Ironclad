@@ -261,7 +261,6 @@ package body VFS.EXT with SPARK_Mode => Off is
        Kind       : File_Type;
        Mode       : File_Mode;
        User       : Unsigned_32;
-       Group      : Unsigned_32;
        Status     : out FS_Status)
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
@@ -327,7 +326,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Creation_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
           Modified_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
           Deleted_Time_Epoch  => 0,
-          GID                 => Unsigned_16 (Group),
+          GID                 => Parent_Inode.GID,
           Hard_Link_Count     => 1,
           Sectors             => 0,
           Flags               => 0,
@@ -468,26 +467,147 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Create_Node;
 
    procedure Create_Symbolic_Link
-      (FS       : System.Address;
-       Relative : File_Inode_Number;
-       Path     : String;
-       Target   : String;
-       Mode     : Unsigned_32;
-       User     : Unsigned_32;
-       Status   : out FS_Status)
+      (FS         : System.Address;
+       Parent_Ino : File_Inode_Number;
+       Name       : String;
+       Target     : String;
+       Mode       : Unsigned_32;
+       User       : Unsigned_32;
+       Status     : out FS_Status)
    is
-      pragma Unreferenced (Mode, Relative, User);
-      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Perms    : constant  Unsigned_16 := Get_Permissions (File_Symbolic_Link);
+      Dir_Type : constant   Unsigned_8 := Get_Dir_Type (File_Symbolic_Link);
+      Target_Index               : Unsigned_32;
+      Target_Inode, Parent_Inode : Inode_Acc := new Inode;
+      Temp, Ret_Count            : Natural;
+      Success, Parent_Open       : Boolean;
+      Stamp                      : Time.Timestamp;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
+
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
-      elsif Path'Length = 0 or Target'Length = 0 then
+         goto Cleanup;
+      elsif Name'Length = 0 or Target'Length = 0 then
          Status := FS_Invalid_Value;
-      else
-         Status := FS_Not_Supported;
+         goto Cleanup;
       end if;
+
+      --  Checking the file doesn't exist but the parent is found along perms.
+      Inner_Open_Inode
+         (Data           => Data,
+          Parent_Index   => Unsigned_32 (Parent_Ino),
+          Name           => Name,
+          Target_Index   => Target_Index,
+          Target_Inode   => Target_Inode.all,
+          Parent_Inode   => Parent_Inode.all,
+          Success        => Success,
+          Parent_Open    => Parent_Open);
+      if Success then
+         Status := FS_Exists;
+         goto Cleanup;
+      elsif not Parent_Open then
+         Status := FS_Not_Found;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      end if;
+
+      Allocate_Inode (Data, Target_Index, Success);
+      if not Success then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
+      Arch.Clocks.Get_Real_Time (Stamp);
+      Target_Inode.all :=
+         (Permissions         => Perms or Unsigned_16 (Mode),
+          UID                 => Unsigned_16 (User),
+          Size_Low            => Unsigned_32 (Target'Length),
+          Access_Time_Epoch   => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
+          Creation_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
+          Modified_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
+          Deleted_Time_Epoch  => 0,
+          GID                 => Parent_Inode.GID,
+          Hard_Link_Count     => 1,
+          Sectors             => 0,
+          Flags               => 0,
+          OS_Specific_Value_1 => 0,
+          Blocks              => [others => 0],
+          Generation_Number   => 0,
+          EAB                 => 0,
+          Size_High           => 0,
+          Fragment_Address    => 0,
+          OS_Specific_Value_2 => [others => 0]);
+      Set_Size
+         (Target_Inode.all, Unsigned_64 (Target'Length),
+          Data.Has_64bit_Filesizes, Success);
+      if not Success then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
+      Add_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Parent_Inode.all,
+          Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
+          Inode_Index => Unsigned_32 (Parent_Ino),
+          Added_Index => Target_Index,
+          Dir_Type    => Dir_Type,
+          Name        => Name,
+          Success     => Success);
+      if not Success then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
+      if Target'Length <= 60 then
+         declare
+            Str_Data : String (1 .. Target'Length)
+               with Import, Address => Target_Inode.Blocks'Address;
+         begin
+            Str_Data := Target;
+            Success := True;
+         end;
+      else
+         declare
+            Str_Data : Operation_Data (1 .. Target'Length)
+               with Import, Address => Target (Target'First)'Address;
+         begin
+            Write_To_Inode
+               (FS_Data    => Data,
+                Inode_Data => Target_Inode.all,
+                Inode_Num  => Target_Index,
+                Inode_Size => 0,
+                Offset     => 0,
+                Data       => Str_Data,
+                Ret_Count  => Ret_Count,
+                Success    => Success);
+         end;
+      end if;
+
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Target_Index,
+          Result          => Target_Inode.all,
+          Write_Operation => True,
+          Success         => Success);
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Unsigned_32 (Parent_Ino),
+          Result          => Parent_Inode.all,
+          Write_Operation => True,
+          Success         => Success);
+
+      Status := (if Success then FS_Success else FS_IO_Failure);
+
+   <<Cleanup>>
       Synchronization.Release_Writer (Data.Mutex);
+      Free (Target_Inode);
+      Free (Parent_Inode);
    exception
       when Constraint_Error =>
          Synchronization.Release_Writer (Data.Mutex);
