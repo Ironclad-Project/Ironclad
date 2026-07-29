@@ -34,6 +34,8 @@ package Devices.FB is
 
 private
 
+   function Have_Any_FBs return Boolean;
+
    procedure IO_Control
       (Key      : System.Address;
        Request  : Unsigned_64;

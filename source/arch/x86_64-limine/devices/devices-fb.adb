@@ -118,9 +118,7 @@ package body Devices.FB with SPARK_Mode => Off is
       FBPonse : Limine.Framebuffer_Response
          with Import, Address => Framebuffer_Request.Response;
    begin
-      if (Framebuffer_Request.Response = System.Null_Address) or else
-         (FBPonse.Count = 0)
-      then
+      if not Have_Any_FBs then
          return;
       end if;
 
@@ -185,7 +183,7 @@ package body Devices.FB with SPARK_Mode => Off is
       Green_Mask_Size  := Early_Green_Mask_Sz;
       Green_Mask_Shift := Early_Green_Mask_Sh;
    end Get_Early_Framebuffer;
-   ----------------------------------------------------------------------------
+
    procedure Init (Success : out Boolean) is
       Device   : Resource;
       Dev_Name : String  := "fb0";
@@ -194,7 +192,7 @@ package body Devices.FB with SPARK_Mode => Off is
          with Import, Address => Framebuffer_Request.Response;
    begin
       Success := True;
-      if Framebuffer_Request.Response = System.Null_Address then
+      if not Have_Any_FBs then
          return;
       end if;
 
@@ -266,6 +264,14 @@ package body Devices.FB with SPARK_Mode => Off is
          Messages.Put_Line ("Exception while initializing FB device");
          Success := False;
    end Init;
+   ----------------------------------------------------------------------------
+   function Have_Any_FBs return Boolean is
+      FBPonse : Limine.Framebuffer_Response
+         with Import, Address => Framebuffer_Request.Response;
+   begin
+      return (Framebuffer_Request.Response /= System.Null_Address) and then
+             (FBPonse.Count /= 0);
+   end Have_Any_FBs;
 
    procedure IO_Control
       (Key      : System.Address;
