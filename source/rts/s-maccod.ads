@@ -8,7 +8,7 @@
 --  This file is based on the distribution by the GNAT project, which is
 --  distributed under the GPLv3 with the GCC runtime exception.
 
-package System.Machine_Code with SPARK_Mode => Off, Pure is
+package System.Machine_Code with Pure is
    --  All of this works inside GNAT, this is literally just placeholders
    --  because Ada wants it this way. Names and everything are basically
    --  forced.

@@ -12,9 +12,9 @@ package body System.Image is
    pragma Suppress (All_Checks); --  Unit passes AoRTE.
 
    procedure Image_Integer
-     (Value    : Int;
-      Str      : out String;
-      Consumed : out Natural)
+      (Value    : Int;
+       Str      : out String;
+       Consumed : out Natural)
    is
    begin
       Str := [others => '0'];
@@ -33,17 +33,10 @@ package body System.Image is
    end Image_Integer;
 
    procedure Image_Unsigned
-     (Value    : UInt;
-      Str      : out String;
-      Consumed : out Natural)
+      (Value    : UInt;
+       Str      : out String;
+       Consumed : out Natural)
    is
-      pragma Annotate
-         (GNATprove, False_Positive, "loop invariant might",
-          "Cannot happen mathematically");
-      pragma Annotate
-         (GNATprove, False_Positive, "range check might fail",
-          "Cannot happen mathematically");
-
       Conversion : constant String (1 .. 16) := "0123456789ABCDEF";
       Base       : constant UInt := (if Do_Hex then 16 else 10);
       To_Convert :          UInt := Value;

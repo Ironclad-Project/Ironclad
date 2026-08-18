@@ -13,10 +13,11 @@ with System.Storage_Elements; use System.Storage_Elements;
 
 package body Interfaces.C.Strings is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
-
    pragma Warnings
-      (GNATprove, Off, "through a potential alias",
-       Reason => "No alias are taken");
+      (GNATprove, Off, "imprecise-address-specification",
+       Reason => "Strlen scans a NUL-terminated string at a caller-provided " &
+                 "address; the read is read-only and no alias or concurrent " &
+                 "access is possible, matching GNATprove's assumptions");
 
    function Strlen (Addr : System.Address) return Natural is
       use System;
