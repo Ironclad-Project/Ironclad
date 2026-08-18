@@ -40,28 +40,28 @@ jobs:
         run: |
           set -ex
 
-          wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gprbuild-25.0.0-1/gprbuild-x86_64-linux-25.0.0-1.tar.gz
-          echo '7faced0c0aed72c0dfe747a32bda8589aaee7502a2586573fb256232dff2ae86ea8708418aba1bbb3a2babe3cff80c46a6c79df89a444191e6712fa55143affd  gprbuild-x86_64-linux-25.0.0-1.tar.gz' | sha512sum -c
-          tar -xf gprbuild-x86_64-linux-25.0.0-1.tar.gz
-          mv gprbuild-x86_64-linux-25.0.0-1 gprbuild-tool
+          wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gprbuild-26.0.0-1/gprbuild-x86_64-linux-26.0.0-1.tar.gz
+          echo 'bd15fadcb457e9f8abbf1489d867878bc5a4ee4c6c923f72ab12986cd02f9b379045eeb4bfa05b119c2da2ff303f79ec519f567fc5b0c0f761fefc52085f0782  gprbuild-x86_64-linux-26.0.0-1.tar.gz' | sha512sum -c
+          tar -xf gprbuild-x86_64-linux-26.0.0-1.tar.gz
+          mv gprbuild-x86_64-linux-26.0.0-1 gprbuild-tool
 
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
-              wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-15.2.0-1/gnat-riscv64-elf-linux64-x86_64-15.2.0-1.tar.gz ; \
-              echo '850b7f0b1e4ab37e0a48530c6da4b8395358ef7a8668699b2dacdb1d485415708f95f83e1adc86c8abd67b705052e3b6c650150ba55cd189a3ee7fbdb04b3e65  gnat-riscv64-elf-linux64-x86_64-15.2.0-1.tar.gz' | sha512sum -c ; \
-              tar -xf gnat-riscv64-elf-linux64-x86_64-15.2.0-1.tar.gz ; \
-              mv gnat-riscv64-elf-linux64-x86_64-15.2.0-1 gnat-tool ;; \
+              wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-16.1.0-1/gnat-riscv64-elf-linux64-x86_64-16.1.0-1.tar.gz ; \
+              echo 'ccf2c930eb29d369e027e328d7ba0dd97f4ddd610564a59af3663c691e16292511c4e947af8c9c028a864d7573694f46eb96e42cbfb12820abccda9edc86df0d  gnat-riscv64-elf-linux64-x86_64-16.1.0-1.tar.gz' | sha512sum -c ; \
+              tar -xf gnat-riscv64-elf-linux64-x86_64-16.1.0-1.tar.gz ; \
+              mv gnat-riscv64-elf-linux64-x86_64-16.1.0-1 gnat-tool ;; \
             x86_64-limine) \
-              wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-15.2.0-1/gnat-x86_64-linux-15.2.0-1.tar.gz ; \
-              echo 'd44dba012f221c63e553916f2348d2d569fc5dbd39411e8bde912ffb96e6f1f524e074df10bc215e577d47c743b8f5d33f9cd546fed38dac23cf9d2ce2db178a  gnat-x86_64-linux-15.2.0-1.tar.gz' | sha512sum -c ; \
-              tar -xf gnat-x86_64-linux-15.2.0-1.tar.gz ; \
-              mv gnat-x86_64-linux-15.2.0-1 gnat-tool ;; \
+              wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-16.1.0-1/gnat-x86_64-linux-16.1.0-1.tar.gz ; \
+              echo '234ce37d0e9608ed69e66bfb4f7a91134446f25a775550eddc36fd411bbaedf39a3a0c85f25c5e935e95435ed5827525e427ba26cc4b16e6ec99262b14f086bf  gnat-x86_64-linux-16.1.0-1.tar.gz' | sha512sum -c ; \
+              tar -xf gnat-x86_64-linux-16.1.0-1.tar.gz ; \
+              mv gnat-x86_64-linux-16.1.0-1 gnat-tool ;; \
           esac
 
-          wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnatprove-15.1.0-1/gnatprove-x86_64-linux-15.1.0-1.tar.gz
-          echo 'fe7f6f80d741e83de82ff8e3c76200e7710caa61a93f041508ef818bb20acf0a3ae4a50eadf35f2295c11c6bdfe7edc11a984bcdb8d4dc658ce86e95905cf0f2  gnatprove-x86_64-linux-15.1.0-1.tar.gz' | sha512sum -c
-          tar -xf gnatprove-x86_64-linux-15.1.0-1.tar.gz
-          mv gnatprove-x86_64-linux-15.1.0-1 gnatprove-tool
+          wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnatprove-16.1.0-1/gnatprove-x86_64-linux-16.1.0-1.tar.gz
+          echo 'f3dda147455da5c9dbdc6ab320432e7d6e643eb3c1a1d9614694a585360cca636eef5522e94e234b7c0ef98e70c4b7747d5ad94345176204ef28e5463148779c  gnatprove-x86_64-linux-16.1.0-1.tar.gz' | sha512sum -c
+          tar -xf gnatprove-x86_64-linux-16.1.0-1.tar.gz
+          mv gnatprove-x86_64-linux-16.1.0-1 gnatprove-tool
 
       - name: Bootstrap
         run: ./bootstrap
