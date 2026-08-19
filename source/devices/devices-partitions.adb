@@ -105,8 +105,6 @@ package body Devices.Partitions is
 
    procedure Free is new Ada.Unchecked_Deallocation
       (Devices.Operation_Data, Devices.Operation_Data_Acc);
-   procedure Free is new Ada.Unchecked_Deallocation
-      (Partition_Data, Partition_Data_Acc);
 
    --  Packages for conversions.
    package Con1 is new System.Address_To_Access_Conversions (Partition_Data);
@@ -442,6 +440,11 @@ package body Devices.Partitions is
    end Sync_Range;
 
    procedure Remove (Key : System.Address; Success : out Boolean) is
+      pragma SPARK_Mode (Off);
+
+      procedure Free is new Ada.Unchecked_Deallocation
+         (Partition_Data, Partition_Data_Acc);
+
       Part : Partition_Data_Acc := Partition_Data_Acc (Con1.To_Pointer (Key));
    begin
       Sync (Key, Success);

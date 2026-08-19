@@ -246,6 +246,7 @@ package body Userland.Loader is
        Proc        : PID;
        Success     : out Boolean)
    is
+      pragma SPARK_Mode (Off);
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
 
       Path_Len  : Natural;

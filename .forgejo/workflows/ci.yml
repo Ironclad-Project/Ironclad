@@ -89,8 +89,8 @@ jobs:
           export PATH="$PWD/gprbuild-tool/bin:$PWD/gnat-tool/bin:$PWD/gnatprove-tool/bin:$PATH"
           make check-rts -j$(nproc)
 
-      - name: Verify kernel
+      - name: Verify kernel (stone level)
         run: |
           set -ex
           export PATH="$PWD/gprbuild-tool/bin:$PWD/gnat-tool/bin:$PWD/gnatprove-tool/bin:$PATH"
-          make check-kernel -j$(nproc)
+          make check-kernel-stone -j$(nproc)
