@@ -4056,7 +4056,7 @@ package body Userland.Syscall is
          when RLIMIT_FSIZE  => Resource := MAC.File_Size_Limit;
          when RLIMIT_NOFILE => Resource := MAC.Opened_File_Limit;
          when RLIMIT_STACK  => Resource := MAC.Stack_Size_Limit;
-         when RLIMIT_AS     => Resource := MAC.Memory_Size_Limit;
+         when RLIMIT_AS | RLIMIT_DATA => Resource := MAC.Memory_Size_Limit;
          when others =>
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;

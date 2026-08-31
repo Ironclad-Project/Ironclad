@@ -892,6 +892,12 @@ Size of corefile dumps, by default 0 (disabling it).
 @item RLIMIT_CPU
 Limit of CPU time a process can consume in seconds, by default -1 (max value).
 
+@item RLIMIT_DATA
+Traditionally the limit of the data segment of a process. Given Ironclad does
+not support @code{brk}/@code{sbrk}, which are the syscalls that usually care
+about this, this is implemented as a synonim of @code{RLIMIT_AS} for POSIX
+completion.
+
 @item RLIMIT_FSIZE
 Limit of individual file size a process can write, by default -1 (max value).
 
@@ -2901,6 +2907,7 @@ following errno:
 @example c
 #define RLIMIT_CORE   1 // Size of core files, 0 for disabling.
 #define RLIMIT_CPU    2 // CPU time limit in seconds.
+#define RLIMIT_DATA   3 // RLIMIT_AS with a different name.
 #define RLIMIT_FSIZE  4 // Maximum file size in bytes.
 #define RLIMIT_NOFILE 5 // Maximum number of open file descriptors.
 #define RLIMIT_STACK  6 // Maximum stack size in bytes.
@@ -2926,6 +2933,8 @@ The available limits are:
 core files are not generated.
 @item
 @code{RLIMIT_CPU}: Once the limit is passed, the process is killed.
+@item
+@code{RLIMIT_DATA}: Same as @code{RLIMIT_AS}.
 @item
 @code{RLIMIT_FSIZE}: System call growing the file fails with @code{EFBIG}.
 @item
