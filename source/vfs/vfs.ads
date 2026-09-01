@@ -735,6 +735,7 @@ private
        User       : Unsigned_32;
        Rela_Final : out FS_Handle;
        Ino        : out File_Inode_Number;
-       End_Idx    : out Natural;
+       Child_End  : out Natural;
+       Parent_Idx : out Natural;
        Status     : out FS_Status);
 end VFS;

@@ -757,7 +757,7 @@ package body VFS is
    is
       Final_Key : FS_Handle;
       Final_Ino : File_Inode_Number;
-      Idx : Natural := 0;
+      Child_End, Parent_Idx : Natural := 0;
    begin
       Open_Parent
          (Key        => Key,
@@ -766,7 +766,8 @@ package body VFS is
           User       => User,
           Rela_Final => Final_Key,
           Ino        => Final_Ino,
-          End_Idx    => Idx,
+          Child_End  => Child_End,
+          Parent_Idx => Parent_Idx,
           Status     => Status);
       if Status /= FS_Success then
          return;
@@ -776,8 +777,8 @@ package body VFS is
          when FS_EXT =>
             EXT.Create_Node
                (Mounts (Final_Key).FS_Data, Final_Ino,
-                Path (Path'Last - Idx + 1 .. Path'Last), Kind, Mode, User,
-                Status);
+                Path (Path'Last - Parent_Idx + 1 .. Child_End), Kind, Mode,
+                User, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -794,7 +795,7 @@ package body VFS is
    is
       Final_Key : FS_Handle;
       Final_Ino : File_Inode_Number;
-      Idx : Natural := 0;
+      Child_End, Parent_Idx : Natural := 0;
    begin
       Open_Parent
          (Key        => Key,
@@ -803,7 +804,8 @@ package body VFS is
           User       => User,
           Rela_Final => Final_Key,
           Ino        => Final_Ino,
-          End_Idx    => Idx,
+          Child_End  => Child_End,
+          Parent_Idx => Parent_Idx,
           Status     => Status);
       if Status /= FS_Success then
          return;
@@ -813,8 +815,8 @@ package body VFS is
          when FS_EXT =>
             EXT.Create_Symbolic_Link
                (Mounts (Final_Key).FS_Data, Final_Ino,
-                Path (Path'Last - Idx + 1 .. Path'Last), Target, Mode, User,
-                Status);
+                Path (Path'Last - Parent_Idx + 1 .. Child_End), Target, Mode,
+                User, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -831,7 +833,8 @@ package body VFS is
    is
       Final_Key_Source, Final_Key_Target : FS_Handle;
       Final_Ino_Source, Final_Ino_Target : File_Inode_Number;
-      Idx_Source, Idx_Target : Natural := 0;
+      Child_End_Source, Parent_Idx_Source : Natural := 0;
+      Child_End_Target, Parent_Idx_Target : Natural := 0;
    begin
       Open_Parent
          (Key        => Key,
@@ -840,7 +843,8 @@ package body VFS is
           User       => User,
           Rela_Final => Final_Key_Source,
           Ino        => Final_Ino_Source,
-          End_Idx    => Idx_Source,
+          Child_End  => Child_End_Source,
+          Parent_Idx => Parent_Idx_Source,
           Status     => Status);
       if Status /= FS_Success then
          return;
@@ -852,7 +856,8 @@ package body VFS is
           User       => User,
           Rela_Final => Final_Key_Target,
           Ino        => Final_Ino_Target,
-          End_Idx    => Idx_Target,
+          Child_End  => Child_End_Target,
+          Parent_Idx => Parent_Idx_Target,
           Status     => Status);
       if Status /= FS_Success then
          return;
@@ -868,9 +873,10 @@ package body VFS is
          when FS_EXT =>
             EXT.Create_Hard_Link
                (Mounts (Key).FS_Data, Final_Ino_Source,
-                Path (Path'Last - Idx_Source + 1 .. Path'Last),
+                Path (Path'Last - Parent_Idx_Source + 1 .. Child_End_Source),
                 Final_Ino_Target,
-                Target (Target'Last - Idx_Target + 1 .. Target'Last),
+                Target (Target'Last - Parent_Idx_Target + 1 ..
+                        Child_End_Target),
                 User, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
@@ -889,7 +895,8 @@ package body VFS is
    is
       Final_Key_Source, Final_Key_Target : FS_Handle;
       Final_Ino_Source, Final_Ino_Target : File_Inode_Number;
-      Idx_Source, Idx_Target : Natural := 0;
+      Child_End_Source, Parent_Idx_Source : Natural := 0;
+      Child_End_Target, Parent_Idx_Target : Natural := 0;
    begin
       Open_Parent
          (Key        => Key,
@@ -898,7 +905,8 @@ package body VFS is
           User       => User,
           Rela_Final => Final_Key_Source,
           Ino        => Final_Ino_Source,
-          End_Idx    => Idx_Source,
+          Child_End  => Child_End_Source,
+          Parent_Idx => Parent_Idx_Source,
           Status     => Status);
       if Status /= FS_Success then
          return;
@@ -910,7 +918,8 @@ package body VFS is
           User       => User,
           Rela_Final => Final_Key_Target,
           Ino        => Final_Ino_Target,
-          End_Idx    => Idx_Target,
+          Child_End  => Child_End_Target,
+          Parent_Idx => Parent_Idx_Target,
           Status     => Status);
       if Status /= FS_Success then
          return;
@@ -927,9 +936,11 @@ package body VFS is
          when FS_EXT =>
             EXT.Rename
                (Mounts (Final_Key_Source).FS_Data, Final_Ino_Source,
-                Source (Source'Last - Idx_Source + 1 .. Source'Last),
+                Source (Source'Last - Parent_Idx_Source + 1 ..
+                        Child_End_Source),
                 Final_Ino_Target,
-                Target (Target'Last - Idx_Target + 1 .. Target'Last),
+                Target (Target'Last - Parent_Idx_Target + 1 ..
+                        Child_End_Target),
                 Keep, User, Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
@@ -946,7 +957,7 @@ package body VFS is
    is
       Final_Key : FS_Handle;
       Final_Ino : File_Inode_Number;
-      Idx : Natural := 0;
+      Child_End, Parent_Idx : Natural := 0;
    begin
       Open_Parent
          (Key        => Key,
@@ -955,7 +966,8 @@ package body VFS is
           User       => User,
           Rela_Final => Final_Key,
           Ino        => Final_Ino,
-          End_Idx    => Idx,
+          Child_End  => Child_End,
+          Parent_Idx => Parent_Idx,
           Status     => Status);
       if Status /= FS_Success then
          return;
@@ -965,7 +977,8 @@ package body VFS is
          when FS_EXT =>
             EXT.Unlink
                (Mounts (Final_Key).FS_Data, Final_Ino,
-                Path (Path'Last - Idx + 1 .. Path'Last), User, Do_Dir, Status);
+                Path (Path'Last - Parent_Idx + 1 .. Child_End), User, Do_Dir,
+                Status);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
@@ -1455,21 +1468,29 @@ package body VFS is
        User       : Unsigned_32;
        Rela_Final : out FS_Handle;
        Ino        : out File_Inode_Number;
-       End_Idx    : out Natural;
+       Child_End  : out Natural;
+       Parent_Idx : out Natural;
        Status     : out FS_Status)
    is
    begin
-      --  Get the last character of the parent.
-      End_Idx := 0;
+      --  Get the last character of the child.
+      Child_End := Path'Last;
       for C of reverse Path loop
-         exit when C = '/';
-         End_Idx := End_Idx + 1;
+         exit when C /= '/';
+         Child_End := Child_End - 1;
       end loop;
 
-      if End_Idx /= Path'Length then
+      --  Get the last character of the parent.
+      Parent_Idx := Path'Last - Child_End;
+      for C of reverse Path (Path'First .. Child_End) loop
+         exit when C = '/';
+         Parent_Idx := Parent_Idx + 1;
+      end loop;
+
+      if Parent_Idx /= Path'Length then
          --  Accomodate root-based paths like '/mnt', if we dont do this, we
          --  will open empty strings next step.
-         if End_Idx + 1 = Path'Length and then Path (Path'First) = '/' then
+         if Parent_Idx + 1 = Path'Length and then Path (Path'First) = '/' then
             Rela_Final := Root_Idx;
             Ino := Mounts (Root_Idx).Root_Ino;
             Status := FS_Success;
@@ -1477,7 +1498,8 @@ package body VFS is
             Open
                (Key           => Key,
                 Relative      => Relative,
-                Path          => Path (Path'First .. Path'Last - 1 - End_Idx),
+                Path          => Path (Path'First .. Path'Last - 1 -
+                                       Parent_Idx),
                 Final_Key     => Rela_Final,
                 Ino           => Ino,
                 Success       => Status,
