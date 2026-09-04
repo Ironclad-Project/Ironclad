@@ -92,25 +92,32 @@ package body IPC.Futex is
          Arch.Clocks.Get_Monotonic_Time (Final);
          Final := Final + (Max_Seconds, Max_Nanos);
 
-         for I of Idx loop
-            Synchronization.Seize (Registry_Mutex);
-            if Registry (I).Wakey_Wakey then
-               Registry (I).Waiters := Registry (I).Waiters - 1;
-               if Registry (I).Waiters = 0 then
-                  Registry (I).Key_Addr := Empty_Futex;
+         loop
+            for I of Idx loop
+               Synchronization.Seize (Registry_Mutex);
+               if Registry (I).Wakey_Wakey then
+                  Registry (I).Waiters := Registry (I).Waiters - 1;
+                  if Registry (I).Waiters = 0 then
+                     Registry (I).Wakey_Wakey := False;
+                     Registry (I).Key_Addr := Empty_Futex;
+                  end if;
+                  Synchronization.Release (Registry_Mutex);
+                  Success := Wait_Success;
+                  return;
                end if;
                Synchronization.Release (Registry_Mutex);
-               exit;
-            end if;
-            Synchronization.Release (Registry_Mutex);
 
-            Arch.Clocks.Get_Monotonic_Time (Curr);
-            exit when Curr >= Final;
-            Scheduler.Yield_If_Able;
+               Arch.Clocks.Get_Monotonic_Time (Curr);
+               if Curr >= Final then
+                  goto Cleanup;
+               end if;
+               Scheduler.Yield_If_Able;
+            end loop;
          end loop;
       end;
 
-      Success := Wait_Success;
+   <<Cleanup>>
+      Success := Wait_Try_Again;
    exception
       when Constraint_Error =>
          Success := Wait_Try_Again;
