@@ -746,8 +746,8 @@ Reserved for future use.
 
 @item AT_SECURE (23)
 The value will be 1 if the executable is to be treated securely, 0 if not.
-This flag will be set by Ironclad when the program holds the
-@code{MAC_CAP_SCHED} capability.
+This flag will be set by Ironclad when there is a mismatch of process UID
+and effective UID, or process GID and effective GID.
 
 @item AT_RANDOM (25)
 Address pointing to 16 bytes of random data.

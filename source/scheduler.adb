@@ -179,7 +179,7 @@ package body Scheduler with SPARK_Mode => Off is
          EUID   : Unsigned_32;
          GID    : Unsigned_32;
          EGID   : Unsigned_32;
-         Is_Priv : Boolean;
+         Is_Secure_Exec : Boolean;
          Sz     : constant Natural := Natural (Stack_Size);
          Stk_8  : Thread_Stack (1 .. Sz)
             with Import, Address => To_Address (Virtual_Address (Stack_Top));
@@ -193,9 +193,7 @@ package body Scheduler with SPARK_Mode => Off is
          Userland.Process.Get_Effective_UID (Proc, EUID);
          Userland.Process.Get_GID (Proc, GID);
          Userland.Process.Get_Effective_GID (Proc, EGID);
-         Is_Priv :=
-            Userland.Process.Get_Capabilities (Proc).Can_Manage_MAC and then
-            EUID = 0;
+         Is_Secure_Exec := UID /= EUID or GID /= EGID;
 
          --  Load env into the stack.
          for En of reverse Env loop
@@ -239,7 +237,7 @@ package body Scheduler with SPARK_Mode => Off is
          Stk_64 (Index_64 - 9)  := Userland.ELF.Auxval_Header_Size;
          Stk_64 (Index_64 - 10) := Memory.MMU.Page_Size;
          Stk_64 (Index_64 - 11) := Userland.ELF.Auxval_Page_Size;
-         Stk_64 (Index_64 - 12) := (if Is_Priv then 1 else 0);
+         Stk_64 (Index_64 - 12) := (if Is_Secure_Exec then 1 else 0);
          Stk_64 (Index_64 - 13) := Userland.ELF.Auxval_Secure_Treatment;
          Stk_64 (Index_64 - 14) := Unsigned_64 (UID);
          Stk_64 (Index_64 - 15) := Userland.ELF.Auxval_UID;
