@@ -3535,11 +3535,10 @@ int clock_nanosleep(int clock_id, int flags, struct timespec *time,
 @end example
 
 This syscall sleeps the callee thread for the passed time with the requested
-clock. If interrupted by a signal or similar, it returns the remaining time
-that could not be waited.
+clock. If @code{remaining} is non-zero, the remaining time that could not be
+waited will be written, if interrupted by a signal or similar.
 
-Unlike what POSIX mandates, this syscall will always need @code{remaining} to
-be a valid structure. @code{clock_id} takes the same value as @ref{clock}.
+@code{clock_id} takes the same value as @ref{clock}.
 
 @code{flags} can be one of the following:
 

@@ -5270,11 +5270,12 @@ package body Userland.Syscall is
 
       Scheduler.Suspend_Until (Clock, Final);
 
-      Re.Seconds := 0;
-      Re.Nanoseconds := 0;
-      Trans.Paste_Into_Userland (Map, Re, To_Address (RemIAddr), Success);
-      if not Success then
-         goto Would_Fault_Error;
+      if RemIAddr /= 0 then
+         Re := (0, 0);
+         Trans.Paste_Into_Userland (Map, Re, To_Address (RemIAddr), Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
       end if;
 
       Returned := 0;
