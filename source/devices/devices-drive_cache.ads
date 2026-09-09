@@ -100,10 +100,11 @@ private
    end record;
 
    procedure Get_Cache_Index
-      (Registry : aliased in out Cache_Registry;
-       LBA      : Unsigned_64;
-       Idx      : out Unsigned_64;
-       Success  : out Boolean);
+      (Registry       : aliased in out Cache_Registry;
+       LBA            : Unsigned_64;
+       Full_Overwrite : Boolean;
+       Idx            : out Unsigned_64;
+       Success        : out Boolean);
 
    function Get_Cache_Index (LBA : Unsigned_64) return Unsigned_64;
 end Devices.Drive_Cache;

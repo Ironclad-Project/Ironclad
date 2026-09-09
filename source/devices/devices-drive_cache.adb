@@ -50,10 +50,11 @@ package body Devices.Drive_Cache is
             Unsigned_64 (Sector_Size);
 
          Get_Cache_Index
-          (Registry => Registry,
-           LBA      => Current_LBA,
-           Idx      => Cache_Idx,
-           Success  => Succ);
+          (Registry       => Registry,
+           LBA            => Current_LBA,
+           Full_Overwrite => False,
+           Idx            => Cache_Idx,
+           Success        => Succ);
          if not Succ then
             Succ := True;
             goto Cleanup;
@@ -98,21 +99,22 @@ package body Devices.Drive_Cache is
          Current_LBA := (Offset + Unsigned_64 (Progress)) /
             Unsigned_64 (Sector_Size);
 
-         Get_Cache_Index
-          (Registry => Registry,
-           LBA      => Current_LBA,
-           Idx      => Cache_Idx,
-           Success  => Succ);
-         if not Succ then
-            Succ := Progress /= 0;
-            goto Cleanup;
-         end if;
-
          Copy_Count   := Data'Length - Progress;
          Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
                                   Unsigned_64 (Sector_Size));
          if Copy_Count > Sector_Size - Cache_Offset then
             Copy_Count := Sector_Size - Cache_Offset;
+         end if;
+
+         Get_Cache_Index
+          (Registry       => Registry,
+           LBA            => Current_LBA,
+           Full_Overwrite => Cache_Offset = 0 and Copy_Count = Sector_Size,
+           Idx            => Cache_Idx,
+           Success        => Succ);
+         if not Succ then
+            Succ := Progress /= 0;
+            goto Cleanup;
          end if;
          Registry.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
                                     Cache_Offset + Copy_Count) :=
@@ -189,10 +191,11 @@ package body Devices.Drive_Cache is
    end Sync_Range;
    ----------------------------------------------------------------------------
    procedure Get_Cache_Index
-      (Registry : aliased in out Cache_Registry;
-       LBA      : Unsigned_64;
-       Idx      : out Unsigned_64;
-       Success  : out Boolean)
+      (Registry       : aliased in out Cache_Registry;
+       LBA            : Unsigned_64;
+       Full_Overwrite : Boolean;
+       Idx            : out Unsigned_64;
+       Success        : out Boolean)
    is
    begin
       Idx := Get_Cache_Index (LBA);
@@ -216,15 +219,18 @@ package body Devices.Drive_Cache is
          end if;
       end if;
 
-      --  Set the found index as not dirty and used, and read into it.
       Registry.Caches (Idx).Is_Used := True;
       Registry.Caches (Idx).LBA_Offset := LBA;
       Registry.Caches (Idx).Is_Dirty := False;
-      Registry.Read_Proc
-         (Drive       => Registry.Drive_Arg,
-          LBA         => Registry.Caches (Idx).LBA_Offset,
-          Data_Buffer => Registry.Caches (Idx).Data,
-          Success     => Success);
+      if Full_Overwrite then
+         Success := True;
+      else
+         Registry.Read_Proc
+            (Drive       => Registry.Drive_Arg,
+             LBA         => Registry.Caches (Idx).LBA_Offset,
+             Data_Buffer => Registry.Caches (Idx).Data,
+             Success     => Success);
+      end if;
    exception
       when Constraint_Error =>
          Idx     := 0;
