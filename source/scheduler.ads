@@ -177,7 +177,7 @@ package Scheduler is
 
 private
 
-   type TID is new Natural range 0 .. 100;
+   type TID is new Natural range 0 .. 512;
    Error_TID : constant  TID := 0;
 
    Is_Initialized : Boolean := False
