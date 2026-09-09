@@ -42,6 +42,7 @@ package IPC.Socket is
    type Socket_Status is
       (Plain_Success, --  Unconditional success.
        Is_Bad_Type,   --  A listener is needed but the socket is not one, etc.
+       Is_Broken,     --  The other end of the connection is gone for good.
        Would_Block);  --  The socket would block, and we don't want that.
 
    --  Default size in bytes of a socket buffer.
@@ -427,6 +428,7 @@ private
                   Connected      : Socket_Acc;
                   Pending_Accept : Socket_Acc;
                   Established    : Socket_Acc;
+                  Peer_Closed    : Boolean;
                when others =>
                   Simple_Connected : Socket_Acc;
             end case;

@@ -8686,6 +8686,9 @@ package body Userland.Syscall is
             Returned := Success_Return;
             return;
          when Is_Bad_Type   => Errno := Error_Invalid_Value;
+         when Is_Broken     =>
+            Errno := Error_Broken_Pipe;
+            Raise_Signal (Arch.Local.Get_Current_Process, Signal_Broken_Pipe);
          when Would_Block   => Errno := Error_Would_Block;
       end case;
       Returned := Unsigned_64'Last;

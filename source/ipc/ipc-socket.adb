@@ -83,6 +83,7 @@ package body IPC.Socket is
                     Connected      => null,
                     Pending_Accept => null,
                     Established    => null,
+                    Peer_Closed    => False,
                     Data           => [others => 0],
                     Data_Length    => 0);
                when Datagram =>
@@ -725,24 +726,48 @@ package body IPC.Socket is
       To_Connect : Socket_Acc;
    begin
       Synchronization.Seize (UNIX_Bound_Mutex);
-
       To_Connect := Get_Bound (Path);
+      Synchronization.Release (UNIX_Bound_Mutex);
+
       if To_Connect = null then
          Success := False;
-         goto End_Return;
+         return;
       end if;
+
       case Sock.Kind is
          when Stream =>
             Sock.Connected := To_Connect;
+
+            --  Offer to the listener and then wait for it to take us.
             loop
-               if To_Connect.Pending_Accept = null then
+               Synchronization.Seize (UNIX_Bound_Mutex);
+               if Get_Bound (Path) /= To_Connect then
+                  Synchronization.Release (UNIX_Bound_Mutex);
+                  Sock.Connected := null;
+                  Success        := False;
+                  return;
+               elsif To_Connect.Pending_Accept = null then
                   To_Connect.Pending_Accept := Sock;
+                  Synchronization.Release (UNIX_Bound_Mutex);
                   exit;
                end if;
+               Synchronization.Release (UNIX_Bound_Mutex);
                Scheduler.Yield_If_Able;
             end loop;
+
+            --  Queued, and now waiting to be taken.
             loop
                exit when Sock.Pending_Accept /= null;
+               if Sock.Peer_Closed then
+                  --  Only a listener that went while we sat in its queue is a
+                  --  refusal, otherwise its EOF.
+                  if Sock.Connected = null then
+                     Sock.Peer_Closed := False;
+                     Success          := False;
+                     return;
+                  end if;
+                  exit;
+               end if;
                Scheduler.Yield_If_Able;
             end loop;
          when others =>
@@ -754,9 +779,6 @@ package body IPC.Socket is
       Sock.Cred_UID := UID;
       Sock.Cred_PID := PID;
       Success := True;
-
-   <<End_Return>>
-      Synchronization.Release (UNIX_Bound_Mutex);
    end Connect;
 
    procedure Accept_Connection
@@ -1010,14 +1032,19 @@ package body IPC.Socket is
             exit;
          end if;
       end loop;
-      Synchronization.Release (UNIX_Bound_Mutex);
 
-      if To_Close.Kind = Stream    and then
-         not To_Close.Is_Listener and then
-         To_Close.Established /= null
-      then
-         To_Close.Established.Pending_Accept := null;
+      --  Tell whoever is on the other end that we are gone.
+      if To_Close.Kind = Stream and then To_Close.Pending_Accept /= null then
+         To_Close.Pending_Accept.Peer_Closed := True;
+         if To_Close.Is_Listener then
+            To_Close.Pending_Accept.Connected := null;
+         else
+            To_Close.Pending_Accept.Pending_Accept := null;
+         end if;
+         To_Close.Pending_Accept := null;
       end if;
+
+      Synchronization.Release (UNIX_Bound_Mutex);
    end Inner_UNIX_Close;
 
    procedure Inner_UNIX_Read
@@ -1032,7 +1059,8 @@ package body IPC.Socket is
       if Is_Blocking then
          loop
             Synchronization.Seize (Sock.Mutex);
-            exit when Sock.Data_Length /= 0;
+            exit when Sock.Data_Length /= 0 or else
+               (Sock.Kind = Stream and then Sock.Peer_Closed);
             Synchronization.Release (Sock.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
@@ -1042,15 +1070,21 @@ package body IPC.Socket is
 
       case Sock.Kind is
          when Stream =>
-            if Sock.Is_Listener or Sock.Pending_Accept = null then
+            if Sock.Is_Listener then
                Data      := [others => 0];
                Ret_Count := 0;
                Success   := Is_Bad_Type;
                goto Cleanup;
-            elsif not Is_Blocking and Sock.Data_Length = 0 then
+            elsif Sock.Data_Length = 0 then
                Data      := [others => 0];
                Ret_Count := 0;
-               Success   := Would_Block;
+               if Sock.Peer_Closed then
+                  Success := Plain_Success;
+               elsif Sock.Pending_Accept = null then
+                  Success := Is_Bad_Type;
+               else
+                  Success := Would_Block;
+               end if;
                goto Cleanup;
             end if;
 
@@ -1061,19 +1095,10 @@ package body IPC.Socket is
                Len := Natural'Last - Data'First;
             end if;
 
-            Data (Data'First .. Data'First + Len - 1) :=
-               Sock.Data (1 .. Len);
-            for I in 1 .. Len loop
-               for J in Sock.Data'First .. Sock.Data'Last - 1 loop
-                  Sock.Data (J) := Sock.Data (J + 1);
-               end loop;
-               if Sock.Data_Length > 0 then
-                  Sock.Data_Length := Sock.Data_Length - 1;
-               else
-                  exit;
-               end if;
-            end loop;
-
+            Data (Data'First .. Data'First + Len - 1) := Sock.Data (1 .. Len);
+            Sock.Data (1 .. Sock.Data_Length - Len) :=
+               Sock.Data (Len + 1 .. Sock.Data_Length);
+            Sock.Data_Length := Sock.Data_Length - Len;
             Ret_Count := Len;
             Success := Plain_Success;
          when others =>
@@ -1081,6 +1106,7 @@ package body IPC.Socket is
                Data (1 .. Sock.Data_Length) :=
                   Sock.Data (1 .. Sock.Data_Length);
                Ret_Count := Sock.Data_Length;
+               Sock.Data_Length := 0;
                Success   := Plain_Success;
             else
                Ret_Count := 0;
@@ -1104,7 +1130,11 @@ package body IPC.Socket is
    begin
       case Sock.Kind is
          when Stream =>
-            if Sock.Is_Listener or Sock.Pending_Accept = null then
+            if Sock.Peer_Closed then
+               Ret_Count := 0;
+               Success   := Is_Broken;
+               return;
+            elsif Sock.Is_Listener or Sock.Pending_Accept = null then
                Ret_Count := 0;
                Success   := Is_Bad_Type;
                return;
@@ -1112,6 +1142,11 @@ package body IPC.Socket is
 
             if Is_Blocking then
                loop
+                  if Sock.Peer_Closed or else Sock.Pending_Accept = null then
+                     Ret_Count := 0;
+                     Success   := Is_Broken;
+                     return;
+                  end if;
                   Synchronization.Seize (Sock.Pending_Accept.Mutex);
                   exit when Sock.Pending_Accept.Data_Length /=
                      Default_Socket_Size;
@@ -1121,8 +1156,6 @@ package body IPC.Socket is
             else
                Synchronization.Seize (Sock.Pending_Accept.Mutex);
             end if;
-
-            Synchronization.Seize (Sock.Mutex);
 
             if not Is_Blocking and
                Sock.Pending_Accept.Data_Length = Default_Socket_Size
@@ -1150,7 +1183,6 @@ package body IPC.Socket is
             Success   := Plain_Success;
          <<Cleanup>>
             Synchronization.Release (Sock.Pending_Accept.Mutex);
-            Synchronization.Release (Sock.Mutex);
          when others =>
             if Sock.Simple_Connected = null or
                Data'Length > Default_Socket_Size
@@ -1193,10 +1225,11 @@ package body IPC.Socket is
                Is_Broken := False;
                Is_Error  := False;
             else
-               Can_Read  := Sock.Data_Length /= 0;
-               Can_Write := Sock.Pending_Accept /= null and then
+               Can_Read  := Sock.Data_Length /= 0 or Sock.Peer_Closed;
+               Can_Write := not Sock.Peer_Closed          and then
+                  Sock.Pending_Accept /= null             and then
                   Sock.Pending_Accept.Data_Length /= Default_Socket_Size;
-               Is_Broken := False;
+               Is_Broken := Sock.Peer_Closed;
                Is_Error  := False;
             end if;
          when others =>
