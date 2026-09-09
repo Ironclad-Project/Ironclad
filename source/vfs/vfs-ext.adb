@@ -21,7 +21,6 @@ with Panic;
 with Alignment;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
-with Ada.Characters.Latin_1;
 
 package body VFS.EXT with SPARK_Mode => Off is
    package   Conv is new System.Address_To_Access_Conversions (EXT_Data);
@@ -37,12 +36,18 @@ package body VFS.EXT with SPARK_Mode => Off is
        Data_Addr     : out System.Address;
        Root_Ino      : out File_Inode_Number)
    is
-      Sup     : Superblock;
-      Data    : EXT_Data_Acc;
-      Success : Boolean;
-      Is_RO   : Boolean;
+      Sup      : Superblock;
+      Data     : EXT_Data_Acc;
+      Success  : Boolean;
+      Is_RO    : Boolean;
+      Blk_Size : Unsigned_32;
+      Ino_Size : Unsigned_32;
+      First_In : Unsigned_32;
+      Groups   : Unsigned_64;
+      Max_Mnts : Unsigned_16;
    begin
-      Root_Ino := Root_Inode;
+      Root_Ino  := Root_Inode;
+      Data_Addr := Null_Address;
 
       RW_Superblock
          (Handle          => Handle,
@@ -51,55 +56,110 @@ package body VFS.EXT with SPARK_Mode => Off is
           Write_Operation => False,
           Success         => Success);
       if not Success then
-         Data_Addr := Null_Address;
          return;
       end if;
 
-      --  Check we support everything ext needs us to.
+      --  Check we support everything ext needs us to. The sizes are checked
+      --  as well because everything below divides by them, and a superblock
+      --  that came off a damaged device must not take the kernel down.
       if Sup.Signature /= EXT_Signature                           or else
+         Sup.Block_Size_Log > 6                                   or else
          Sup.Block_Size_Log < Sup.Fragment_Size_Log               or else
          Sup.Major_Version > 1                                    or else
+         Sup.Blocks_Per_Group = 0                                 or else
+         Sup.Inodes_Per_Group = 0                                 or else
+         Sup.Block_Count = 0                                      or else
+         Sup.Inode_Count = 0                                      or else
+         Sup.Block_Containing_Super >= Sup.Block_Count            or else
          (Sup.Required_Features and Required_Compression)    /= 0 or else
          (Sup.Required_Features and Required_Journal_Replay) /= 0 or else
          (Sup.Required_Features and Required_Journal_Device) /= 0
       then
-         Data_Addr := Null_Address;
          return;
       end if;
 
-      --  Check under which conditions we can only do read-only.
+      Blk_Size := Shift_Left (Unsigned_32'(1024),
+                              Natural (Sup.Block_Size_Log));
+
+      --  Revision 0 does not have the fields holding the inode size and the
+      --  first usable inode, they are fixed by the format instead.
+      if Sup.Major_Version >= 1 then
+         Ino_Size := Unsigned_32 (Sup.Inode_Size);
+         First_In := Sup.First_Non_Reserved;
+      else
+         Ino_Size := Old_Inode_Size;
+         First_In := Old_First_Ino;
+      end if;
+      if Ino_Size < Old_Inode_Size or else
+         Ino_Size > Blk_Size       or else
+         First_In < Root_Inode     or else
+         First_In > Sup.Inode_Count
+      then
+         return;
+      end if;
+
+      --  Amount of block groups the filesystem is divided in.
+      Groups :=
+         (Unsigned_64 (Sup.Block_Count) -
+          Unsigned_64 (Sup.Block_Containing_Super) +
+          Unsigned_64 (Sup.Blocks_Per_Group) - 1) /
+         Unsigned_64 (Sup.Blocks_Per_Group);
+      if Groups = 0 or else Groups > Unsigned_64 (Unsigned_32'Last) then
+         return;
+      end if;
+
+      --  A max mount count of zero or -1 means the mount check is disabled.
+      Max_Mnts := Sup.Max_Mounts_Since_Check;
       Is_RO :=
-         Do_Read_Only                                        or
-         Devices.Is_Read_Only (Handle)                       or
-         Sup.Filesystem_State /= State_Clean                 or
-         Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
+         Do_Read_Only                                 or
+         Devices.Is_Read_Only (Handle)                or
+         Sup.Filesystem_State /= State_Clean          or
+         (Max_Mnts /= 0 and then
+          Max_Mnts /= Unsigned_16'Last and then
+          Sup.Mounts_Since_Check > Max_Mnts)          or
          (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
       if Is_RO then
          Messages.Put_Line ("ext will be mounted RO, consider an fsck");
       end if;
 
-      --  Commit to mounting.
       Data := new EXT_Data'
          (Mutex         => Synchronization.Unlocked_RW_Lock,
           Handle        => Handle,
           Super         => Sup,
           Is_Read_Only  => Is_RO,
           Do_Relatime   => Access_Policy = Relative_Update,
-          Block_Size    => Shift_Left (1024, Natural (Sup.Block_Size_Log)),
-          Fragment_Size => Shift_Left (1024, Natural (Sup.Fragment_Size_Log)),
+          Block_Size    => Blk_Size,
+          Fragment_Size => Shift_Left (Unsigned_32'(1024),
+                                       Natural (Sup.Fragment_Size_Log)),
           Root          => <>,
           Has_Sparse_Superblock =>
             (Sup.RO_If_Not_Features and RO_Sparse_Superblocks) /= 0,
           Has_64bit_Filesizes =>
-            (Sup.RO_If_Not_Features and RO_64bit_Filesize) /= 0);
+            (Sup.RO_If_Not_Features and RO_64bit_Filesize) /= 0,
+          Inode_Size          => Ino_Size,
+          First_Inode         => First_In,
+          First_Data_Block    => Sup.Block_Containing_Super,
+          Block_Group_Count   => Unsigned_32 (Groups),
+          Pointers_Per_Block  => Blk_Size / 4,
+          Has_Directory_Types =>
+            (Sup.Required_Features and Required_Directory_Types) /= 0,
+          Search_Group        => 0,
+          Memo_Lock           => Synchronization.Unlocked_Semaphore,
+          Memo_Inode          => 0,
+          Memo_Index          => 0,
+          Memo_Offset         => 0);
 
-      --  Read the root inode.
       RW_Inode
          (Data            => Data,
-          Inode_Index     => 2,
+          Inode_Index     => Root_Inode,
           Result          => Data.Root,
           Write_Operation => False,
           Success         => Success);
+      if not Success then
+         Free (Data);
+         return;
+      end if;
+
       Data_Addr := Conv.To_Address (Conv.Object_Pointer (Data));
    exception
       when Constraint_Error =>
@@ -128,24 +188,16 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Remount;
 
    procedure Unmount (FS : in out System.Address) is
-      Data    : EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Success : Boolean;
+      Data : EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Synchronization.Seize_Writer (Data.Mutex);
 
-      if not Data.Is_Read_Only and
-         Data.Super.Mounts_Since_Check /= Unsigned_16'Last
-      then
-         Data.Super.Mounts_Since_Check := Data.Super.Mounts_Since_Check + 1;
-         RW_Superblock
-            (Handle          => Data.Handle,
-             Offset          => Main_Superblock_Offset,
-             Super           => Data.Super,
-             Write_Operation => True,
-             Success         => Success);
-         if not Success then
-            Act_On_Policy (Data, "superblock write error");
+      if not Data.Is_Read_Only then
+         if Data.Super.Mounts_Since_Check /= Unsigned_16'Last then
+            Data.Super.Mounts_Since_Check :=
+               Data.Super.Mounts_Since_Check + 1;
          end if;
+         Sync_Superblock (Data);
       end if;
 
       Free (Data);
@@ -211,15 +263,19 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Get_Inode_Count;
 
    procedure Get_Free_Blocks
-      (FS                 : System.Address;
-       Free_Blocks        : out Unsigned_64;
+      (FS                : System.Address;
+       Free_Blocks       : out Unsigned_64;
        Free_Unprivileged : out Unsigned_64)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Free : Unsigned_64;
+      Rsvd : Unsigned_64;
    begin
       Synchronization.Seize_Reader (Data.Mutex);
-      Free_Blocks := Unsigned_64 (Data.Super.Unallocated_Block_Count);
-      Free_Unprivileged := Unsigned_64 (Data.Super.Unallocated_Block_Count);
+      Free := Unsigned_64 (Data.Super.Unallocated_Block_Count);
+      Rsvd := Unsigned_64 (Data.Super.Reserved_Count);
+      Free_Blocks := Free;
+      Free_Unprivileged := (if Free > Rsvd then Free - Rsvd else 0);
       Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
@@ -230,11 +286,11 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Get_Free_Blocks;
 
    procedure Get_Free_Inodes
-      (FS                 : System.Address;
-       Free_Inodes        : out Unsigned_64;
+      (FS                : System.Address;
+       Free_Inodes       : out Unsigned_64;
        Free_Unprivileged : out Unsigned_64)
    is
-      Data  : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Synchronization.Seize_Reader (Data.Mutex);
       Free_Inodes := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
@@ -266,22 +322,197 @@ package body VFS.EXT with SPARK_Mode => Off is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Perms    : constant  Unsigned_16 := Get_Permissions (Kind);
       Dir_Type : constant   Unsigned_8 := Get_Dir_Type (Kind);
-      Target_Index               : Unsigned_32;
+      Is_Dir   : constant      Boolean := Kind = File_Directory;
+      Target_Index               : Unsigned_32 := 0;
       Target_Inode, Parent_Inode : Inode_Acc := new Inode;
-      Descriptor                 : Block_Group_Descriptor;
-      Desc_Index                 : Unsigned_32;
-      Ent                        : Directory_Entry;
-      Entry_Name                 : String (1 .. 2);
+      Buffer                     : Operation_Data_Acc := null;
       Temp                       : Natural;
       Success, Parent_Open       : Boolean;
-      Stamp                      : Time.Timestamp;
+      Discard                    : Boolean;
+      Stamp                      : Unsigned_32;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Name'Length = 0 then
+      elsif Name'Length = 0 or else Name'Length > Max_File_Name_Size then
+         Status := FS_Invalid_Value;
+         goto Cleanup;
+      end if;
+
+      --  Checking the file doesn't exist but the parent is found along perms.
+      Inner_Open_Inode
+         (Data           => Data,
+          Parent_Index   => Unsigned_32 (Parent_Ino),
+          Name           => Name,
+          Target_Index   => Target_Index,
+          Target_Inode   => Target_Inode.all,
+          Parent_Inode   => Parent_Inode.all,
+          Success        => Success,
+          Parent_Open    => Parent_Open);
+      if Success then
+         Status := FS_Exists;
+         goto Cleanup;
+      elsif not Parent_Open then
+         Status := FS_Not_Found;
+         goto Cleanup;
+      elsif Get_Inode_Type (Parent_Inode.Permissions) /= File_Directory then
+         Status := FS_Not_Directory;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      end if;
+
+      Allocate_Inode
+         (FS_Data      => Data,
+          Is_Directory => Is_Dir,
+          Goal         => (Unsigned_32 (Parent_Ino) - 1) /
+                          Data.Super.Inodes_Per_Group,
+          Inode_Num    => Target_Index,
+          Success      => Success);
+      if not Success then
+         Status := FS_Full;
+         goto Cleanup;
+      end if;
+
+      Stamp := Current_Epoch;
+      Target_Inode.all :=
+         (Permissions         => Perms or Unsigned_16 (Mode),
+          UID                 => Unsigned_16 (User and 16#FFFF#),
+          Size_Low            => 0,
+          Access_Time_Epoch   => Stamp,
+          Creation_Time_Epoch => Stamp,
+          Modified_Time_Epoch => Stamp,
+          Deleted_Time_Epoch  => 0,
+          GID                 => Parent_Inode.GID,
+          Hard_Link_Count     => (if Is_Dir then 2 else 1),
+          Sectors             => 0,
+          Flags               => 0,
+          OS_Specific_Value_1 => 0,
+          Blocks              => [others => 0],
+          Generation_Number   => 0,
+          EAB                 => 0,
+          Size_High           => 0,
+          Fragment_Address    => 0,
+          OS_Specific_Value_2 => [others => 0]);
+
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Target_Index,
+          Result          => Target_Inode.all,
+          Write_Operation => True,
+          Success         => Success);
+      if not Success then
+         goto Undo_Inode;
+      end if;
+
+      if Is_Dir then
+         Buffer := new Operation_Data'
+            (1 .. Natural (Data.Block_Size) => 0);
+         Put_Dir_Entry
+            (Buffer   => Buffer.all,
+             Offset   => 0,
+             Ino      => Target_Index,
+             Rec_Len  => 12,
+             Kind     => Get_Dir_Type (File_Directory),
+             Name     => ".",
+             Has_Type => Data.Has_Directory_Types);
+         Put_Dir_Entry
+            (Buffer   => Buffer.all,
+             Offset   => 12,
+             Ino      => Unsigned_32 (Parent_Ino),
+             Rec_Len  => Natural (Data.Block_Size) - 12,
+             Kind     => Get_Dir_Type (File_Directory),
+             Name     => "..",
+             Has_Type => Data.Has_Directory_Types);
+         Write_To_Inode
+            (FS_Data    => Data,
+             Inode_Data => Target_Inode.all,
+             Inode_Num  => Target_Index,
+             Inode_Size => 0,
+             Offset     => 0,
+             Data       => Buffer.all,
+             Ret_Count  => Temp,
+             Success    => Success);
+         if not Success then
+            goto Undo_Inode;
+         end if;
+      end if;
+
+      Add_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Parent_Inode.all,
+          Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
+          Inode_Index => Unsigned_32 (Parent_Ino),
+          Added_Index => Target_Index,
+          Dir_Type    => Dir_Type,
+          Name        => Name,
+          Success     => Success);
+      if not Success then
+         goto Undo_Inode;
+      end if;
+
+      if Is_Dir then
+         Parent_Inode.Hard_Link_Count := Parent_Inode.Hard_Link_Count + 1;
+      end if;
+      Parent_Inode.Modified_Time_Epoch := Stamp;
+      Parent_Inode.Creation_Time_Epoch := Stamp;
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Unsigned_32 (Parent_Ino),
+          Result          => Parent_Inode.all,
+          Write_Operation => True,
+          Success         => Success);
+
+      Status := (if Success then FS_Success else FS_IO_Failure);
+      goto Cleanup;
+
+   <<Undo_Inode>>
+      Delete_Inode (Data, Target_Index, Target_Inode.all, Discard);
+      Status := FS_IO_Failure;
+
+   <<Cleanup>>
+      Synchronization.Release_Writer (Data.Mutex);
+      Free (Target_Inode);
+      Free (Parent_Inode);
+      Free (Buffer);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release_Writer (Data.Mutex);
+         Messages.Put_Line ("Exception while creating an EXT node");
+         Status := FS_IO_Failure;
+   end Create_Node;
+
+   procedure Create_Symbolic_Link
+      (FS         : System.Address;
+       Parent_Ino : File_Inode_Number;
+       Name       : String;
+       Target     : String;
+       Mode       : Unsigned_32;
+       User       : Unsigned_32;
+       Status     : out FS_Status)
+   is
+      Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Perms    : constant  Unsigned_16 := Get_Permissions (File_Symbolic_Link);
+      Dir_Type : constant   Unsigned_8 := Get_Dir_Type (File_Symbolic_Link);
+      Target_Index               : Unsigned_32 := 0;
+      Target_Inode, Parent_Inode : Inode_Acc := new Inode;
+      Ret_Count                  : Natural;
+      Success, Parent_Open       : Boolean;
+      Discard                    : Boolean;
+      Stamp                      : Unsigned_32;
+   begin
+      Synchronization.Seize_Writer (Data.Mutex);
+
+      if Data.Is_Read_Only then
+         Status := FS_RO_Failure;
+         goto Cleanup;
+      elsif Name'Length = 0 or else Target'Length = 0 or else
+            Name'Length > Max_File_Name_Size
+      then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
@@ -309,227 +540,25 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       Allocate_Inode
-         (FS_Data   => Data,
-          Inode_Num => Target_Index,
-          Success   => Success);
+         (FS_Data      => Data,
+          Is_Directory => False,
+          Goal         => (Unsigned_32 (Parent_Ino) - 1) /
+                          Data.Super.Inodes_Per_Group,
+          Inode_Num    => Target_Index,
+          Success      => Success);
       if not Success then
-         Status := FS_IO_Failure;
+         Status := FS_Full;
          goto Cleanup;
       end if;
 
-      Arch.Clocks.Get_Real_Time (Stamp);
+      Stamp := Current_Epoch;
       Target_Inode.all :=
-         (Permissions         => Perms or Unsigned_16 (Mode),
-          UID                 => Unsigned_16 (User),
-          Size_Low            => 0,
-          Access_Time_Epoch   => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
-          Creation_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
-          Modified_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
-          Deleted_Time_Epoch  => 0,
-          GID                 => Parent_Inode.GID,
-          Hard_Link_Count     => 1,
-          Sectors             => 0,
-          Flags               => 0,
-          OS_Specific_Value_1 => 0,
-          Blocks              => [others => 0],
-          Generation_Number   => 0,
-          EAB                 => 0,
-          Size_High           => 0,
-          Fragment_Address    => 0,
-          OS_Specific_Value_2 => [others => 0]);
-
-      Add_Directory_Entry
-         (FS_Data     => Data,
-          Inode_Data  => Parent_Inode.all,
-          Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
-          Inode_Index => Unsigned_32 (Parent_Ino),
-          Added_Index => Target_Index,
-          Dir_Type    => Dir_Type,
-          Name        => Name,
-          Success     => Success);
-      if not Success then
-         Status := FS_IO_Failure;
-         goto Cleanup;
-      end if;
-
-      if Kind = File_Directory then
-         declare
-            Ent_Data  : Operation_Data (1 .. Ent'Size / 8)
-               with Import, Address => Ent'Address;
-            Name_Data : Operation_Data (1 .. 2)
-               with Import, Address => Entry_Name'Address;
-         begin
-            Grow_Inode
-               (FS_Data    => Data,
-                Inode_Data => Target_Inode.all,
-                Inode_Num  => Target_Index,
-                Start      => 0,
-                Count      => Unsigned_64 (Data.Block_Size),
-                Success    => Success);
-            Set_Size
-               (Ino        => Target_Inode.all,
-                New_Size   => Unsigned_64 (Data.Block_Size),
-                Is_64_Bits => Data.Has_64bit_Filesizes,
-                Success    => Success);
-
-            Ent := (Target_Index, 12, 1, Dir_Type);
-            Write_To_Inode
-               (FS_Data     => Data,
-                Inode_Data  => Target_Inode.all,
-                Inode_Num   => Target_Index,
-                Inode_Size  => Get_Size (Target_Inode.all,
-                                         Data.Has_64bit_Filesizes),
-                Offset      => 0,
-                Data        => Ent_Data,
-                Ret_Count   => Temp,
-                Success     => Success);
-            Entry_Name := ['.', Ada.Characters.Latin_1.NUL];
-            Write_To_Inode
-               (FS_Data     => Data,
-                Inode_Data  => Target_Inode.all,
-                Inode_Num   => Target_Index,
-                Inode_Size  => Get_Size (Target_Inode.all,
-                                         Data.Has_64bit_Filesizes),
-                Offset      => 8,
-                Data        => Name_Data,
-                Ret_Count   => Temp,
-                Success     => Success);
-
-            Ent :=
-               (Inode_Index => Unsigned_32 (Parent_Ino),
-                Entry_Count => Unsigned_16 (Data.Block_Size) - 12,
-                Name_Length => 2,
-                Dir_Type    => Dir_Type);
-            Write_To_Inode
-               (FS_Data     => Data,
-                Inode_Data  => Target_Inode.all,
-                Inode_Num   => Target_Index,
-                Inode_Size  => Get_Size (Target_Inode.all,
-                                         Data.Has_64bit_Filesizes),
-                Offset      => 12,
-                Data        => Ent_Data,
-                Ret_Count   => Temp,
-                Success     => Success);
-            Entry_Name := "..";
-            Write_To_Inode
-               (FS_Data     => Data,
-                Inode_Data  => Target_Inode.all,
-                Inode_Num   => Target_Index,
-                Inode_Size  => Get_Size (Target_Inode.all,
-                                         Data.Has_64bit_Filesizes),
-                Offset      => 12 + (Ent'Size / 8),
-                Data        => Name_Data,
-                Ret_Count   => Temp,
-                Success     => Success);
-
-            Desc_Index := (Target_Index - 1) / Data.Super.Inodes_Per_Group;
-            RW_Block_Group_Descriptor
-               (Data             => Data,
-                Descriptor_Index => Desc_Index,
-                Result           => Descriptor,
-                Write_Operation  => False,
-                Success          => Success);
-            Descriptor.Directory_Count := Descriptor.Directory_Count + 1;
-            RW_Block_Group_Descriptor
-               (Data             => Data,
-                Descriptor_Index => Desc_Index,
-                Result           => Descriptor,
-                Write_Operation  => True,
-                Success          => Success);
-            Parent_Inode.Hard_Link_Count := Parent_Inode.Hard_Link_Count + 1;
-            Target_Inode.Hard_Link_Count := Target_Inode.Hard_Link_Count + 1;
-         end;
-      end if;
-
-      RW_Inode
-         (Data            => Data,
-          Inode_Index     => Target_Index,
-          Result          => Target_Inode.all,
-          Write_Operation => True,
-          Success         => Success);
-      RW_Inode
-         (Data            => Data,
-          Inode_Index     => Unsigned_32 (Parent_Ino),
-          Result          => Parent_Inode.all,
-          Write_Operation => True,
-          Success         => Success);
-
-      Status := (if Success then FS_Success else FS_IO_Failure);
-
-   <<Cleanup>>
-      Synchronization.Release_Writer (Data.Mutex);
-      Free (Target_Inode);
-      Free (Parent_Inode);
-   exception
-      when Constraint_Error =>
-         Messages.Put_Line ("Exception while creating an EXT node");
-         Status := FS_IO_Failure;
-   end Create_Node;
-
-   procedure Create_Symbolic_Link
-      (FS         : System.Address;
-       Parent_Ino : File_Inode_Number;
-       Name       : String;
-       Target     : String;
-       Mode       : Unsigned_32;
-       User       : Unsigned_32;
-       Status     : out FS_Status)
-   is
-      Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Perms    : constant  Unsigned_16 := Get_Permissions (File_Symbolic_Link);
-      Dir_Type : constant   Unsigned_8 := Get_Dir_Type (File_Symbolic_Link);
-      Target_Index               : Unsigned_32;
-      Target_Inode, Parent_Inode : Inode_Acc := new Inode;
-      Temp, Ret_Count            : Natural;
-      Success, Parent_Open       : Boolean;
-      Stamp                      : Time.Timestamp;
-   begin
-      Synchronization.Seize_Writer (Data.Mutex);
-
-      if Data.Is_Read_Only then
-         Status := FS_RO_Failure;
-         goto Cleanup;
-      elsif Name'Length = 0 or Target'Length = 0 then
-         Status := FS_Invalid_Value;
-         goto Cleanup;
-      end if;
-
-      --  Checking the file doesn't exist but the parent is found along perms.
-      Inner_Open_Inode
-         (Data           => Data,
-          Parent_Index   => Unsigned_32 (Parent_Ino),
-          Name           => Name,
-          Target_Index   => Target_Index,
-          Target_Inode   => Target_Inode.all,
-          Parent_Inode   => Parent_Inode.all,
-          Success        => Success,
-          Parent_Open    => Parent_Open);
-      if Success then
-         Status := FS_Exists;
-         goto Cleanup;
-      elsif not Parent_Open then
-         Status := FS_Not_Found;
-         goto Cleanup;
-      elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
-      then
-         Status := FS_Not_Allowed;
-         goto Cleanup;
-      end if;
-
-      Allocate_Inode (Data, Target_Index, Success);
-      if not Success then
-         Status := FS_IO_Failure;
-         goto Cleanup;
-      end if;
-
-      Arch.Clocks.Get_Real_Time (Stamp);
-      Target_Inode.all :=
-         (Permissions         => Perms or Unsigned_16 (Mode),
-          UID                 => Unsigned_16 (User),
+         (Permissions         => Perms or Unsigned_16 (Mode and 8#777#),
+          UID                 => Unsigned_16 (User and 16#FFFF#),
           Size_Low            => Unsigned_32 (Target'Length),
-          Access_Time_Epoch   => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
-          Creation_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
-          Modified_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
+          Access_Time_Epoch   => Stamp,
+          Creation_Time_Epoch => Stamp,
+          Modified_Time_Epoch => Stamp,
           Deleted_Time_Epoch  => 0,
           GID                 => Parent_Inode.GID,
           Hard_Link_Count     => 1,
@@ -542,29 +571,10 @@ package body VFS.EXT with SPARK_Mode => Off is
           Size_High           => 0,
           Fragment_Address    => 0,
           OS_Specific_Value_2 => [others => 0]);
-      Set_Size
-         (Target_Inode.all, Unsigned_64 (Target'Length),
-          Data.Has_64bit_Filesizes, Success);
-      if not Success then
-         Status := FS_IO_Failure;
-         goto Cleanup;
-      end if;
 
-      Add_Directory_Entry
-         (FS_Data     => Data,
-          Inode_Data  => Parent_Inode.all,
-          Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
-          Inode_Index => Unsigned_32 (Parent_Ino),
-          Added_Index => Target_Index,
-          Dir_Type    => Dir_Type,
-          Name        => Name,
-          Success     => Success);
-      if not Success then
-         Status := FS_IO_Failure;
-         goto Cleanup;
-      end if;
-
-      if Target'Length <= 60 then
+      --  EXT implements a shortcut for short symlinks, by putting them
+      --  straight on the blocks array and having no blocks.
+      if Target'Length <= Target_Inode.Blocks'Length * 4 then
          declare
             Str_Data : String (1 .. Target'Length)
                with Import, Address => Target_Inode.Blocks'Address;
@@ -588,6 +598,20 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Success    => Success);
          end;
       end if;
+      if not Success then
+         goto Undo_Inode;
+      end if;
+
+      --  Writing the target may have moved the size along, put it back to
+      --  the length of the link.
+      Set_Size
+         (Ino        => Target_Inode.all,
+          New_Size   => Unsigned_64 (Target'Length),
+          Is_64_Bits => Data.Has_64bit_Filesizes,
+          Success    => Success);
+      if not Success then
+         goto Undo_Inode;
+      end if;
 
       RW_Inode
          (Data            => Data,
@@ -595,6 +619,25 @@ package body VFS.EXT with SPARK_Mode => Off is
           Result          => Target_Inode.all,
           Write_Operation => True,
           Success         => Success);
+      if not Success then
+         goto Undo_Inode;
+      end if;
+
+      Add_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Parent_Inode.all,
+          Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
+          Inode_Index => Unsigned_32 (Parent_Ino),
+          Added_Index => Target_Index,
+          Dir_Type    => Dir_Type,
+          Name        => Name,
+          Success     => Success);
+      if not Success then
+         goto Undo_Inode;
+      end if;
+
+      Parent_Inode.Modified_Time_Epoch := Stamp;
+      Parent_Inode.Creation_Time_Epoch := Stamp;
       RW_Inode
          (Data            => Data,
           Inode_Index     => Unsigned_32 (Parent_Ino),
@@ -603,6 +646,11 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success         => Success);
 
       Status := (if Success then FS_Success else FS_IO_Failure);
+      goto Cleanup;
+
+   <<Undo_Inode>>
+      Delete_Inode (Data, Target_Index, Target_Inode.all, Discard);
+      Status := FS_IO_Failure;
 
    <<Cleanup>>
       Synchronization.Release_Writer (Data.Mutex);
@@ -625,18 +673,20 @@ package body VFS.EXT with SPARK_Mode => Off is
        Status        : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Source_Index, Target_Index : Unsigned_32;
+      Source_Index, Target_Index        : Unsigned_32 := 0;
       Source_Inode, Source_Parent_Inode : Inode_Acc := new Inode;
       Target_Inode, Target_Parent_Inode : Inode_Acc := new Inode;
-      Success, Parent_Open : Boolean;
-      Sz : Unsigned_64;
+      Success, Parent_Open              : Boolean;
+      Stamp                             : Unsigned_32;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Source_Name'Length = 0 or Target_Name'Length = 0 then
+      elsif Source_Name'Length = 0 or else Target_Name'Length = 0 or else
+            Target_Name'Length > Max_File_Name_Size
+      then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
@@ -653,6 +703,9 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Open    => Parent_Open);
       if not Success then
          Status := FS_Not_Found;
+         goto Cleanup;
+      elsif Get_Inode_Type (Source_Inode.Permissions) = File_Directory then
+         Status := FS_Is_Directory;
          goto Cleanup;
       end if;
 
@@ -680,18 +733,25 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
-      --  Once we can commit to it, update the hard link count.
-      RW_Inode
-         (Data            => Data,
-          Inode_Index     => Source_Index,
-          Result          => Source_Inode.all,
-          Write_Operation => False,
-          Success         => Success);
+      Stamp := Current_Epoch;
+      Add_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Target_Parent_Inode.all,
+          Inode_Size  => Get_Size (Target_Parent_Inode.all,
+                                   Data.Has_64bit_Filesizes),
+          Inode_Index => Unsigned_32 (Target_Parent),
+          Added_Index => Source_Index,
+          Dir_Type    =>
+            Get_Dir_Type (Get_Inode_Type (Source_Inode.Permissions)),
+          Name        => Target_Name,
+          Success     => Success);
       if not Success then
          Status := FS_IO_Failure;
          goto Cleanup;
       end if;
+
       Source_Inode.Hard_Link_Count := Source_Inode.Hard_Link_Count + 1;
+      Source_Inode.Creation_Time_Epoch := Stamp;
       RW_Inode
          (Data            => Data,
           Inode_Index     => Source_Index,
@@ -703,16 +763,14 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
-      Sz := Get_Size (Target_Parent_Inode.all, Data.Has_64bit_Filesizes);
-      Add_Directory_Entry
-         (FS_Data     => Data,
-          Inode_Data  => Target_Parent_Inode.all,
-          Inode_Size  => Sz,
-          Inode_Index => Unsigned_32 (Target_Parent),
-          Added_Index => Source_Index,
-          Dir_Type    => Get_Dir_Type (File_Regular),
-          Name        => Target_Name,
-          Success     => Success);
+      Target_Parent_Inode.Modified_Time_Epoch := Stamp;
+      Target_Parent_Inode.Creation_Time_Epoch := Stamp;
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Unsigned_32 (Target_Parent),
+          Result          => Target_Parent_Inode.all,
+          Write_Operation => True,
+          Success         => Success);
 
       Status := (if Success then FS_Success else FS_IO_Failure);
 
@@ -740,10 +798,14 @@ package body VFS.EXT with SPARK_Mode => Off is
        Status        : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Source_Index, Target_Index               : Unsigned_32;
+      Same_Parent : constant Boolean := Source_Parent = Target_Parent;
+      Source_Index, Target_Index               : Unsigned_32 := 0;
       Source_Inode, Target_Inode               : Inode_Acc := new Inode;
       Source_Parent_Inode, Target_Parent_Inode : Inode_Acc := new Inode;
-      Target_Parent_Size                       : Unsigned_64;
+      Src_P, Tgt_P                             : Inode_Acc;
+      Source_Kind, Target_Kind                 : File_Type;
+      Deleted, Stamp                           : Unsigned_32;
+      Empty                                    : Boolean;
       Success1, Success2, Parent_O1, Parent_O2 : Boolean;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
@@ -751,7 +813,11 @@ package body VFS.EXT with SPARK_Mode => Off is
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Source_Name'Length = 0 or Target_Name'Length = 0 then
+      elsif Source_Name'Length = 0 or else Target_Name'Length = 0 or else
+            Target_Name'Length > Max_File_Name_Size or else
+            Source_Name = "." or else Source_Name = ".."   or else
+            Target_Name = "." or else Target_Name = ".."
+      then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
@@ -778,7 +844,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Check that the source exists, that the parent of the target exists,
       --  and that we do not want to keep the file if it exists, along with
       --  permissions.
-      if not Success1 or not Parent_O2 then
+      if not Success1 or not Parent_O1 or not Parent_O2 then
          Status := FS_Not_Found;
          goto Cleanup;
       elsif Keep and Success2 then
@@ -786,53 +852,161 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       elsif not Check_User_Access (User, Target_Parent_Inode.all,
                                    False, True, False)
+         or else not Check_User_Access (User, Source_Parent_Inode.all,
+                                        False, True, False)
       then
          Status := FS_Not_Allowed;
          goto Cleanup;
       end if;
 
-      Target_Parent_Size := Get_Size (Target_Parent_Inode.all,
-                                      Data.Has_64bit_Filesizes);
+      --  Renaming a name onto itself is asked to do nothing at all.
+      if Success2 and then Source_Index = Target_Index then
+         Status := FS_Success;
+         goto Cleanup;
+      end if;
 
-      --  The target already exists so we nuke it from orbit.
+      Source_Kind := Get_Inode_Type (Source_Inode.Permissions);
+
+      --  When there is something in the way it has to be compatible with
+      --  what is being moved onto it, and an occupied directory never is.
       if Success2 then
-         Delete_Directory_Entry
-            (FS_Data     => Data,
-             Inode_Data  => Target_Parent_Inode.all,
-             Inode_Size  => Target_Parent_Size,
-             Inode_Index => Unsigned_32 (Target_Parent),
-             Added_Index => Target_Index,
-             Success     => Success1);
-         if not Success1 then
-            Status := FS_IO_Failure;
+         Target_Kind := Get_Inode_Type (Target_Inode.Permissions);
+         if Target_Kind = File_Directory and Source_Kind /= File_Directory then
+            Status := FS_Is_Directory;
             goto Cleanup;
+         elsif Source_Kind = File_Directory and
+               Target_Kind /= File_Directory
+         then
+            Status := FS_Not_Directory;
+            goto Cleanup;
+         elsif Target_Kind = File_Directory then
+            Is_Directory_Empty
+               (FS_Data    => Data,
+                Inode_Data => Target_Inode.all,
+                Inode_Size => Get_Size (Target_Inode.all,
+                                        Data.Has_64bit_Filesizes),
+                Empty      => Empty,
+                Success    => Success1);
+            if not Success1 then
+               Status := FS_IO_Failure;
+               goto Cleanup;
+            elsif not Empty then
+               Status := FS_Not_Empty;
+               goto Cleanup;
+            end if;
          end if;
       end if;
 
-      --  Nuke the original directory entry.
+      --  Both names may live in the same directory, in which case there is
+      --  only one inode and it must not be edited through two copies.
+      Src_P := Source_Parent_Inode;
+      Tgt_P := (if Same_Parent then Source_Parent_Inode
+                else Target_Parent_Inode);
+      Stamp := Current_Epoch;
+
+      --  Take the old name out first, then whatever is in the way, then put
+      --  the new name in. Doing it in this order never leaves two names
+      --  pointing at one directory.
       Delete_Directory_Entry
          (FS_Data     => Data,
-          Inode_Data  => Source_Parent_Inode.all,
-          Inode_Size  => Get_Size (Source_Parent_Inode.all,
-                                   Data.Has_64bit_Filesizes),
+          Inode_Data  => Src_P.all,
+          Inode_Size  => Get_Size (Src_P.all, Data.Has_64bit_Filesizes),
           Inode_Index => Unsigned_32 (Source_Parent),
-          Added_Index => Source_Index,
+          Name        => Source_Name,
+          Deleted_Ino => Deleted,
           Success     => Success1);
       if not Success1 then
          Status := FS_IO_Failure;
          goto Cleanup;
       end if;
 
-      --  Add the directory entry on its place.
+      if Success2 then
+         Delete_Directory_Entry
+            (FS_Data     => Data,
+             Inode_Data  => Tgt_P.all,
+             Inode_Size  => Get_Size (Tgt_P.all, Data.Has_64bit_Filesizes),
+             Inode_Index => Unsigned_32 (Target_Parent),
+             Name        => Target_Name,
+             Deleted_Ino => Deleted,
+             Success     => Success1);
+         if not Success1 then
+            Status := FS_IO_Failure;
+            goto Cleanup;
+         end if;
+
+         --  Drop the link the replaced name held, and reap the inode when
+         --  that was the last one. Without this every overwrite would leak
+         --  an inode and all of its blocks.
+         if Target_Kind = File_Directory then
+            Target_Inode.Hard_Link_Count := 0;
+            Delete_Inode (Data, Target_Index, Target_Inode.all, Success1);
+            if Tgt_P.Hard_Link_Count > 2 then
+               Tgt_P.Hard_Link_Count := Tgt_P.Hard_Link_Count - 1;
+            end if;
+         elsif Target_Inode.Hard_Link_Count > 1 then
+            Target_Inode.Hard_Link_Count :=
+               Target_Inode.Hard_Link_Count - 1;
+            Target_Inode.Creation_Time_Epoch := Stamp;
+            RW_Inode (Data, Target_Index, Target_Inode.all, True, Success1);
+         else
+            Delete_Inode (Data, Target_Index, Target_Inode.all, Success1);
+         end if;
+         if not Success1 then
+            Status := FS_IO_Failure;
+            goto Cleanup;
+         end if;
+      end if;
+
       Add_Directory_Entry
          (FS_Data     => Data,
-          Inode_Data  => Target_Parent_Inode.all,
-          Inode_Size  => Target_Parent_Size,
+          Inode_Data  => Tgt_P.all,
+          Inode_Size  => Get_Size (Tgt_P.all, Data.Has_64bit_Filesizes),
           Inode_Index => Unsigned_32 (Target_Parent),
           Added_Index => Source_Index,
-          Dir_Type => Get_Dir_Type (Get_Inode_Type (Source_Inode.Permissions)),
+          Dir_Type    => Get_Dir_Type (Source_Kind),
           Name        => Target_Name,
           Success     => Success1);
+      if not Success1 then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
+      --  A directory that changed parent points at the wrong one through its
+      --  '..' entry, and both directories are one link off.
+      if Source_Kind = File_Directory and not Same_Parent then
+         Set_Parent_Entry
+            (FS_Data     => Data,
+             Inode_Data  => Source_Inode.all,
+             Inode_Size  => Get_Size (Source_Inode.all,
+                                      Data.Has_64bit_Filesizes),
+             Inode_Index => Source_Index,
+             New_Parent  => Unsigned_32 (Target_Parent),
+             Success     => Success1);
+         if not Success1 then
+            Status := FS_IO_Failure;
+            goto Cleanup;
+         end if;
+         if Src_P.Hard_Link_Count > 2 then
+            Src_P.Hard_Link_Count := Src_P.Hard_Link_Count - 1;
+         end if;
+         Tgt_P.Hard_Link_Count := Tgt_P.Hard_Link_Count + 1;
+      end if;
+
+      Source_Inode.Creation_Time_Epoch := Stamp;
+      RW_Inode (Data, Source_Index, Source_Inode.all, True, Success1);
+
+      Src_P.Modified_Time_Epoch := Stamp;
+      Src_P.Creation_Time_Epoch := Stamp;
+      RW_Inode (Data, Unsigned_32 (Source_Parent), Src_P.all, True, Success2);
+      Success1 := Success1 and Success2;
+
+      if not Same_Parent then
+         Tgt_P.Modified_Time_Epoch := Stamp;
+         Tgt_P.Creation_Time_Epoch := Stamp;
+         RW_Inode
+            (Data, Unsigned_32 (Target_Parent), Tgt_P.all, True, Success2);
+         Success1 := Success1 and Success2;
+      end if;
 
       Status := (if Success1 then FS_Success else FS_IO_Failure);
 
@@ -858,18 +1032,19 @@ package body VFS.EXT with SPARK_Mode => Off is
        Status  : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Path_Index               : Unsigned_32;
+      Path_Index               : Unsigned_32 := 0;
       Path_Inode, Parent_Inode : Inode_Acc := new Inode;
       Success, Parent_Open     : Boolean;
-      Curr_Index, Next_Index   : Unsigned_64 := 0;
-      Entity                   : Directory_Entity;
+      Empty                    : Boolean;
+      Kind                     : File_Type;
+      Deleted, Stamp           : Unsigned_32;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
          goto Cleanup;
-      elsif Name'Length = 0 then
+      elsif Name'Length = 0 or else Name = "." or else Name = ".." then
          Status := FS_Invalid_Value;
          goto Cleanup;
       end if;
@@ -892,41 +1067,74 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
+      Kind := Get_Inode_Type (Path_Inode.Permissions);
       if Do_Dirs then
-         if Get_Inode_Type (Path_Inode.Permissions) = File_Directory then
-            --  3 iterations for . .. and the first non . or .. file
-            for I in 1 .. 3 loop
-               Inner_Read_Entry
-                  (FS_Data     => Data,
-                   Inode_Sz    =>
-                     Get_Size (Path_Inode.all, Data.Has_64bit_Filesizes),
-                   File_Ino    => Path_Inode.all,
-                   Inode_Index => Curr_Index,
-                   Entity      => Entity,
-                   Next_Index  => Next_Index,
-                   Success     => Success);
-               Curr_Index := Next_Index;
-            end loop;
-            if Success then
-               Status := FS_Not_Empty;
-               goto Cleanup;
-            end if;
-         else
+         if Kind /= File_Directory then
             Status := FS_Not_Directory;
             goto Cleanup;
          end if;
-      elsif Get_Inode_Type (Path_Inode.Permissions) = File_Directory then
+         Is_Directory_Empty
+            (FS_Data    => Data,
+             Inode_Data => Path_Inode.all,
+             Inode_Size => Get_Size (Path_Inode.all,
+                                     Data.Has_64bit_Filesizes),
+             Empty      => Empty,
+             Success    => Success);
+         if not Success then
+            Status := FS_IO_Failure;
+            goto Cleanup;
+         elsif not Empty then
+            Status := FS_Not_Empty;
+            goto Cleanup;
+         end if;
+      elsif Kind = File_Directory then
          Status := FS_Is_Directory;
          goto Cleanup;
       end if;
 
+      Stamp := Current_Epoch;
       Delete_Directory_Entry
          (FS_Data     => Data,
           Inode_Data  => Parent_Inode.all,
           Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
           Inode_Index => Unsigned_32 (Parent),
-          Added_Index => Path_Index,
+          Name        => Name,
+          Deleted_Ino => Deleted,
           Success     => Success);
+      if not Success then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
+      --  Now that no name is left pointing at it, hand the inode and every
+      --  block it owns back to the filesystem. Not doing this used to leak
+      --  the whole file on every single unlink.
+      if Kind = File_Directory then
+         Path_Inode.Hard_Link_Count := 0;
+         Delete_Inode (Data, Path_Index, Path_Inode.all, Success);
+         if Parent_Inode.Hard_Link_Count > 2 then
+            Parent_Inode.Hard_Link_Count := Parent_Inode.Hard_Link_Count - 1;
+         end if;
+      elsif Path_Inode.Hard_Link_Count > 1 then
+         Path_Inode.Hard_Link_Count := Path_Inode.Hard_Link_Count - 1;
+         Path_Inode.Creation_Time_Epoch := Stamp;
+         RW_Inode (Data, Path_Index, Path_Inode.all, True, Success);
+      else
+         Delete_Inode (Data, Path_Index, Path_Inode.all, Success);
+      end if;
+      if not Success then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
+      Parent_Inode.Modified_Time_Epoch := Stamp;
+      Parent_Inode.Creation_Time_Epoch := Stamp;
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Unsigned_32 (Parent),
+          Result          => Parent_Inode.all,
+          Write_Operation => True,
+          Success         => Success);
 
       Status := (if Success then FS_Success else FS_IO_Failure);
 
@@ -952,8 +1160,10 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode_Acc := new Inode;
       Curr_Index, Next_Index, Entry_Count : Unsigned_64;
-      Entity : Directory_Entity;
-      Succ   : Boolean;
+      Inode_Sz : Unsigned_64;
+      Cursor   : Map_Cursor := Empty_Cursor;
+      Entity   : Directory_Entity;
+      Succ     : Boolean;
    begin
       Synchronization.Seize_Reader (FS.Mutex);
 
@@ -974,39 +1184,54 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
+      Inode_Sz := Get_Size (Fetched_Inode.all, FS.Has_64bit_Filesizes);
       Curr_Index  := 0;
-      Next_Index  := 0;
       Entry_Count := 0;
+      Synchronization.Seize (FS.Memo_Lock);
+      if FS.Memo_Inode = Unsigned_32 (Ino) and then
+         FS.Memo_Index = Unsigned_64 (Offset)
+      then
+         Curr_Index  := FS.Memo_Offset;
+         Entry_Count := Unsigned_64 (Offset);
+      end if;
+      Synchronization.Release (FS.Memo_Lock);
+
       loop
+         exit when Entry_Count >= Unsigned_64 (Offset) and
+                   Ret_Count >= Entities'Length;
+
          Inner_Read_Entry
             (FS_Data     => FS,
-             Inode_Sz  => Get_Size (Fetched_Inode.all, FS.Has_64bit_Filesizes),
+             Inode_Sz    => Inode_Sz,
              File_Ino    => Fetched_Inode.all,
              Inode_Index => Curr_Index,
+             Cursor      => Cursor,
              Entity      => Entity,
              Next_Index  => Next_Index,
              Success     => Succ);
-         if not Succ then
-            exit;
-         end if;
+         exit when not Succ;
 
-         Curr_Index := Next_Index;
          if Entry_Count >= Unsigned_64 (Offset) then
-            if Ret_Count < Entities'Length then
-               Entities (Entities'First + Ret_Count) := Entity;
-            else
-               exit;
-            end if;
+            Entities (Entities'First + Ret_Count) := Entity;
             Ret_Count := Ret_Count + 1;
          end if;
          Entry_Count := Entry_Count + 1;
+         Curr_Index  := Next_Index;
       end loop;
 
+      Synchronization.Seize (FS.Memo_Lock);
+      FS.Memo_Inode  := Unsigned_32 (Ino);
+      FS.Memo_Index  := Entry_Count;
+      FS.Memo_Offset := Curr_Index;
+      Synchronization.Release (FS.Memo_Lock);
+
    <<Cleanup>>
+      Close_Cursor (Cursor);
       Synchronization.Release_Reader (FS.Mutex);
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Close_Cursor (Cursor);
          Synchronization.Release_Reader (FS.Mutex);
          Messages.Put_Line ("Exception while reading EXT entries");
          Ret_Count := 0;
@@ -1208,14 +1433,15 @@ package body VFS.EXT with SPARK_Mode => Off is
              Mode              => File_Mode (Inod.Permissions and 8#777#),
              UID               => Unsigned_32 (Inod.UID),
              GID               => Unsigned_32 (Inod.GID),
-             Hard_Link_Count   => Positive (Inod.Hard_Link_Count),
+             Hard_Link_Count   => Positive (Unsigned_16'Max
+                                            (Inod.Hard_Link_Count, 1)),
              Byte_Size         => Size,
              IO_Block_Size     => Get_Block_Size (FS.Handle),
              IO_Block_Count    => Align.Divide_Round_Up (Size, Blk),
              Birth_Time        => (Unsigned_64 (Inod.Creation_Time_Epoch), 0),
              Modification_Time => (Unsigned_64 (Inod.Modified_Time_Epoch), 0),
              Access_Time       => (Unsigned_64 (Inod.Access_Time_Epoch),   0),
-             Change_Time       => (Unsigned_64 (Inod.Modified_Time_Epoch), 0));
+             Change_Time       => (Unsigned_64 (Inod.Creation_Time_Epoch), 0));
          Success := FS_Success;
       else
          Success := FS_IO_Failure;
@@ -1239,9 +1465,14 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Fetched      : Inode_Acc := new Inode;
       Fetched_Size : Unsigned_64;
+      Block_Sz     : Unsigned_64;
+      Tail         : Unsigned_64;
+      Zeroes       : Operation_Data_Acc := null;
+      Ret_Count    : Natural;
       Success      : Boolean;
    begin
       Synchronization.Seize_Writer (FS.Mutex);
+      Block_Sz := Unsigned_64 (FS.Block_Size);
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1266,32 +1497,52 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       Fetched_Size := Get_Size (Fetched.all, FS.Has_64bit_Filesizes);
-      if Fetched_Size = New_Size then
-         Success := True;
-      else
-         if Fetched_Size < New_Size then
-            Grow_Inode
-               (FS_Data     => FS,
-                Inode_Data  => Fetched.all,
-                Inode_Num   => Unsigned_32 (Ino),
-                Start       => 0,
-                Count       => New_Size,
-                Success     => Success);
-         else
-            Success := False;
+      Success      := True;
+
+      if Fetched_Size > New_Size then
+         --  Wipe whatever is left over in the block the file now ends in,
+         --  so that growing it again shows zeroes and not old contents.
+         Tail := New_Size mod Block_Sz;
+         if Tail /= 0 then
+            Tail := Unsigned_64'Min (Block_Sz - Tail, Fetched_Size - New_Size);
+            Zeroes := new Operation_Data'(1 .. Natural (Tail) => 0);
+            Write_To_Inode
+               (FS_Data    => FS,
+                Inode_Data => Fetched.all,
+                Inode_Num  => Unsigned_32 (Ino),
+                Inode_Size => Fetched_Size,
+                Offset     => New_Size,
+                Data       => Zeroes.all,
+                Ret_Count  => Ret_Count,
+                Success    => Success);
+            Free (Zeroes);
          end if;
 
+         --  Then give back every block that is now past the end of the file.
          if Success then
-            Set_Size (Fetched.all, New_Size, FS.Has_64bit_Filesizes, Success);
-            if Success then
-               RW_Inode
-                  (Data            => FS,
-                   Inode_Index     => Unsigned_32 (Ino),
-                   Result          => Fetched.all,
-                   Write_Operation => True,
-                   Success         => Success);
-            end if;
+            Free_Blocks_From
+               (FS_Data    => FS,
+                Inode_Data => Fetched.all,
+                From_Block => (New_Size + Block_Sz - 1) / Block_Sz,
+                Success    => Success);
          end if;
+      end if;
+
+      --  Growing needs nothing done to the blocks: the gap is a hole, which
+      --  reads as zeroes and gets filled in when something writes to it.
+      if Success and Fetched_Size /= New_Size then
+         Set_Size (Fetched.all, New_Size, FS.Has_64bit_Filesizes, Success);
+      end if;
+
+      if Success then
+         Fetched.Modified_Time_Epoch := Current_Epoch;
+         Fetched.Creation_Time_Epoch := Fetched.Modified_Time_Epoch;
+         RW_Inode
+            (Data            => FS,
+             Inode_Index     => Unsigned_32 (Ino),
+             Result          => Fetched.all,
+             Write_Operation => True,
+             Success         => Success);
       end if;
 
       Status := (if Success then FS_Success else FS_IO_Failure);
@@ -1299,6 +1550,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    <<Cleanup>>
       Synchronization.Release_Writer (FS.Mutex);
       Free (Fetched);
+      Free (Zeroes);
    exception
       when Constraint_Error =>
          Synchronization.Release_Writer (FS.Mutex);
@@ -1348,7 +1600,11 @@ package body VFS.EXT with SPARK_Mode => Off is
             if not Success then
                Status := VFS.FS_IO_Failure;
             elsif not FS.Is_Read_Only then
-               Inod.Flags := Flags;
+               --  The hash index bit is not the caller's to hand out: this
+               --  driver keeps no index, so a directory carrying the bit
+               --  would be searched through an index that does not exist.
+               Inod.Flags := Flags and not Unsigned_32'(Flags_Hash_Index);
+               Inod.Creation_Time_Epoch := Current_Epoch;
                RW_Inode
                   (Data            => FS,
                    Inode_Index     => Unsigned_32 (Ino),
@@ -1400,6 +1656,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       else
          Kind             := Get_Inode_Type (Inod.Permissions);
          Inod.Permissions := Get_Inode_Type (Kind, Mode);
+         Inod.Creation_Time_Epoch := Current_Epoch;
          RW_Inode
             (Data            => FS,
              Inode_Index     => Unsigned_32 (Ino),
@@ -1429,6 +1686,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Inod    : Inode_Acc := new Inode;
       Success : Boolean;
+      Changed : Boolean := False;
    begin
       Synchronization.Seize_Writer (FS.Mutex);
 
@@ -1445,11 +1703,21 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success         => Success);
       if not Success then
          Status := FS_IO_Failure;
-      elsif Owner <= Unsigned_32 (Unsigned_16'Last) and
-            Group <= Unsigned_32 (Unsigned_16'Last)
-      then
+         goto Cleanup;
+      end if;
+
+      --  Either of the two is left alone when it is does not fit per POSIX.
+      if Owner <= Unsigned_32 (Unsigned_16'Last) then
          Inod.UID := Unsigned_16 (Owner);
+         Changed  := True;
+      end if;
+      if Group <= Unsigned_32 (Unsigned_16'Last) then
          Inod.GID := Unsigned_16 (Group);
+         Changed  := True;
+      end if;
+
+      if Changed then
+         Inod.Creation_Time_Epoch := Current_Epoch;
          RW_Inode
             (Data            => FS,
              Inode_Index     => Unsigned_32 (Ino),
@@ -1507,6 +1775,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       else
          Inod.Access_Time_Epoch   := Unsigned_32 (AS and 16#FFFFFFFF#);
          Inod.Modified_Time_Epoch := Unsigned_32 (MS and 16#FFFFFFFF#);
+         Inod.Creation_Time_Epoch := Current_Epoch;
          RW_Inode
             (Data            => FS,
              Inode_Index     => Unsigned_32 (Ino),
@@ -1530,13 +1799,14 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Success : Boolean;
    begin
-      Synchronization.Seize_Reader (FS_Data.Mutex);
+      Synchronization.Seize_Writer (FS_Data.Mutex);
+      Sync_Superblock (FS_Data);
       Devices.Synchronize (FS_Data.Handle, Success);
       Status := (if Success then FS_Success else FS_IO_Failure);
-      Synchronization.Release_Reader (FS_Data.Mutex);
+      Synchronization.Release_Writer (FS_Data.Mutex);
    exception
       when Constraint_Error =>
-         Synchronization.Release_Reader (FS_Data.Mutex);
+         Synchronization.Release_Writer (FS_Data.Mutex);
          Messages.Put_Line ("Exception while doing an EXT sync");
          Status := FS_IO_Failure;
    end Synchronize;
@@ -1555,7 +1825,9 @@ package body VFS.EXT with SPARK_Mode => Off is
          Synchronization.Seize_Reader (FS_Data.Mutex);
          Get_Inode_Index (FS_Data, Unsigned_32 (Ino), Offset, Succ);
          if Succ then
-            Devices.Synchronize (FS_Data.Handle, Offset, Inode'Size / 8, Succ);
+            Devices.Synchronize
+               (FS_Data.Handle, Offset, Unsigned_64 (FS_Data.Inode_Size),
+                Succ);
             Status := (if Succ then FS_Success else FS_IO_Failure);
          else
             Status := FS_Invalid_Value;
@@ -1581,8 +1853,12 @@ package body VFS.EXT with SPARK_Mode => Off is
        Parent_Open  : out Boolean)
    is
       Entity : Directory_Entity;
+      Cursor : Map_Cursor := Empty_Cursor;
       Curr_Index, Next_Index, Parent_Sz : Unsigned_64;
    begin
+      Target_Index := 0;
+      Parent_Open  := False;
+
       RW_Inode
          (Data            => Data,
           Inode_Index     => Parent_Index,
@@ -1590,18 +1866,22 @@ package body VFS.EXT with SPARK_Mode => Off is
           Write_Operation => False,
           Success         => Success);
       if not Success then
-         Parent_Open := False;
-         goto Failure_Return;
+         return;
+      elsif Get_Inode_Type (Parent_Inode.Permissions) /= File_Directory then
+         Success := False;
+         return;
       end if;
+
       Parent_Open := True;
-      Parent_Sz := Get_Size (Parent_Inode, Data.Has_64bit_Filesizes);
-      Curr_Index := 0;
+      Parent_Sz   := Get_Size (Parent_Inode, Data.Has_64bit_Filesizes);
+      Curr_Index  := 0;
       loop
          Inner_Read_Entry
             (FS_Data     => Data,
              Inode_Sz    => Parent_Sz,
              File_Ino    => Parent_Inode,
              Inode_Index => Curr_Index,
+             Cursor      => Cursor,
              Entity      => Entity,
              Next_Index  => Next_Index,
              Success     => Success);
@@ -1626,19 +1906,67 @@ package body VFS.EXT with SPARK_Mode => Off is
          end if;
       end loop;
 
+      Close_Cursor (Cursor);
       Success := True;
       return;
 
    <<Failure_Return>>
+      Close_Cursor (Cursor);
       Target_Index := 0;
       Success := False;
    exception
       when Constraint_Error =>
+         Close_Cursor (Cursor);
          Messages.Put_Line ("Exception while opening an EXT inode");
          Target_Index := 0;
          Success      := False;
          Parent_Open  := False;
    end Inner_Open_Inode;
+
+   procedure Is_Directory_Empty
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : Inode;
+       Inode_Size : Unsigned_64;
+       Empty      : out Boolean;
+       Success    : out Boolean)
+   is
+      Cursor : Map_Cursor := Empty_Cursor;
+      Curr_Index, Next_Index : Unsigned_64 := 0;
+      Entity : Directory_Entity;
+      Succ   : Boolean;
+   begin
+      Empty   := True;
+      Success := True;
+
+      loop
+         Inner_Read_Entry
+            (FS_Data     => FS_Data,
+             Inode_Sz    => Inode_Size,
+             File_Ino    => Inode_Data,
+             Inode_Index => Curr_Index,
+             Cursor      => Cursor,
+             Entity      => Entity,
+             Next_Index  => Next_Index,
+             Success     => Succ);
+         exit when not Succ;
+
+         if Entity.Name_Buffer (1 .. Entity.Name_Len) /= "." and then
+            Entity.Name_Buffer (1 .. Entity.Name_Len) /= ".."
+         then
+            Empty := False;
+            exit;
+         end if;
+         Curr_Index := Next_Index;
+      end loop;
+
+      Close_Cursor (Cursor);
+   exception
+      when Constraint_Error =>
+         Close_Cursor (Cursor);
+         Messages.Put_Line ("Exception while checking an EXT directory");
+         Empty   := False;
+         Success := False;
+   end Is_Directory_Empty;
 
    procedure Inner_Read_Symbolic_Link
       (FS_Data   : EXT_Data_Acc;
@@ -1650,21 +1978,25 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success      : Boolean;
       Final_Length : Natural;
    begin
-      if File_Size >= Path'Length then
+      Path := [others => ' '];
+      if File_Size >= Unsigned_64 (Path'Length) then
          Final_Length := Path'Length;
       else
          Final_Length := Natural (File_Size);
       end if;
+      if Final_Length = 0 then
+         Ret_Count := 0;
+         return;
+      end if;
 
-
-      --  EXT implements a shortcut for short symlinks, by putting them
-      --  straight on the blocks array. This only applies to symlinks of length
-      --  60 or less. Else, we just have to read it straight.
-      if File_Size <= 60 then
+      if Is_Fast_Symlink (Ino) then
          declare
-            Str_Data : Operation_Data (1 .. Path'Length)
+            Str_Data : Operation_Data (1 .. Ino.Blocks'Length * 4)
                with Import, Address => Ino.Blocks'Address;
          begin
+            if Final_Length > Str_Data'Length then
+               Final_Length := Str_Data'Length;
+            end if;
             for I in 1 .. Final_Length loop
                Path (Path'First + I - 1) := Character'Val (Str_Data (I));
             end loop;
@@ -1680,12 +2012,16 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Inode_Size => File_Size,
                 Offset     => 0,
                 Data       => Str_Data,
-                Ret_Count  => Ret_Count,
+                Ret_Count  => Final_Length,
                 Success    => Success);
+            if not Success then
+               Ret_Count := 0;
+               return;
+            end if;
          end;
       end if;
 
-      Ret_Count := Natural (File_Size);
+      Ret_Count := Final_Length;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while reading an EXT symbolic link");
@@ -1697,83 +2033,91 @@ package body VFS.EXT with SPARK_Mode => Off is
        Inode_Sz    : Unsigned_64;
        File_Ino    : Inode;
        Inode_Index : Unsigned_64;
+       Cursor      : in out Map_Cursor;
        Entity      : out Directory_Entity;
        Next_Index  : out Unsigned_64;
        Success     : out Boolean)
    is
+      Block_Sz  : Unsigned_64;
+      Offset    : Unsigned_64 := Inode_Index;
+      Window    : Operation_Data (1 .. Max_Dir_Entry_Size);
+      Avail     : Unsigned_64;
       Ret_Count : Natural;
-      Dir       : Directory_Entry;
-      Tmp_Index : Unsigned_64;
-      Tmp_Type  : File_Type;
-      Dir_Data  : Operation_Data (1 .. Directory_Entry'Size / 8)
-         with Import, Address => Dir'Address;
+      Ino_Num   : Unsigned_32;
+      Rec_Len, Name_Len, Copied : Natural;
+      Kind_Byte : Unsigned_8;
+      Succ      : Boolean;
    begin
-      Read_From_Inode
-         (FS_Data    => FS_Data,
-          Inode_Data => File_Ino,
-          Inode_Size => Inode_Sz,
-          Offset     => Inode_Index,
-          Data       => Dir_Data,
-          Ret_Count  => Ret_Count,
-          Success    => Success);
-      if (not Success or Ret_Count /= Dir_Data'Length) or else
-         Dir.Inode_Index = 0
-      then
-         goto Error_Return;
-      end if;
+      Block_Sz   := Unsigned_64 (FS_Data.Block_Size);
+      Entity     := (0, [others => ' '], 0, File_Regular);
+      Next_Index := 0;
+      Success    := False;
 
-      declare
-         Dir_Name  : String (1 .. Natural (Dir.Name_Length));
-         Name_Data : Operation_Data (1 .. Dir_Name'Length)
-            with Import, Address => Dir_Name'Address;
-      begin
-         Tmp_Index := Inode_Index + (Directory_Entry'Size / 8);
-         if (FS_Data.Super.Required_Features and Required_Directory_Types) /= 0
-         then
-            Tmp_Type := Get_Dir_Type (Dir.Dir_Type);
-         else
-            Tmp_Index := Tmp_Index - 1;
-            Tmp_Type  := File_Regular;
-         end if;
+      while Offset < Inode_Sz loop
+         --  A directory record never straddles a block, so a window that
+         --  reaches either the end of the block or the longest possible
+         --  record always holds the whole of it. Fetching header and name
+         --  together is nice.
+         Avail := Unsigned_64'Min
+            (Unsigned_64 (Max_Dir_Entry_Size),
+             Unsigned_64'Min (Block_Sz - (Offset mod Block_Sz),
+                              Inode_Sz - Offset));
+         exit when Avail < Unsigned_64 (Dir_Entry_Header);
 
          Read_From_Inode
             (FS_Data    => FS_Data,
              Inode_Data => File_Ino,
              Inode_Size => Inode_Sz,
-             Offset     => Tmp_Index,
-             Data       => Name_Data,
+             Offset     => Offset,
+             Data       => Window (1 .. Natural (Avail)),
+             Cursor     => Cursor,
              Ret_Count  => Ret_Count,
-             Success    => Success);
-         if not Success or Ret_Count /= Name_Data'Length then
-            goto Error_Return;
+             Success    => Succ);
+         exit when not Succ or else Ret_Count /= Natural (Avail);
+
+         Get_Dir_Entry
+            (Buffer   => Window (1 .. Natural (Avail)),
+             Offset   => 0,
+             Has_Type => FS_Data.Has_Directory_Types,
+             Ino      => Ino_Num,
+             Rec_Len  => Rec_Len,
+             Name_Len => Name_Len,
+             Kind     => Kind_Byte);
+
+         --  A record that is too short to hold a header, is not a multiple
+         --  of four, or reaches out of its own block cannot be stepped over
+         --  safely, so the walk has to stop instead of guessing.
+         exit when Rec_Len < Dir_Entry_Header or else
+                   (Rec_Len mod 4) /= 0       or else
+                   (Offset mod Block_Sz) + Unsigned_64 (Rec_Len) > Block_Sz;
+
+         if Ino_Num /= 0 and then Name_Len /= 0 and then
+            Dir_Entry_Header + Name_Len <= Rec_Len and then
+            Dir_Entry_Header + Name_Len <= Natural (Avail)
+         then
+            Copied := Natural'Min (Name_Len, Entity.Name_Buffer'Length);
+            Entity :=
+               (Inode_Number => Unsigned_64 (Ino_Num),
+                Name_Buffer  => [others => ' '],
+                Name_Len     => Copied,
+                Type_Of_File =>
+                  (if FS_Data.Has_Directory_Types
+                   then Get_Dir_Type (Kind_Byte) else File_Regular));
+            for I in 1 .. Copied loop
+               Entity.Name_Buffer (I) :=
+                  Character'Val (Window (Dir_Entry_Header + I));
+            end loop;
+
+            Next_Index := Offset + Unsigned_64 (Rec_Len);
+            Success    := True;
+            return;
          end if;
 
-         if Dir_Name'Length <= Entity.Name_Buffer'Length then
-            Entity :=
-               (Inode_Number => Unsigned_64 (Dir.Inode_Index),
-                Name_Buffer  => <>,
-                Name_Len     => Dir_Name'Length,
-                Type_Of_File => Tmp_Type);
-            Entity.Name_Buffer (1 .. Dir_Name'Length) := Dir_Name;
-         else
-            --  TODO: This is a shortcoming of Ironclad's VFS having a fixed
-            --  length for entities in a directory.
-            --  In a future, this has to be fixed.
-            Entity :=
-               (Inode_Number => Unsigned_64 (Dir.Inode_Index),
-                Name_Buffer  => <>,
-                Name_Len     => Entity.Name_Buffer'Length,
-                Type_Of_File => Tmp_Type);
-            Entity.Name_Buffer (1 .. Entity.Name_Buffer'Length) :=
-               Dir_Name (1 .. Entity.Name_Buffer'Length);
-         end if;
+         --  A record with no inode is how ext marks free room inside a
+         --  directory.
+         Offset := Offset + Unsigned_64 (Rec_Len);
+      end loop;
 
-         Next_Index := Inode_Index + Unsigned_64 (Dir.Entry_Count);
-         Success    := True;
-         return;
-      end;
-
-   <<Error_Return>>
       Next_Index := 0;
       Success    := False;
    exception
@@ -1815,6 +2159,28 @@ package body VFS.EXT with SPARK_Mode => Off is
                  (Ret_Count = Super_Data'Length);
    end RW_Superblock;
 
+   procedure Sync_Superblock (Data : EXT_Data_Acc) is
+      Success : Boolean;
+   begin
+      if Data.Is_Read_Only then
+         return;
+      end if;
+
+      Data.Super.Last_Write_Epoch := Current_Epoch;
+      RW_Superblock
+         (Handle          => Data.Handle,
+          Offset          => Main_Superblock_Offset,
+          Super           => Data.Super,
+          Write_Operation => True,
+          Success         => Success);
+      if not Success then
+         Act_On_Policy (Data, "superblock write error");
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while syncing an EXT superblock");
+   end Sync_Superblock;
+
    procedure RW_Block_Group_Descriptor
       (Data             : EXT_Data_Acc;
        Descriptor_Index : Unsigned_32;
@@ -1826,14 +2192,17 @@ package body VFS.EXT with SPARK_Mode => Off is
       Descr_Size  : constant Unsigned_64 := Block_Group_Descriptor'Size / 8;
       Offset      : Unsigned_64;
       Ret_Count   : Natural;
-      Result_Data : Operation_Data (1 .. Block_Group_Descriptor'Size / 8)
+      Result_Data : Operation_Data (1 .. Natural (Descr_Size))
          with Import, Address => Result'Address;
    begin
-      Offset := Unsigned_64 (Data.Block_Size);
-      if Data.Block_Size < 2048 then
-         Offset := Offset * 2;
+      if Descriptor_Index >= Data.Block_Group_Count then
+         Success := False;
+         return;
       end if;
-      Offset := Offset + (Descr_Size * Unsigned_64 (Descriptor_Index));
+
+      Offset := (Unsigned_64 (Data.First_Data_Block) + 1) *
+                Unsigned_64 (Data.Block_Size) +
+                Descr_Size * Unsigned_64 (Descriptor_Index);
 
       if Write_Operation then
          Devices.Write
@@ -1872,6 +2241,13 @@ package body VFS.EXT with SPARK_Mode => Off is
       Table_Index, Descriptor_Index : Unsigned_32;
       Block_Descriptor : Block_Group_Descriptor;
    begin
+      Result := 0;
+
+      if Inode_Index < 1 or else Inode_Index > Data.Super.Inode_Count then
+         Success := False;
+         return;
+      end if;
+
       Table_Index      := (Inode_Index - 1) mod Data.Super.Inodes_Per_Group;
       Descriptor_Index := (Inode_Index - 1) / Data.Super.Inodes_Per_Group;
 
@@ -1885,9 +2261,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          Result :=
             Unsigned_64 (Block_Descriptor.Inode_Table_Block) *
             Unsigned_64 (Data.Block_Size) + Unsigned_64 (Table_Index) *
-            Unsigned_64 (Data.Super.Inode_Size);
-      else
-         Result := 0;
+            Unsigned_64 (Data.Inode_Size);
       end if;
    exception
       when Constraint_Error =>
@@ -1945,103 +2319,267 @@ package body VFS.EXT with SPARK_Mode => Off is
          Success := False;
    end RW_Inode;
 
-   function Get_Block_Index
-      (FS_Data     : EXT_Data_Acc;
-       Inode_Data  : Inode;
-       Searched    : Unsigned_32) return Unsigned_32
-   is
-      Adjusted_Block : Unsigned_32 := Searched;
-      Block_Level, Block_Index, Single_Index, Indirect_Offset : Unsigned_32;
-      Indirect_Block, Double_Indirect, Single_Indirect_Index  : Unsigned_32;
-
-      Single_Indirect_Index_Data : Operation_Data (1 .. 4)
-         with Import, Address => Single_Indirect_Index'Address;
-      Indirect_Block_Data : Operation_Data (1 .. 4)
-         with Import, Address => Indirect_Block'Address;
-      Block_Index_Data : Operation_Data (1 .. 4)
-         with Import, Address => Block_Index'Address;
-
-      Discard_1 : Natural;
-      Discard_2 : Devices.Dev_Status;
+   procedure Close_Cursor (Cursor : in out Map_Cursor) is
    begin
-      Block_Level := FS_Data.Block_Size / 4;
+      Free (Cursor.L1_Data);
+      Free (Cursor.L2_Data);
+      Cursor.L1_Block := 0;
+      Cursor.L2_Block := 0;
+   end Close_Cursor;
 
-      if Adjusted_Block < 12 then
-         return Inode_Data.Blocks (Natural (Searched));
-      else
-         Adjusted_Block := Searched - 12;
+   procedure Read_Pointer_Block
+      (FS_Data : EXT_Data_Acc;
+       Block   : Unsigned_32;
+       Buffer  : in out Operation_Data_Acc;
+       Cached  : in out Unsigned_32;
+       Success : out Boolean)
+   is
+      Ret_Count : Natural;
+      Succ      : Devices.Dev_Status;
+   begin
+      if Block = 0 then
+         Success := False;
+         return;
+      elsif Buffer /= null and then Cached = Block then
+         Success := True;
+         return;
       end if;
 
-      if Adjusted_Block >= Block_Level then
-         Adjusted_Block  := Adjusted_Block - Block_Level;
-         Single_Index    := Adjusted_Block / Block_Level;
-         Indirect_Offset := Adjusted_Block mod Block_Level;
-         Indirect_Block  := 0;
+      if Buffer = null then
+         Buffer := new Operation_Data (1 .. Natural (FS_Data.Block_Size));
+      end if;
 
-         if Single_Index >= Block_Level then
-            Adjusted_Block         := Adjusted_Block - (Block_Level ** 2);
-            Double_Indirect        := Adjusted_Block / Block_Level;
-            Indirect_Offset        := Adjusted_Block mod Block_Level;
-            Single_Indirect_Index  := 0;
+      Cached := 0;
+      Devices.Read
+         (Handle    => FS_Data.Handle,
+          Offset    => Unsigned_64 (Block) * Unsigned_64 (FS_Data.Block_Size),
+          Data      => Buffer.all,
+          Ret_Count => Ret_Count,
+          Success   => Succ);
+      if Succ /= Devices.Dev_Success or else Ret_Count /= Buffer'Length then
+         Success := False;
+         return;
+      end if;
 
-            Devices.Read
-               (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Inode_Data.Blocks (14)) *
-                             Unsigned_64 (FS_Data.Block_Size) +
-                             Unsigned_64 (Double_Indirect) * 4,
-                Data      => Single_Indirect_Index_Data,
-                Ret_Count => Discard_1,
-                Success   => Discard_2);
-            Devices.Read
-               (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Double_Indirect) *
-                             Unsigned_64 (FS_Data.Block_Size) +
-                             Unsigned_64 (Single_Indirect_Index) * 4,
-                Data      => Indirect_Block_Data,
-                Ret_Count => Discard_1,
-                Success   => Discard_2);
-            Devices.Read
-               (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Indirect_Block) *
-                             Unsigned_64 (FS_Data.Block_Size) +
-                             Unsigned_64 (Indirect_Offset) * 4,
-                Data      => Block_Index_Data,
-                Ret_Count => Discard_1,
-                Success   => Discard_2);
-            return Block_Index;
-         end if;
+      Cached  := Block;
+      Success := True;
+   exception
+      when Constraint_Error =>
+         Cached  := 0;
+         Success := False;
+   end Read_Pointer_Block;
 
-         Devices.Read
-            (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Inode_Data.Blocks (13)) *
-                          Unsigned_64 (FS_Data.Block_Size) +
-                          Unsigned_64 (Single_Index) * 4,
-             Data      => Indirect_Block_Data,
-             Ret_Count => Discard_1,
-             Success   => Discard_2);
-         Devices.Read
-            (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Indirect_Block) *
-                          Unsigned_64 (FS_Data.Block_Size) +
-                          Unsigned_64 (Indirect_Offset) * 4,
-             Data      => Block_Index_Data,
-             Ret_Count => Discard_1,
-             Success   => Discard_2);
-         return Block_Index;
+   function Get_Pointer
+      (Buffer : Operation_Data;
+       Index  : Unsigned_32) return Unsigned_32
+   is
+      Base : Natural;
+   begin
+      Base := Buffer'First + Natural (Index) * 4;
+      return Unsigned_32 (Buffer (Base))                    or
+             Shift_Left (Unsigned_32 (Buffer (Base + 1)),  8) or
+             Shift_Left (Unsigned_32 (Buffer (Base + 2)), 16) or
+             Shift_Left (Unsigned_32 (Buffer (Base + 3)), 24);
+   exception
+      when Constraint_Error =>
+         return 0;
+   end Get_Pointer;
+
+   procedure Set_Pointer
+      (Buffer : in out Operation_Data;
+       Index  : Unsigned_32;
+       Value  : Unsigned_32)
+   is
+      Base : Natural;
+   begin
+      Base := Buffer'First + Natural (Index) * 4;
+      Buffer (Base)     := Unsigned_8 (Value and 16#FF#);
+      Buffer (Base + 1) := Unsigned_8 (Shift_Right (Value,  8) and 16#FF#);
+      Buffer (Base + 2) := Unsigned_8 (Shift_Right (Value, 16) and 16#FF#);
+      Buffer (Base + 3) := Unsigned_8 (Shift_Right (Value, 24) and 16#FF#);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Pointer;
+
+   procedure Fetch_Pointer
+      (FS_Data : EXT_Data_Acc;
+       Block   : Unsigned_32;
+       Index   : Unsigned_64;
+       Value   : out Unsigned_32;
+       Success : out Boolean)
+   is
+      Raw       : Operation_Data (1 .. 4);
+      Ret_Count : Natural;
+      Succ      : Devices.Dev_Status;
+   begin
+      Value := 0;
+      if Block = 0 then
+         Success := False;
+         return;
       end if;
 
       Devices.Read
          (Handle    => FS_Data.Handle,
-          Offset    => Unsigned_64 (Inode_Data.Blocks (12)) *
-                       Unsigned_64 (FS_Data.Block_Size) +
-                       Unsigned_64 (Adjusted_Block) * 4,
-          Data      => Block_Index_Data,
-          Ret_Count => Discard_1,
-          Success   => Discard_2);
-      return Block_Index;
+          Offset    => Unsigned_64 (Block) * Unsigned_64 (FS_Data.Block_Size) +
+                       Index * 4,
+          Data      => Raw,
+          Ret_Count => Ret_Count,
+          Success   => Succ);
+      if Succ /= Devices.Dev_Success or else Ret_Count /= Raw'Length then
+         Success := False;
+         return;
+      end if;
+
+      Value   := Get_Pointer (Raw, 0);
+      Success := True;
    exception
       when Constraint_Error =>
-         return 0;
+         Value   := 0;
+         Success := False;
+   end Fetch_Pointer;
+
+   procedure Put_Pointer
+      (FS_Data : EXT_Data_Acc;
+       Block   : Unsigned_32;
+       Index   : Unsigned_64;
+       Value   : Unsigned_32;
+       Success : out Boolean)
+   is
+      Raw       : Operation_Data (1 .. 4) := [others => 0];
+      Ret_Count : Natural;
+      Succ      : Devices.Dev_Status;
+   begin
+      if Block = 0 then
+         Success := False;
+         return;
+      end if;
+
+      Set_Pointer (Raw, 0, Value);
+      Devices.Write
+         (Handle    => FS_Data.Handle,
+          Offset    => Unsigned_64 (Block) * Unsigned_64 (FS_Data.Block_Size) +
+                       Index * 4,
+          Data      => Raw,
+          Ret_Count => Ret_Count,
+          Success   => Succ);
+      Success := Succ = Devices.Dev_Success and then Ret_Count = Raw'Length;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Put_Pointer;
+
+   procedure Get_Block_Index
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : Inode;
+       Searched   : Unsigned_32;
+       Cursor     : in out Map_Cursor;
+       Result     : out Unsigned_32;
+       Success    : out Boolean)
+   is
+      Per_Blk : Unsigned_64;
+      Idx     : Unsigned_64;
+      Mid     : Unsigned_32;
+      Succ    : Boolean;
+   begin
+      Per_Blk := Unsigned_64 (FS_Data.Pointers_Per_Block);
+      Idx     := Unsigned_64 (Searched);
+      Result  := 0;
+      Success := True;
+
+      --  Twelve blocks are named by the inode itself.
+      if Idx < 12 then
+         Result := Inode_Data.Blocks (Natural (Idx));
+         return;
+      end if;
+      Idx := Idx - 12;
+
+      --  One block of pointers to blocks.
+      if Idx < Per_Blk then
+         if Inode_Data.Blocks (12) = 0 then
+            return;
+         end if;
+         Read_Pointer_Block (FS_Data, Inode_Data.Blocks (12),
+                             Cursor.L1_Data, Cursor.L1_Block, Succ);
+         if not Succ then
+            Success := False;
+            return;
+         end if;
+         Result := Get_Pointer (Cursor.L1_Data.all, Unsigned_32 (Idx));
+         return;
+      end if;
+      Idx := Idx - Per_Blk;
+
+      --  One block of pointers to blocks of pointers to blocks.
+      if Idx < Per_Blk * Per_Blk then
+         if Inode_Data.Blocks (13) = 0 then
+            return;
+         end if;
+         Read_Pointer_Block (FS_Data, Inode_Data.Blocks (13),
+                             Cursor.L2_Data, Cursor.L2_Block, Succ);
+         if not Succ then
+            Success := False;
+            return;
+         end if;
+         Mid := Get_Pointer (Cursor.L2_Data.all, Unsigned_32 (Idx / Per_Blk));
+         if Mid = 0 then
+            return;
+         end if;
+         Read_Pointer_Block (FS_Data, Mid, Cursor.L1_Data, Cursor.L1_Block,
+                             Succ);
+         if not Succ then
+            Success := False;
+            return;
+         end if;
+         Result := Get_Pointer (Cursor.L1_Data.all,
+                                Unsigned_32 (Idx mod Per_Blk));
+         return;
+      end if;
+      Idx := Idx - Per_Blk * Per_Blk;
+
+      --  And one more level on top of that. The topmost block only changes
+      --  once every Per_Blk squared blocks, so it is fetched a pointer at a
+      --  time and both cached levels are left to the busy ones.
+      if Idx < Per_Blk * Per_Blk * Per_Blk then
+         if Inode_Data.Blocks (14) = 0 then
+            return;
+         end if;
+         Fetch_Pointer (FS_Data, Inode_Data.Blocks (14),
+                        Idx / (Per_Blk * Per_Blk), Mid, Succ);
+         if not Succ then
+            Success := False;
+            return;
+         elsif Mid = 0 then
+            return;
+         end if;
+         Read_Pointer_Block (FS_Data, Mid, Cursor.L2_Data, Cursor.L2_Block,
+                             Succ);
+         if not Succ then
+            Success := False;
+            return;
+         end if;
+         Mid := Get_Pointer (Cursor.L2_Data.all,
+                             Unsigned_32 ((Idx / Per_Blk) mod Per_Blk));
+         if Mid = 0 then
+            return;
+         end if;
+         Read_Pointer_Block (FS_Data, Mid, Cursor.L1_Data, Cursor.L1_Block,
+                             Succ);
+         if not Succ then
+            Success := False;
+            return;
+         end if;
+         Result := Get_Pointer (Cursor.L1_Data.all,
+                                Unsigned_32 (Idx mod Per_Blk));
+         return;
+      end if;
+
+      --  Past what the format can address at all.
+      Success := False;
+   exception
+      when Constraint_Error =>
+         Result  := 0;
+         Success := False;
    end Get_Block_Index;
 
    procedure Read_From_Inode
@@ -2053,54 +2591,118 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count   : out Natural;
        Success     : out Boolean)
    is
-      Succ                      : Devices.Dev_Status;
-      Final_Count               : Natural;
-      Final_Offset              : Unsigned_64 := Offset;
-      Block_Searched, Step_Size : Unsigned_64;
-      Block_Index               : Unsigned_32;
-      Bytes_Read                : Natural := 0;
+      Cursor : Map_Cursor := Empty_Cursor;
    begin
-      Final_Count := Data'Length;
-      if Offset > Inode_Size then
-         Ret_Count := 0;
-         Success   := True;
+      Read_From_Inode
+         (FS_Data    => FS_Data,
+          Inode_Data => Inode_Data,
+          Inode_Size => Inode_Size,
+          Offset     => Offset,
+          Data       => Data,
+          Cursor     => Cursor,
+          Ret_Count  => Ret_Count,
+          Success    => Success);
+      Close_Cursor (Cursor);
+   end Read_From_Inode;
+
+   procedure Read_From_Inode
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : Inode;
+       Inode_Size  : Unsigned_64;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Cursor      : in out Map_Cursor;
+       Ret_Count   : out Natural;
+       Success     : out Boolean)
+   is
+      Block_Sz     : Unsigned_64;
+      Succ         : Devices.Dev_Status;
+      Ok           : Boolean;
+      Final_Count  : Natural;
+      Done         : Natural := 0;
+      Dev_Count    : Natural;
+      Count        : Natural;
+      Pos, In_Blk, Chunk, Run, Want : Unsigned_64;
+      Logical      : Unsigned_64;
+      Phys, Next_P : Unsigned_32;
+   begin
+      Block_Sz  := Unsigned_64 (FS_Data.Block_Size);
+      Ret_Count := 0;
+      Success   := True;
+      if Data'Length = 0 or else Offset >= Inode_Size then
          return;
-      elsif Offset + Data'Length > Inode_Size then
+      end if;
+
+      Final_Count := Data'Length;
+      if Unsigned_64 (Data'Length) > Inode_Size - Offset then
          Final_Count := Natural (Inode_Size - Offset);
       end if;
 
-      while Bytes_Read < Final_Count loop
-         Final_Offset   := (Offset + Unsigned_64 (Bytes_Read));
-         Block_Searched := Final_Offset / Unsigned_64 (FS_Data.Block_Size);
-         Final_Offset   := Final_Offset mod Unsigned_64 (FS_Data.Block_Size);
-         Step_Size     := Unsigned_64 (Final_Count) - Unsigned_64 (Bytes_Read);
-
-         if Step_Size > Unsigned_64 (FS_Data.Block_Size) - Final_Offset then
-            Step_Size := Unsigned_64 (FS_Data.Block_Size) - Final_Offset;
-         end if;
-
-         Block_Index := Get_Block_Index
-            (FS_Data, Inode_Data, Unsigned_32 (Block_Searched));
-         Devices.Read
-            (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Block_Index) *
-                          Unsigned_64 (FS_Data.Block_Size) + Final_Offset,
-             Data      => Data (Data'First + Bytes_Read ..
-                                Data'First + Bytes_Read +
-                                Natural (Step_Size) - 1),
-             Ret_Count => Ret_Count,
-             Success   => Succ);
-         if Succ /= Devices.Dev_Success then
-            Act_On_Policy (FS_Data, "Error reading an inode");
+      while Done < Final_Count loop
+         Pos     := Offset + Unsigned_64 (Done);
+         Logical := Pos / Block_Sz;
+         In_Blk  := Pos mod Block_Sz;
+         if Logical > Unsigned_64 (Unsigned_32'Last) then
             Success := False;
-            return;
+            exit;
          end if;
 
-         Bytes_Read := Bytes_Read + Natural (Step_Size);
+         Get_Block_Index
+            (FS_Data, Inode_Data, Unsigned_32 (Logical), Cursor, Phys, Ok);
+         if not Ok then
+            Success := False;
+            exit;
+         end if;
+
+         --  Walk forward while the blocks stay next to each other on the
+         --  device, so that a run of them is fetched with one operation
+         --  instead of one per block.
+         Want := (In_Blk + Unsigned_64 (Final_Count - Done) + Block_Sz - 1) /
+                 Block_Sz;
+         Run  := 1;
+         while Run < Want and then Logical + Run <=
+               Unsigned_64 (Unsigned_32'Last)
+         loop
+            Get_Block_Index
+               (FS_Data, Inode_Data, Unsigned_32 (Logical + Run), Cursor,
+                Next_P, Ok);
+            exit when not Ok;
+            if Phys = 0 then
+               exit when Next_P /= 0;
+            else
+               exit when Unsigned_64 (Next_P) /= Unsigned_64 (Phys) + Run;
+            end if;
+            Run := Run + 1;
+         end loop;
+
+         Chunk := Run * Block_Sz - In_Blk;
+         if Chunk > Unsigned_64 (Final_Count - Done) then
+            Chunk := Unsigned_64 (Final_Count - Done);
+         end if;
+         Count := Natural (Chunk);
+
+         if Phys = 0 then
+            Data (Data'First + Done .. Data'First + Done + Count - 1) :=
+               [others => 0];
+         else
+            Devices.Read
+               (Handle    => FS_Data.Handle,
+                Offset    => Unsigned_64 (Phys) * Block_Sz + In_Blk,
+                Data      => Data (Data'First + Done ..
+                                   Data'First + Done + Count - 1),
+                Ret_Count => Dev_Count,
+                Success   => Succ);
+            if Succ /= Devices.Dev_Success or else Dev_Count /= Count then
+               Act_On_Policy (FS_Data, "error reading an inode");
+               Success := False;
+               exit;
+            end if;
+         end if;
+
+         Done := Done + Count;
       end loop;
 
-      Ret_Count := Final_Count;
-      Success   := True;
+      Ret_Count := (if Success then Done else 0);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while reading from an EXT inode");
@@ -2118,84 +2720,337 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count   : out Natural;
        Success     : out Boolean)
    is
-      Succ                      : Devices.Dev_Status;
-      Final_Offset              : Unsigned_64 := Offset;
-      Block_Searched, Step_Size : Unsigned_64;
-      Block_Index               : Unsigned_32;
-      Bytes_Read                : Natural := 0;
+      Cursor : Map_Cursor := Empty_Cursor;
    begin
+      Write_To_Inode
+         (FS_Data    => FS_Data,
+          Inode_Data => Inode_Data,
+          Inode_Num  => Inode_Num,
+          Inode_Size => Inode_Size,
+          Offset     => Offset,
+          Data       => Data,
+          Cursor     => Cursor,
+          Ret_Count  => Ret_Count,
+          Success    => Success);
+      Close_Cursor (Cursor);
+   end Write_To_Inode;
+
+   procedure Write_To_Inode
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Num   : Unsigned_32;
+       Inode_Size  : Unsigned_64;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Cursor      : in out Map_Cursor;
+       Ret_Count   : out Natural;
+       Success     : out Boolean)
+   is
+      Block_Sz     : Unsigned_64;
+      Goal         : Unsigned_32;
+      Succ         : Devices.Dev_Status;
+      Ok           : Boolean;
+      Done         : Natural := 0;
+      Dev_Count    : Natural;
+      Count        : Natural;
+      Pos, In_Blk, Chunk, Run, Want : Unsigned_64;
+      Logical      : Unsigned_64;
+      Head_Blk, Tail_Blk, Head_Off, Tail_Off : Unsigned_64;
+      Head_New     : Boolean := False;
+      Tail_New     : Boolean := False;
+      Phys, Next_P : Unsigned_32;
+   begin
+      Block_Sz  := Unsigned_64 (FS_Data.Block_Size);
+      Goal      := (if Inode_Num > 0
+                    then (Inode_Num - 1) / FS_Data.Super.Inodes_Per_Group
+                    else 0);
+      Ret_Count := 0;
+      Success   := True;
+      if Data'Length = 0 then
+         return;
+      end if;
+
+      --  Anything a directory holds may have moved, so the shortcut that
+      --  remembers where a scan stopped cannot be trusted any more.
+      Invalidate_Memo (FS_Data);
+
+      --  Move the end of the file first, so that a failure halfway through
+      --  leaves a size that the blocks below it can back.
       if Offset + Unsigned_64 (Data'Length) > Inode_Size then
-         Grow_Inode
-            (FS_Data     => FS_Data,
-             Inode_Data  => Inode_Data,
-             Inode_Num   => Inode_Num,
-             Start       => Offset,
-             Count       => Unsigned_64 (Data'Length),
-             Success     => Success);
-         if not Success then
-            goto Error_Return;
-         end if;
          Set_Size
             (Ino        => Inode_Data,
              New_Size   => Offset + Unsigned_64 (Data'Length),
              Is_64_Bits => FS_Data.Has_64bit_Filesizes,
-             Success    => Success);
-         if not Success then
-            goto Error_Return;
-         end if;
-         RW_Inode
-            (Data            => FS_Data,
-             Inode_Index     => Inode_Num,
-             Result          => Inode_Data,
-             Write_Operation => True,
-             Success         => Success);
-         if not Success then
-            goto Error_Return;
+             Success    => Ok);
+         if not Ok then
+            Success := False;
+            goto Finish;
          end if;
       end if;
 
-      while Bytes_Read < Data'Length loop
-         Final_Offset   := (Offset + Unsigned_64 (Bytes_Read));
-         Block_Searched := Final_Offset / Unsigned_64 (FS_Data.Block_Size);
-         Final_Offset   := Final_Offset mod Unsigned_64 (FS_Data.Block_Size);
-         Step_Size     := Unsigned_64 (Data'Length) - Unsigned_64 (Bytes_Read);
+      --  A block the allocator hands out still holds whatever the file that
+      --  owned it last left in it. Whatever this write does not cover in a
+      --  block it has just been given therefore has to be wiped: otherwise
+      --  extending the file later shows the tail of a deleted one, and a
+      --  symlink, whose target is read up to the first NUL rather than by
+      --  size, reads back with rubbish stuck to the end of it. Note which
+      --  edge blocks are missing now, before they are handed out.
+      Head_Blk := Offset / Block_Sz;
+      Head_Off := Offset mod Block_Sz;
+      Tail_Blk := (Offset + Unsigned_64 (Data'Length) - 1) / Block_Sz;
+      Tail_Off := (Offset + Unsigned_64 (Data'Length)) mod Block_Sz;
+      if Head_Off /= 0 and then Head_Blk <= Unsigned_64 (Unsigned_32'Last) then
+         Get_Block_Index
+            (FS_Data, Inode_Data, Unsigned_32 (Head_Blk), Cursor, Phys, Ok);
+         Head_New := Ok and then Phys = 0;
+      end if;
+      if Tail_Off /= 0 and then Tail_Blk <= Unsigned_64 (Unsigned_32'Last) then
+         Get_Block_Index
+            (FS_Data, Inode_Data, Unsigned_32 (Tail_Blk), Cursor, Phys, Ok);
+         Tail_New := Ok and then Phys = 0;
+      end if;
 
-         if Step_Size > Unsigned_64 (FS_Data.Block_Size) - Final_Offset then
-            Step_Size := Unsigned_64 (FS_Data.Block_Size) - Final_Offset;
+      --  Ask for every block the write needs at once. Doing it one block at
+      --  a time reads and rewrites a whole bitmap per block, and hands out
+      --  blocks that need not be next to each other; in one go the bitmap is
+      --  touched once and the file comes out laid contiguously, which is
+      --  what lets reads of it afterwards be merged.
+      Grow_Inode
+         (FS_Data    => FS_Data,
+          Inode_Data => Inode_Data,
+          Inode_Num  => Inode_Num,
+          Start      => Offset,
+          Count      => Unsigned_64 (Data'Length),
+          Success    => Ok);
+      if not Ok then
+         Success := False;
+         goto Finish;
+      end if;
+      Cursor.L1_Block := 0;
+      Cursor.L2_Block := 0;
+
+      if Head_New then
+         Zero_Inode_Part
+            (FS_Data, Inode_Data, Head_Blk, 0, Head_Off, Cursor, Ok);
+         if not Ok then
+            Success := False;
+            goto Finish;
+         end if;
+      end if;
+      if Tail_New then
+         Zero_Inode_Part
+            (FS_Data, Inode_Data, Tail_Blk, Tail_Off, Block_Sz, Cursor, Ok);
+         if not Ok then
+            Success := False;
+            goto Finish;
+         end if;
+      end if;
+
+      while Done < Data'Length loop
+         Pos     := Offset + Unsigned_64 (Done);
+         Logical := Pos / Block_Sz;
+         In_Blk  := Pos mod Block_Sz;
+         if Logical > Unsigned_64 (Unsigned_32'Last) then
+            Success := False;
+            exit;
          end if;
 
-         Block_Index := Get_Block_Index
-            (FS_Data, Inode_Data, Unsigned_32 (Block_Searched));
+         Get_Block_Index
+            (FS_Data, Inode_Data, Unsigned_32 (Logical), Cursor, Phys, Ok);
+         if not Ok then
+            Success := False;
+            exit;
+         end if;
+
+         --  Blocks are given out here rather than up front, which is what
+         --  makes writing into the middle of a hole work at all instead of
+         --  landing on block zero.
+         if Phys = 0 then
+            Allocate_Block_For_Inode (FS_Data, Inode_Data, Goal, Phys, Ok);
+            if not Ok then
+               Success := False;
+               exit;
+            end if;
+            Wire_Inode_Blocks
+               (FS_Data, Inode_Data, Unsigned_32 (Logical), Phys, Cursor, Ok);
+            if not Ok then
+               Success := False;
+               exit;
+            end if;
+         end if;
+
+         Want := (In_Blk + Unsigned_64 (Data'Length - Done) + Block_Sz - 1) /
+                 Block_Sz;
+         Run  := 1;
+         while Run < Want and then Logical + Run <=
+               Unsigned_64 (Unsigned_32'Last)
+         loop
+            Get_Block_Index
+               (FS_Data, Inode_Data, Unsigned_32 (Logical + Run), Cursor,
+                Next_P, Ok);
+            exit when not Ok or else Next_P = 0 or else
+                      Unsigned_64 (Next_P) /= Unsigned_64 (Phys) + Run;
+            Run := Run + 1;
+         end loop;
+
+         Chunk := Run * Block_Sz - In_Blk;
+         if Chunk > Unsigned_64 (Data'Length - Done) then
+            Chunk := Unsigned_64 (Data'Length - Done);
+         end if;
+         Count := Natural (Chunk);
+
          Devices.Write
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Block_Index) *
-                          Unsigned_64 (FS_Data.Block_Size) + Final_Offset,
-             Data      => Data (Data'First + Bytes_Read ..
-                                Data'First + Bytes_Read +
-                                Natural (Step_Size) - 1),
-             Ret_Count => Ret_Count,
+             Offset    => Unsigned_64 (Phys) * Block_Sz + In_Blk,
+             Data      => Data (Data'First + Done ..
+                                Data'First + Done + Count - 1),
+             Ret_Count => Dev_Count,
              Success   => Succ);
-         if Succ /= Devices.Dev_Success then
-            goto Error_Return;
+         if Succ /= Devices.Dev_Success or else Dev_Count /= Count then
+            Success := False;
+            exit;
          end if;
 
-         Bytes_Read := Bytes_Read + Natural (Step_Size);
+         Done := Done + Count;
       end loop;
 
-      Ret_Count := Data'Length;
-      Success   := True;
-      return;
+   <<Finish>>
+      Inode_Data.Modified_Time_Epoch := Current_Epoch;
+      Inode_Data.Creation_Time_Epoch := Inode_Data.Modified_Time_Epoch;
+      RW_Inode
+         (Data            => FS_Data,
+          Inode_Index     => Inode_Num,
+          Result          => Inode_Data,
+          Write_Operation => True,
+          Success         => Ok);
 
-   <<Error_Return>>
-      Act_On_Policy (FS_Data, "Error while writing to an inode");
-      Ret_Count := 0;
-      Success   := False;
+      if not Success or not Ok then
+         Act_On_Policy (FS_Data, "error while writing to an inode");
+         Success   := False;
+         Ret_Count := 0;
+      else
+         Ret_Count := Done;
+      end if;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while writing to an EXT inode");
          Ret_Count := 0;
          Success   := False;
    end Write_To_Inode;
+
+   procedure Patch_Cursor
+      (Cursor : in out Map_Cursor;
+       Block  : Unsigned_32;
+       Index  : Unsigned_64;
+       Value  : Unsigned_32)
+   is
+   begin
+      --  Keep a cached copy of a pointer block in step with a write that
+      --  just went to the device, so that a run of allocations does not
+      --  throw away and refetch the very block it keeps writing to.
+      if Block /= 0 and then Cursor.L1_Data /= null and then
+         Cursor.L1_Block = Block
+      then
+         Set_Pointer (Cursor.L1_Data.all, Unsigned_32 (Index), Value);
+      end if;
+      if Block /= 0 and then Cursor.L2_Data /= null and then
+         Cursor.L2_Block = Block
+      then
+         Set_Pointer (Cursor.L2_Data.all, Unsigned_32 (Index), Value);
+      end if;
+   exception
+      when Constraint_Error =>
+         Cursor.L1_Block := 0;
+         Cursor.L2_Block := 0;
+   end Patch_Cursor;
+
+   procedure Drop_Cursor_Block
+      (Cursor : in out Map_Cursor;
+       Block  : Unsigned_32)
+   is
+   begin
+      if Cursor.L1_Block = Block then
+         Cursor.L1_Block := 0;
+      end if;
+      if Cursor.L2_Block = Block then
+         Cursor.L2_Block := 0;
+      end if;
+   end Drop_Cursor_Block;
+
+   procedure Zero_Out_Block
+      (FS_Data : EXT_Data_Acc;
+       Block   : Unsigned_32;
+       Success : out Boolean)
+   is
+      Buffer    : Operation_Data_Acc;
+      Ret_Count : Natural;
+      Succ      : Devices.Dev_Status;
+   begin
+      if Block = 0 then
+         Success := False;
+         return;
+      end if;
+
+      Buffer := new Operation_Data'(1 .. Natural (FS_Data.Block_Size) => 0);
+      Devices.Write
+         (Handle    => FS_Data.Handle,
+          Offset    => Unsigned_64 (Block) * Unsigned_64 (FS_Data.Block_Size),
+          Data      => Buffer.all,
+          Ret_Count => Ret_Count,
+          Success   => Succ);
+      Success := Succ = Devices.Dev_Success and then
+                 Ret_Count = Buffer'Length;
+      Free (Buffer);
+   exception
+      when Constraint_Error =>
+         Free (Buffer);
+         Success := False;
+   end Zero_Out_Block;
+
+   procedure Zero_Inode_Part
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : Inode;
+       Logical    : Unsigned_64;
+       From       : Unsigned_64;
+       To         : Unsigned_64;
+       Cursor     : in out Map_Cursor;
+       Success    : out Boolean)
+   is
+      Block_Sz  : Unsigned_64;
+      Buffer    : Operation_Data_Acc := null;
+      Ret_Count : Natural;
+      Succ      : Devices.Dev_Status;
+      Phys      : Unsigned_32;
+   begin
+      Block_Sz := Unsigned_64 (FS_Data.Block_Size);
+      Success  := True;
+      if From >= To or else To > Block_Sz or else
+         Logical > Unsigned_64 (Unsigned_32'Last)
+      then
+         return;
+      end if;
+
+      Get_Block_Index
+         (FS_Data, Inode_Data, Unsigned_32 (Logical), Cursor, Phys, Success);
+      if not Success or else Phys = 0 then
+         return;
+      end if;
+
+      Buffer := new Operation_Data'(1 .. Natural (To - From) => 0);
+      Devices.Write
+         (Handle    => FS_Data.Handle,
+          Offset    => Unsigned_64 (Phys) * Block_Sz + From,
+          Data      => Buffer.all,
+          Ret_Count => Ret_Count,
+          Success   => Succ);
+      Success := Succ = Devices.Dev_Success and then
+                 Ret_Count = Buffer'Length;
+      Free (Buffer);
+   exception
+      when Constraint_Error =>
+         Free (Buffer);
+         Success := False;
+   end Zero_Inode_Part;
 
    procedure Grow_Inode
       (FS_Data     : EXT_Data_Acc;
@@ -2205,22 +3060,29 @@ package body VFS.EXT with SPARK_Mode => Off is
        Count       : Unsigned_64;
        Success     : out Boolean)
    is
-      Offset, BCount : Unsigned_64;
+      Block_Sz    : Unsigned_64;
+      First, Last : Unsigned_64;
    begin
-      Offset :=
-         Shift_Right (Start and not Unsigned_64 (FS_Data.Block_Size - 1),
-                      Natural (10 + FS_Data.Super.Block_Size_Log));
-      BCount :=
-         Shift_Right ((Start and Unsigned_64 (FS_Data.Block_Size - 1)) +
-                      Count + Unsigned_64 (FS_Data.Block_Size - 1),
-                      Natural (10 + FS_Data.Super.Block_Size_Log));
+      Block_Sz := Unsigned_64 (FS_Data.Block_Size);
+
+      if Count = 0 then
+         Success := True;
+         return;
+      end if;
+
+      First := Start / Block_Sz;
+      Last  := (Start + Count - 1) / Block_Sz;
+      if Last > Unsigned_64 (Unsigned_32'Last) then
+         Success := False;
+         return;
+      end if;
 
       Assign_Inode_Blocks
          (FS_Data     => FS_Data,
           Inode_Data  => Inode_Data,
           Inode_Num   => Inode_Num,
-          Start_Blk   => Unsigned_32 (Offset),
-          Block_Count => Unsigned_32 (BCount),
+          Start_Blk   => Unsigned_32 (First),
+          Block_Count => Unsigned_32 (Last - First + 1),
           Success     => Success);
    exception
       when Constraint_Error =>
@@ -2236,280 +3098,279 @@ package body VFS.EXT with SPARK_Mode => Off is
        Block_Count : Unsigned_32;
        Success     : out Boolean)
    is
-      Ret_Blk : Unsigned_32;
+      Goal       : Unsigned_32;
+      Per_Sector : Unsigned_32;
+      Cursor     : Map_Cursor := Empty_Cursor;
+      Index, Need, Got, First, Blk : Unsigned_32;
    begin
-      for I in 0 .. Block_Count - 1 loop
-         Ret_Blk := Get_Block_Index (FS_Data, Inode_Data, Start_Blk + I);
-         if Ret_Blk = 0 then
-            Allocate_Block_For_Inode
-               (FS_Data    => FS_Data,
-                Inode_Data => Inode_Data,
-                Inode_Num  => Inode_Num,
-                Ret_Block  => Ret_Blk,
-                Success    => Success);
-            if not Success then
-               return;
-            end if;
-            Wire_Inode_Blocks
-               (FS_Data     => FS_Data,
-                Inode_Data  => Inode_Data,
-                Inode_Num   => Inode_Num,
-                Block_Index => Start_Blk + I,
-                Wired_Block => Ret_Blk,
-                Success     => Success);
-            if not Success then
-               return;
-            end if;
+      Goal := (if Inode_Num > 0
+               then (Inode_Num - 1) / FS_Data.Super.Inodes_Per_Group
+               else 0);
+      Per_Sector := FS_Data.Block_Size / Sector_Unit;
+
+      Success := True;
+      if Block_Count = 0 then
+         return;
+      end if;
+
+      Index := 0;
+      while Index < Block_Count loop
+         Get_Block_Index
+            (FS_Data, Inode_Data, Start_Blk + Index, Cursor, Blk, Success);
+         exit when not Success;
+
+         if Blk /= 0 then
+            Index := Index + 1;
+         else
+            --  Count how many blocks in a row are still missing and ask for
+            --  all of them at once. That reads the bitmap once instead of
+            --  once per block, and lays the file out contiguously, which is
+            --  what lets reads of it later be merged into single operations.
+            Need := 1;
+            while Index + Need < Block_Count loop
+               Get_Block_Index
+                  (FS_Data, Inode_Data, Start_Blk + Index + Need, Cursor,
+                   Blk, Success);
+               exit when not Success or else Blk /= 0;
+               Need := Need + 1;
+            end loop;
+            exit when not Success;
+
+            Allocate_Blocks (FS_Data, Goal, Need, First, Got, Success);
+            exit when not Success;
+
+            Inode_Data.Sectors := Inode_Data.Sectors + Got * Per_Sector;
+            for J in 0 .. Got - 1 loop
+               Wire_Inode_Blocks
+                  (FS_Data, Inode_Data, Start_Blk + Index + J, First + J,
+                   Cursor, Success);
+               exit when not Success;
+            end loop;
+            exit when not Success;
+
+            Index := Index + Got;
          end if;
       end loop;
 
-      RW_Inode
-         (Data            => FS_Data,
-          Inode_Index     => Inode_Num,
-          Result          => Inode_Data,
-          Write_Operation => True,
-          Success         => Success);
-   end Assign_Inode_Blocks;
-
-   procedure Wire_Inode_Blocks
-      (FS_Data     : EXT_Data_Acc;
-       Inode_Data  : in out Inode;
-       Inode_Num   : Unsigned_32;
-       Block_Index : Unsigned_32;
-       Wired_Block : Unsigned_32;
-       Success     : out Boolean)
-   is
-      Adjusted_Block : Unsigned_32 := Block_Index;
-      DBlock         : Unsigned_32 := Wired_Block;
-      Block_Level, Single_Index, Indirect_Offset, Indirect_Block : Unsigned_32;
-      Double_Indirect, Single_Indirect_Index, Temp               : Unsigned_32;
-
-      Single_Indirect_Index_Data : Operation_Data (1 .. 4)
-         with Import, Address => Single_Indirect_Index'Address;
-      Indirect_Block_Data : Operation_Data (1 .. 4)
-         with Import, Address => Indirect_Block'Address;
-      DBlock_Data : Operation_Data (1 .. 4)
-         with Import, Address => DBlock'Address;
-
-      Discard_1 : Natural;
-      Discard_2 : Boolean;
-      Discard_3 : Devices.Dev_Status;
-   begin
-      Block_Level := FS_Data.Block_Size / 4;
-
-      if Adjusted_Block < 12 then
-         Inode_Data.Blocks (Natural (Adjusted_Block)) := Wired_Block;
-         Success := True;
-         return;
-      else
-         Adjusted_Block := Adjusted_Block - 12;
-      end if;
-
-      if Adjusted_Block >= Block_Level then
-         Adjusted_Block  := Adjusted_Block - Block_Level;
-         Single_Index    := Adjusted_Block / Block_Level;
-         Indirect_Offset := Adjusted_Block mod Block_Level;
-         Indirect_Block  := 0;
-
-         if Single_Index >= Block_Level then
-            Adjusted_Block         := Adjusted_Block - (Block_Level ** 2);
-            Double_Indirect        := Adjusted_Block / Block_Level;
-            Indirect_Offset        := Adjusted_Block mod Block_Level;
-            Single_Indirect_Index  := 0;
-
-            if Inode_Data.Blocks (14) = 0 then
-               Allocate_Block_For_Inode
-                  (FS_Data    => FS_Data,
-                   Inode_Data => Inode_Data,
-                   Inode_Num  => Inode_Num,
-                   Ret_Block  => Temp,
-                   Success    => Discard_2);
-               Inode_Data.Blocks (14) := Temp;
-               RW_Inode
-                  (Data            => FS_Data,
-                   Inode_Index     => Inode_Num,
-                   Result          => Inode_Data,
-                   Write_Operation => True,
-                   Success         => Discard_2);
-            end if;
-
-            Devices.Read
-               (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Inode_Data.Blocks (14)) *
-                             Unsigned_64 (FS_Data.Block_Size) +
-                             Unsigned_64 (Double_Indirect) * 4,
-                Data      => Single_Indirect_Index_Data,
-                Ret_Count => Discard_1,
-                Success   => Discard_3);
-
-            if Single_Indirect_Index = 0 then
-               Allocate_Block_For_Inode
-                  (FS_Data    => FS_Data,
-                   Inode_Data => Inode_Data,
-                   Inode_Num  => Inode_Num,
-                   Ret_Block  => Single_Indirect_Index,
-                   Success    => Discard_2);
-
-               Devices.Write
-                 (Handle    => FS_Data.Handle,
-                  Offset    => Unsigned_64 (Inode_Data.Blocks (14) *
-                               FS_Data.Block_Size + Double_Indirect * 4),
-                  Data      => Single_Indirect_Index_Data,
-                  Ret_Count => Discard_1,
-                  Success   => Discard_3);
-            end if;
-
-            Devices.Read
-               (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Double_Indirect) *
-                             Unsigned_64 (FS_Data.Block_Size) +
-                             Unsigned_64 (Single_Indirect_Index) * 4,
-                Data      => Indirect_Block_Data,
-                Ret_Count => Discard_1,
-                Success   => Discard_3);
-
-            if Indirect_Block = 0 then
-               Allocate_Block_For_Inode
-                  (FS_Data    => FS_Data,
-                   Inode_Data => Inode_Data,
-                   Inode_Num  => Inode_Num,
-                   Ret_Block  => Temp,
-                   Success    => Discard_2);
-
-               Devices.Write
-                  (Handle   => FS_Data.Handle,
-                   Offset    => Unsigned_64 (Double_Indirect    *
-                                             FS_Data.Block_Size +
-                                             Single_Indirect_Index * 4),
-                  Data      => Indirect_Block_Data,
-                  Ret_Count => Discard_1,
-                  Success   => Discard_3);
-
-               Indirect_Block := Temp;
-            end if;
-
-            Devices.Write
-               (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Indirect_Block * FS_Data.Block_Size +
-                             Indirect_Offset * 4),
-                Data      => DBlock_Data,
-                Ret_Count => Discard_1,
-                Success   => Discard_3);
-            Success := True;
-            return;
-         end if;
-
-         if Inode_Data.Blocks (13) = 0 then
-            Allocate_Block_For_Inode
-               (FS_Data    => FS_Data,
-                Inode_Data => Inode_Data,
-                Inode_Num  => Inode_Num,
-                Ret_Block  => Temp,
-                Success    => Discard_2);
-            Inode_Data.Blocks (13) := Temp;
-            RW_Inode
-               (Data            => FS_Data,
-                Inode_Index     => Inode_Num,
-                Result          => Inode_Data,
-                Write_Operation => True,
-                Success         => Discard_2);
-         end if;
-
-         Devices.Read
-            (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Inode_Data.Blocks (13)) *
-                          Unsigned_64 (FS_Data.Block_Size) +
-                          Unsigned_64 (Single_Index) * 4,
-             Data      => Indirect_Block_Data,
-             Ret_Count => Discard_1,
-             Success   => Discard_3);
-
-         if Indirect_Block = 0 then
-            Allocate_Block_For_Inode
-               (FS_Data    => FS_Data,
-                Inode_Data => Inode_Data,
-                Inode_Num  => Inode_Num,
-                Ret_Block  => Indirect_Block,
-                Success    => Discard_2);
-
-            Devices.Write
-               (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Inode_Data.Blocks (13) *
-                                          FS_Data.Block_Size     +
-                                          Single_Index * 4),
-                Data      => Indirect_Block_Data,
-                Ret_Count => Discard_1,
-                Success   => Discard_3);
-         end if;
-
-         Devices.Write
-            (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Indirect_Block * FS_Data.Block_Size +
-                                       Indirect_Offset * 4),
-             Data      => DBlock_Data,
-             Ret_Count => Discard_1,
-             Success   => Discard_3);
-         Success := True;
-         return;
-      end if;
-
-      if Inode_Data.Blocks (12) = 0 then
-         Allocate_Block_For_Inode
-            (FS_Data    => FS_Data,
-             Inode_Data => Inode_Data,
-             Inode_Num  => Inode_Num,
-             Ret_Block  => Temp,
-             Success    => Discard_2);
-         Inode_Data.Blocks (12) := Temp;
+      Close_Cursor (Cursor);
+      if Success then
          RW_Inode
             (Data            => FS_Data,
              Inode_Index     => Inode_Num,
              Result          => Inode_Data,
              Write_Operation => True,
-             Success         => Discard_2);
+             Success         => Success);
       end if;
-
-      Devices.Write
-         (Handle    => FS_Data.Handle,
-          Offset    => Unsigned_64 (Inode_Data.Blocks (12) * FS_Data.Block_Size
-                                    + Adjusted_Block * 4),
-          Data      => DBlock_Data,
-          Ret_Count => Discard_1,
-          Success   => Discard_3);
-      Success := True;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Exception while wiring blocks from an EXT inode");
+         Close_Cursor (Cursor);
+         Messages.Put_Line ("Exception while assigning EXT inode blocks");
+         Success := False;
+   end Assign_Inode_Blocks;
+
+   procedure Ensure_Pointer_Root
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Goal       : Unsigned_32;
+       Which      : Natural;
+       Cursor     : in out Map_Cursor;
+       Success    : out Boolean)
+   is
+      Blk : Unsigned_32;
+   begin
+      if Inode_Data.Blocks (Which) /= 0 then
+         Success := True;
+         return;
+      end if;
+
+      Allocate_Block_For_Inode (FS_Data, Inode_Data, Goal, Blk, Success);
+      if not Success then
+         return;
+      end if;
+
+      --  A block of pointers has to read as all zeroes to start with, else
+      --  whatever the block used to hold would pass for block numbers.
+      Zero_Out_Block (FS_Data, Blk, Success);
+      if not Success then
+         return;
+      end if;
+
+      Drop_Cursor_Block (Cursor, Blk);
+      Inode_Data.Blocks (Which) := Blk;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while rooting an EXT pointer block");
+         Success := False;
+   end Ensure_Pointer_Root;
+
+   procedure Ensure_Child
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Goal       : Unsigned_32;
+       Parent     : Unsigned_32;
+       Index      : Unsigned_64;
+       Cursor     : in out Map_Cursor;
+       Child      : out Unsigned_32;
+       Success    : out Boolean)
+   is
+   begin
+      Fetch_Pointer (FS_Data, Parent, Index, Child, Success);
+      if not Success or else Child /= 0 then
+         return;
+      end if;
+
+      Allocate_Block_For_Inode (FS_Data, Inode_Data, Goal, Child, Success);
+      if not Success then
+         return;
+      end if;
+      Zero_Out_Block (FS_Data, Child, Success);
+      if not Success then
+         return;
+      end if;
+      Drop_Cursor_Block (Cursor, Child);
+
+      Put_Pointer (FS_Data, Parent, Index, Child, Success);
+      Patch_Cursor (Cursor, Parent, Index, Child);
+   end Ensure_Child;
+
+   procedure Wire_Inode_Blocks
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Block_Index : Unsigned_32;
+       Wired_Block : Unsigned_32;
+       Cursor      : in out Map_Cursor;
+       Success     : out Boolean)
+   is
+      Per_Blk  : Unsigned_64;
+      Goal     : Unsigned_32;
+      Idx      : Unsigned_64;
+      Top, Mid : Unsigned_32;
+   begin
+      Per_Blk := Unsigned_64 (FS_Data.Pointers_Per_Block);
+      Goal    := (if Wired_Block >= FS_Data.First_Data_Block
+                  then (Wired_Block - FS_Data.First_Data_Block) /
+                       FS_Data.Super.Blocks_Per_Group
+                  else 0);
+      Idx     := Unsigned_64 (Block_Index);
+      Success := False;
+
+      if Idx < 12 then
+         Inode_Data.Blocks (Natural (Idx)) := Wired_Block;
+         Success := True;
+         return;
+      end if;
+      Idx := Idx - 12;
+
+      if Idx < Per_Blk then
+         Ensure_Pointer_Root (FS_Data, Inode_Data, Goal, 12, Cursor, Success);
+         if not Success then
+            return;
+         end if;
+         Top := Inode_Data.Blocks (12);
+         Put_Pointer (FS_Data, Top, Idx, Wired_Block, Success);
+         Patch_Cursor (Cursor, Top, Idx, Wired_Block);
+         return;
+      end if;
+      Idx := Idx - Per_Blk;
+
+      if Idx < Per_Blk * Per_Blk then
+         Ensure_Pointer_Root (FS_Data, Inode_Data, Goal, 13, Cursor, Success);
+         if not Success then
+            return;
+         end if;
+         Ensure_Child
+            (FS_Data, Inode_Data, Goal, Inode_Data.Blocks (13),
+             Idx / Per_Blk, Cursor, Mid, Success);
+         if not Success then
+            return;
+         end if;
+         Put_Pointer (FS_Data, Mid, Idx mod Per_Blk, Wired_Block, Success);
+         Patch_Cursor (Cursor, Mid, Idx mod Per_Blk, Wired_Block);
+         return;
+      end if;
+      Idx := Idx - Per_Blk * Per_Blk;
+
+      if Idx < Per_Blk * Per_Blk * Per_Blk then
+         Ensure_Pointer_Root (FS_Data, Inode_Data, Goal, 14, Cursor, Success);
+         if not Success then
+            return;
+         end if;
+         Ensure_Child
+            (FS_Data, Inode_Data, Goal, Inode_Data.Blocks (14),
+             Idx / (Per_Blk * Per_Blk), Cursor, Top, Success);
+         if not Success then
+            return;
+         end if;
+         Ensure_Child
+            (FS_Data, Inode_Data, Goal, Top,
+             (Idx / Per_Blk) mod Per_Blk, Cursor, Mid, Success);
+         if not Success then
+            return;
+         end if;
+         Put_Pointer (FS_Data, Mid, Idx mod Per_Blk, Wired_Block, Success);
+         Patch_Cursor (Cursor, Mid, Idx mod Per_Blk, Wired_Block);
+         return;
+      end if;
+
+      Success := False;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while wiring blocks of an EXT inode");
          Success := False;
    end Wire_Inode_Blocks;
 
-   procedure Allocate_Block_For_Inode
-      (FS_Data    : EXT_Data_Acc;
-       Inode_Data : in out Inode;
-       Inode_Num  : Unsigned_32;
-       Ret_Block  : out Unsigned_32;
-       Success    : out Boolean)
+   procedure Allocate_Blocks
+      (FS_Data   : EXT_Data_Acc;
+       Goal      : Unsigned_32;
+       Wanted    : Unsigned_32;
+       Ret_Block : out Unsigned_32;
+       Ret_Count : out Unsigned_32;
+       Success   : out Boolean)
    is
-      Succ       : Devices.Dev_Status;
-      Ret_Count  : Natural;
-      Desc       : Block_Group_Descriptor;
-      Curr_Block : Unsigned_32;
-      Bitmap     : Operation_Data_Acc;
+      Start_Group : Unsigned_32;
+      Desc      : Block_Group_Descriptor;
+      Bitmap    : Operation_Data_Acc;
+      Dev_Count : Natural;
+      Succ      : Devices.Dev_Status;
+      Group, Limit, Bit, Found, Taken, Ask : Unsigned_32;
+      Byte      : Natural;
+      Ok        : Boolean;
+      Base      : Unsigned_64;
    begin
-      Bitmap :=  new Operation_Data (1 .. Natural (FS_Data.Block_Size));
-      for I in 0 .. FS_Data.Super.Block_Count loop
-         RW_Block_Group_Descriptor
-            (Data             => FS_Data,
-             Descriptor_Index => I,
-             Result           => Desc,
-             Write_Operation  => False,
-             Success          => Success);
-         if not Success then
-            goto Error_Return;
+      Start_Group := (if Goal < FS_Data.Block_Group_Count then Goal else 0);
+      Ret_Block := 0;
+      Ret_Count := 0;
+      Success   := False;
+      if Wanted = 0 then
+         return;
+      end if;
+
+      Bitmap := new Operation_Data (1 .. Natural (FS_Data.Block_Size));
+
+      for N in 0 .. FS_Data.Block_Group_Count - 1 loop
+         Group := (Start_Group + N) mod FS_Data.Block_Group_Count;
+         RW_Block_Group_Descriptor (FS_Data, Group, Desc, False, Ok);
+         if not Ok then
+            goto Cleanup;
+         end if;
+         if Desc.Unallocated_Blocks = 0 then
+            goto Next_Group;
          end if;
 
-         if Desc.Unallocated_Blocks = 0 then
-            goto Next_Iteration;
+         Limit := FS_Data.Super.Blocks_Per_Group;
+         Base  := Unsigned_64 (FS_Data.First_Data_Block) +
+                  Unsigned_64 (Group) * Unsigned_64 (Limit);
+         if Base + Unsigned_64 (Limit) >
+            Unsigned_64 (FS_Data.Super.Block_Count)
+         then
+            Limit := Unsigned_32
+               (Unsigned_64 (FS_Data.Super.Block_Count) - Base);
+         end if;
+         if Limit > FS_Data.Block_Size * 8 then
+            Limit := FS_Data.Block_Size * 8;
+         end if;
+         if Limit = 0 then
+            goto Next_Group;
          end if;
 
          Devices.Read
@@ -2517,111 +3378,167 @@ package body VFS.EXT with SPARK_Mode => Off is
              Offset    => Unsigned_64 (Desc.Block_Usage_Bitmap_Block) *
                           Unsigned_64 (FS_Data.Block_Size),
              Data      => Bitmap.all,
-             Ret_Count => Ret_Count,
+             Ret_Count => Dev_Count,
              Success   => Succ);
-         if Succ /= Devices.Dev_Success then
-            goto Error_Return;
+         if Succ /= Devices.Dev_Success or else Dev_Count /= Bitmap'Length then
+            goto Cleanup;
          end if;
 
-         Curr_Block := 0;
-         for J in Bitmap'Range loop
-            if Bitmap (J) /= 16#FF# then
-               for Bit in 0 .. 7 loop
-                  if (Bitmap (J) and Shift_Right (2#10000000#, Bit)) = 0 then
-                     Bitmap (J) := Bitmap (J) or
-                                      Shift_Right (2#10000000#, Bit);
-                     Curr_Block := (I * FS_Data.Super.Blocks_Per_Group) +
-                                   (Unsigned_32 (J - 1) * 8) +
-                                   Unsigned_32 (Bit);
-                     goto End_Search_Loop;
-                  end if;
-               end loop;
+         --  Bits go least significant first inside each byte, the way EXT
+         --  writes them. Walking them the other way round, as used to
+         --  happen, marks one block as taken and hands back a different one.
+         Found := Limit;
+         Bit   := 0;
+         while Bit < Limit loop
+            Byte := Bitmap'First + Natural (Bit / 8);
+            if (Bit mod 8) = 0 and then Bitmap (Byte) = 16#FF# then
+               Bit := Bit + 8;
+            else
+               if (Bitmap (Byte) and
+                   Shift_Left (Unsigned_8'(1), Natural (Bit mod 8))) = 0
+               then
+                  Found := Bit;
+                  exit;
+               end if;
+               Bit := Bit + 1;
             end if;
          end loop;
-      <<End_Search_Loop>>
-         if Curr_Block = 0 then
-            goto Next_Iteration;
+         if Found >= Limit then
+            goto Next_Group;
+         end if;
+
+         --  Take as many blocks in a row as were asked for and are free.
+         Ask :=
+            Unsigned_32'Min (Wanted, Unsigned_32 (Desc.Unallocated_Blocks));
+         Taken := 0;
+         while Taken < Ask and then Found + Taken < Limit loop
+            Byte := Bitmap'First + Natural ((Found + Taken) / 8);
+            exit when (Bitmap (Byte) and
+                       Shift_Left (Unsigned_8'(1),
+                                   Natural ((Found + Taken) mod 8))) /= 0;
+            Bitmap (Byte) := Bitmap (Byte) or
+               Shift_Left (Unsigned_8'(1), Natural ((Found + Taken) mod 8));
+            Taken := Taken + 1;
+         end loop;
+         if Taken = 0 then
+            goto Next_Group;
          end if;
 
          Devices.Write
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Desc.Block_Usage_Bitmap_Block *
-                                       FS_Data.Block_Size),
+             Offset    => Unsigned_64 (Desc.Block_Usage_Bitmap_Block) *
+                          Unsigned_64 (FS_Data.Block_Size),
              Data      => Bitmap.all,
-             Ret_Count => Ret_Count,
+             Ret_Count => Dev_Count,
              Success   => Succ);
-         if Succ /= Devices.Dev_Success then
-            goto Error_Return;
+         if Succ /= Devices.Dev_Success or else Dev_Count /= Bitmap'Length then
+            goto Cleanup;
          end if;
 
-         FS_Data.Super.Unallocated_Block_Count :=
-            FS_Data.Super.Unallocated_Block_Count - 1;
-         Desc.Unallocated_Blocks := Desc.Unallocated_Blocks - 1;
-
-         Inode_Data.Sectors := Inode_Data.Sectors + (FS_Data.Block_Size /
-                               Unsigned_32 (Get_Block_Size (FS_Data.Handle)));
-         RW_Inode
-            (Data            => FS_Data,
-             Inode_Index     => Inode_Num,
-             Result          => Inode_Data,
-             Write_Operation => True,
-             Success         => Success);
-         if not Success then
-            goto Error_Return;
+         Desc.Unallocated_Blocks :=
+            Desc.Unallocated_Blocks - Unsigned_16 (Taken);
+         RW_Block_Group_Descriptor (FS_Data, Group, Desc, True, Ok);
+         if not Ok then
+            goto Cleanup;
          end if;
 
-         RW_Block_Group_Descriptor
-            (Data             => FS_Data,
-             Descriptor_Index => I,
-             Result           => Desc,
-             Write_Operation  => True,
-             Success          => Success);
-         if not Success then
-            goto Error_Return;
+         if FS_Data.Super.Unallocated_Block_Count >= Taken then
+            FS_Data.Super.Unallocated_Block_Count :=
+               FS_Data.Super.Unallocated_Block_Count - Taken;
+         else
+            FS_Data.Super.Unallocated_Block_Count := 0;
          end if;
-         Ret_Block := Curr_Block;
-         Free (Bitmap);
-         Success := True;
-         return;
-   <<Next_Iteration>>
+
+         FS_Data.Search_Group := Group;
+         Ret_Block := Unsigned_32 (Base + Unsigned_64 (Found));
+         Ret_Count := Taken;
+         Success   := True;
+         goto Cleanup;
+
+      <<Next_Group>>
       end loop;
 
-   <<Error_Return>>
+   <<Cleanup>>
       Free (Bitmap);
-      Ret_Block := 0;
-      Success := False;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Exception while allocating EXT inode blocks");
+         Free (Bitmap);
+         Messages.Put_Line ("Exception while allocating EXT blocks");
+         Ret_Block := 0;
+         Ret_Count := 0;
+         Success   := False;
+   end Allocate_Blocks;
+
+   procedure Allocate_Block
+      (FS_Data   : EXT_Data_Acc;
+       Goal      : Unsigned_32;
+       Ret_Block : out Unsigned_32;
+       Success   : out Boolean)
+   is
+      Count : Unsigned_32;
+   begin
+      Allocate_Blocks (FS_Data, Goal, 1, Ret_Block, Count, Success);
+      Success := Success and then Count = 1;
+   end Allocate_Block;
+
+   procedure Allocate_Block_For_Inode
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Goal       : Unsigned_32;
+       Ret_Block  : out Unsigned_32;
+       Success    : out Boolean)
+   is
+   begin
+      Allocate_Block (FS_Data, Goal, Ret_Block, Success);
+      if Success then
+         Inode_Data.Sectors :=
+            Inode_Data.Sectors + (FS_Data.Block_Size / Sector_Unit);
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while allocating an EXT block");
          Ret_Block := 0;
          Success   := False;
    end Allocate_Block_For_Inode;
 
    procedure Allocate_Inode
-      (FS_Data   : EXT_Data_Acc;
-       Inode_Num : out Unsigned_32;
-       Success   : out Boolean)
+      (FS_Data      : EXT_Data_Acc;
+       Is_Directory : Boolean;
+       Goal         : Unsigned_32;
+       Inode_Num    : out Unsigned_32;
+       Success      : out Boolean)
    is
-      Ret_Count  : Natural;
-      Succ       : Devices.Dev_Status;
-      Desc       : Block_Group_Descriptor;
-      Curr_Block : Unsigned_32;
-      Bitmap     : Operation_Data_Acc;
+      Start_Group : Unsigned_32;
+      Per_Group : Unsigned_32;
+      Desc      : Block_Group_Descriptor;
+      Bitmap    : Operation_Data_Acc;
+      Dev_Count : Natural;
+      Succ      : Devices.Dev_Status;
+      Group, Limit, Bit, Found : Unsigned_32;
+      Candidate : Unsigned_64;
+      Byte      : Natural;
+      Ok        : Boolean;
    begin
+      Start_Group := (if Goal < FS_Data.Block_Group_Count then Goal else 0);
+      Per_Group   := FS_Data.Super.Inodes_Per_Group;
+      Inode_Num := 0;
+      Success   := False;
+
       Bitmap := new Operation_Data (1 .. Natural (FS_Data.Block_Size));
-      for I in 0 .. FS_Data.Super.Inode_Count loop
-         RW_Block_Group_Descriptor
-            (Data             => FS_Data,
-             Descriptor_Index => I,
-             Result           => Desc,
-             Write_Operation  => False,
-             Success          => Success);
-         if not Success then
-            goto Error_Return;
+
+      for N in 0 .. FS_Data.Block_Group_Count - 1 loop
+         Group := (Start_Group + N) mod FS_Data.Block_Group_Count;
+         RW_Block_Group_Descriptor (FS_Data, Group, Desc, False, Ok);
+         if not Ok then
+            goto Cleanup;
+         end if;
+         if Desc.Unallocated_Inodes = 0 then
+            goto Next_Group;
          end if;
 
-         if Desc.Unallocated_Inodes = 0 then
-            goto Next_Iteration;
+         Limit := Per_Group;
+         if Limit > FS_Data.Block_Size * 8 then
+            Limit := FS_Data.Block_Size * 8;
          end if;
 
          Devices.Read
@@ -2629,77 +3546,662 @@ package body VFS.EXT with SPARK_Mode => Off is
              Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block) *
                           Unsigned_64 (FS_Data.Block_Size),
              Data      => Bitmap.all,
-             Ret_Count => Ret_Count,
+             Ret_Count => Dev_Count,
              Success   => Succ);
-         if Succ /= Devices.Dev_Success then
-            goto Error_Return;
+         if Succ /= Devices.Dev_Success or else Dev_Count /= Bitmap'Length then
+            goto Cleanup;
          end if;
 
-         Curr_Block := 0;
-         for J in Bitmap'Range loop
-            if Bitmap (J) /= 16#FF# then
-               for Bit in 0 .. 7 loop
-                  if (Bitmap (J) and Shift_Right (2#10000000#, Bit)) = 0 then
-                     Curr_Block := (I * FS_Data.Super.Blocks_Per_Group) +
-                                   (Unsigned_32 (J - 1) * 8) +
-                                   Unsigned_32 (Bit);
-                     if Curr_Block > FS_Data.Super.First_Non_Reserved and
-                        Curr_Block > 11
-                     then
-                        Bitmap (J) := Bitmap (J) or
-                                      Shift_Right (2#10000000#, Bit);
-                        goto End_Search_Loop;
-                     end if;
-                  end if;
-               end loop;
+         --  Inodes are numbered from one, so bit b of group g stands for
+         --  inode g * per_group + b + 1.
+         Found := Limit;
+         Bit   := 0;
+         if Group = 0 and then FS_Data.First_Inode > 1 then
+            Bit := FS_Data.First_Inode - 1;
+         end if;
+         while Bit < Limit loop
+            Candidate := Unsigned_64 (Group) * Unsigned_64 (Per_Group) +
+                         Unsigned_64 (Bit) + 1;
+            exit when Candidate > Unsigned_64 (FS_Data.Super.Inode_Count);
+            Byte := Bitmap'First + Natural (Bit / 8);
+            if (Bit mod 8) = 0 and then Bitmap (Byte) = 16#FF# then
+               Bit := Bit + 8;
+            else
+               if (Bitmap (Byte) and
+                   Shift_Left (Unsigned_8'(1), Natural (Bit mod 8))) = 0
+               then
+                  Found := Bit;
+                  exit;
+               end if;
+               Bit := Bit + 1;
             end if;
          end loop;
-      <<End_Search_Loop>>
-         if Curr_Block = 0 then
-            goto Next_Iteration;
+         if Found >= Limit then
+            goto Next_Group;
          end if;
+
+         Byte := Bitmap'First + Natural (Found / 8);
+         Bitmap (Byte) := Bitmap (Byte) or
+            Shift_Left (Unsigned_8'(1), Natural (Found mod 8));
 
          Devices.Write
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block *
-                                       FS_Data.Block_Size),
+             Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block) *
+                          Unsigned_64 (FS_Data.Block_Size),
              Data      => Bitmap.all,
-             Ret_Count => Ret_Count,
+             Ret_Count => Dev_Count,
              Success   => Succ);
-         if Succ /= Devices.Dev_Success then
-            goto Error_Return;
+         if Succ /= Devices.Dev_Success or else Dev_Count /= Bitmap'Length then
+            goto Cleanup;
          end if;
 
-         FS_Data.Super.Unallocated_Inode_Count :=
-            FS_Data.Super.Unallocated_Inode_Count - 1;
          Desc.Unallocated_Inodes := Desc.Unallocated_Inodes - 1;
-
-         RW_Block_Group_Descriptor
-            (Data             => FS_Data,
-             Descriptor_Index => I,
-             Result           => Desc,
-             Write_Operation  => True,
-             Success          => Success);
-         if not Success then
-            goto Error_Return;
+         if Is_Directory then
+            Desc.Directory_Count := Desc.Directory_Count + 1;
          end if;
-         Inode_Num := Curr_Block;
-         Free (Bitmap);
-         Success := True;
-         return;
-   <<Next_Iteration>>
+         RW_Block_Group_Descriptor (FS_Data, Group, Desc, True, Ok);
+         if not Ok then
+            goto Cleanup;
+         end if;
+
+         if FS_Data.Super.Unallocated_Inode_Count /= 0 then
+            FS_Data.Super.Unallocated_Inode_Count :=
+               FS_Data.Super.Unallocated_Inode_Count - 1;
+         end if;
+
+         Inode_Num := Group * Per_Group + Found + 1;
+         Success   := True;
+         goto Cleanup;
+
+      <<Next_Group>>
       end loop;
 
-   <<Error_Return>>
-      Inode_Num := 0;
+   <<Cleanup>>
       Free (Bitmap);
-      Success := False;
    exception
       when Constraint_Error =>
+         Free (Bitmap);
          Messages.Put_Line ("Exception while allocating an EXT inode");
          Inode_Num := 0;
          Success   := False;
    end Allocate_Inode;
+
+   procedure Free_Blocks
+      (FS_Data : EXT_Data_Acc;
+       First   : Unsigned_32;
+       Count   : Unsigned_32;
+       Success : out Boolean)
+   is
+      Per_Group : Unsigned_32;
+      Bit_Limit : Unsigned_32;
+      Desc      : Block_Group_Descriptor;
+      Bitmap    : Operation_Data_Acc;
+      Dev_Count : Natural;
+      Succ      : Devices.Dev_Status;
+      Ok        : Boolean;
+      Done, Blk, Group, Bit, Here, Stepped, Cleared : Unsigned_32;
+      Byte      : Natural;
+      Mask      : Unsigned_8;
+   begin
+      Per_Group := FS_Data.Super.Blocks_Per_Group;
+      Bit_Limit := Unsigned_32'Min (Per_Group, FS_Data.Block_Size * 8);
+
+      Success := True;
+      if Count = 0 then
+         return;
+      elsif First < FS_Data.First_Data_Block or else
+            Unsigned_64 (First) + Unsigned_64 (Count) >
+            Unsigned_64 (FS_Data.Super.Block_Count)
+      then
+         --  Refuse a block number that is not one of ours rather than
+         --  clearing a bit somewhere else in the filesystem.
+         Success := False;
+         return;
+      end if;
+
+      Bitmap := new Operation_Data (1 .. Natural (FS_Data.Block_Size));
+      Done   := 0;
+
+      while Done < Count loop
+         Blk   := First + Done;
+         Group := (Blk - FS_Data.First_Data_Block) / Per_Group;
+         Bit   := (Blk - FS_Data.First_Data_Block) mod Per_Group;
+
+         RW_Block_Group_Descriptor (FS_Data, Group, Desc, False, Ok);
+         if not Ok then
+            Success := False;
+            goto Cleanup;
+         end if;
+
+         Devices.Read
+            (Handle    => FS_Data.Handle,
+             Offset    => Unsigned_64 (Desc.Block_Usage_Bitmap_Block) *
+                          Unsigned_64 (FS_Data.Block_Size),
+             Data      => Bitmap.all,
+             Ret_Count => Dev_Count,
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success or else Dev_Count /= Bitmap'Length then
+            Success := False;
+            goto Cleanup;
+         end if;
+
+         --  Clear every bit of the run that falls in this group, then move
+         --  on to the next one. Runs are the common case when a file is
+         --  thrown away, so one pass over a bitmap covers many blocks.
+         Stepped := 0;
+         Cleared := 0;
+         Here    := Bit;
+         while Done + Stepped < Count and then Here < Bit_Limit loop
+            Byte := Bitmap'First + Natural (Here / 8);
+            Mask := Shift_Left (Unsigned_8'(1), Natural (Here mod 8));
+            if (Bitmap (Byte) and Mask) /= 0 then
+               Bitmap (Byte) := Bitmap (Byte) and not Mask;
+               Cleared := Cleared + 1;
+            end if;
+            Here    := Here + 1;
+            Stepped := Stepped + 1;
+         end loop;
+         if Stepped = 0 then
+            Success := False;
+            goto Cleanup;
+         end if;
+
+         if Cleared /= 0 then
+            Devices.Write
+               (Handle    => FS_Data.Handle,
+                Offset    => Unsigned_64 (Desc.Block_Usage_Bitmap_Block) *
+                             Unsigned_64 (FS_Data.Block_Size),
+                Data      => Bitmap.all,
+                Ret_Count => Dev_Count,
+                Success   => Succ);
+            if Succ /= Devices.Dev_Success or else
+               Dev_Count /= Bitmap'Length
+            then
+               Success := False;
+               goto Cleanup;
+            end if;
+
+            if Unsigned_32 (Desc.Unallocated_Blocks) + Cleared <=
+               Unsigned_32 (Unsigned_16'Last)
+            then
+               Desc.Unallocated_Blocks :=
+                  Desc.Unallocated_Blocks + Unsigned_16 (Cleared);
+            else
+               Desc.Unallocated_Blocks := Unsigned_16'Last;
+            end if;
+            RW_Block_Group_Descriptor (FS_Data, Group, Desc, True, Ok);
+            if not Ok then
+               Success := False;
+               goto Cleanup;
+            end if;
+
+            FS_Data.Super.Unallocated_Block_Count :=
+               FS_Data.Super.Unallocated_Block_Count + Cleared;
+         end if;
+
+         Done := Done + Stepped;
+      end loop;
+
+   <<Cleanup>>
+      Free (Bitmap);
+   exception
+      when Constraint_Error =>
+         Free (Bitmap);
+         Messages.Put_Line ("Exception while freeing EXT blocks");
+         Success := False;
+   end Free_Blocks;
+
+   procedure Free_Block
+      (FS_Data : EXT_Data_Acc;
+       Block   : Unsigned_32;
+       Success : out Boolean)
+   is
+   begin
+      Free_Blocks (FS_Data, Block, 1, Success);
+   end Free_Block;
+
+   procedure Free_Inode_Number
+      (FS_Data      : EXT_Data_Acc;
+       Inode_Num    : Unsigned_32;
+       Is_Directory : Boolean;
+       Success      : out Boolean)
+   is
+      Per_Group : Unsigned_32;
+      Desc      : Block_Group_Descriptor;
+      Bitmap    : Operation_Data_Acc;
+      Dev_Count : Natural;
+      Succ      : Devices.Dev_Status;
+      Ok        : Boolean;
+      Group, Bit : Unsigned_32;
+      Byte      : Natural;
+      Mask      : Unsigned_8;
+   begin
+      Per_Group := FS_Data.Super.Inodes_Per_Group;
+      Success := False;
+      if Inode_Num < 1 or else Inode_Num > FS_Data.Super.Inode_Count then
+         return;
+      end if;
+
+      Group := (Inode_Num - 1) / Per_Group;
+      Bit   := (Inode_Num - 1) mod Per_Group;
+      if Bit >= FS_Data.Block_Size * 8 then
+         return;
+      end if;
+
+      RW_Block_Group_Descriptor (FS_Data, Group, Desc, False, Ok);
+      if not Ok then
+         return;
+      end if;
+
+      Bitmap := new Operation_Data (1 .. Natural (FS_Data.Block_Size));
+      Devices.Read
+         (Handle    => FS_Data.Handle,
+          Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block) *
+                       Unsigned_64 (FS_Data.Block_Size),
+          Data      => Bitmap.all,
+          Ret_Count => Dev_Count,
+          Success   => Succ);
+      if Succ /= Devices.Dev_Success or else Dev_Count /= Bitmap'Length then
+         goto Cleanup;
+      end if;
+
+      Byte := Bitmap'First + Natural (Bit / 8);
+      Mask := Shift_Left (Unsigned_8'(1), Natural (Bit mod 8));
+      if (Bitmap (Byte) and Mask) = 0 then
+         Success := True;
+         goto Cleanup;
+      end if;
+      Bitmap (Byte) := Bitmap (Byte) and not Mask;
+
+      Devices.Write
+         (Handle    => FS_Data.Handle,
+          Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block) *
+                       Unsigned_64 (FS_Data.Block_Size),
+          Data      => Bitmap.all,
+          Ret_Count => Dev_Count,
+          Success   => Succ);
+      if Succ /= Devices.Dev_Success or else Dev_Count /= Bitmap'Length then
+         goto Cleanup;
+      end if;
+
+      if Desc.Unallocated_Inodes /= Unsigned_16'Last then
+         Desc.Unallocated_Inodes := Desc.Unallocated_Inodes + 1;
+      end if;
+      if Is_Directory and then Desc.Directory_Count /= 0 then
+         Desc.Directory_Count := Desc.Directory_Count - 1;
+      end if;
+      RW_Block_Group_Descriptor (FS_Data, Group, Desc, True, Ok);
+      if not Ok then
+         goto Cleanup;
+      end if;
+
+      FS_Data.Super.Unallocated_Inode_Count :=
+         FS_Data.Super.Unallocated_Inode_Count + 1;
+      Success := True;
+
+   <<Cleanup>>
+      Free (Bitmap);
+   exception
+      when Constraint_Error =>
+         Free (Bitmap);
+         Messages.Put_Line ("Exception while freeing an EXT inode");
+         Success := False;
+   end Free_Inode_Number;
+
+   procedure Free_Indirect_Tree
+      (FS_Data : EXT_Data_Acc;
+       Block   : in out Unsigned_32;
+       Level   : Natural;
+       Start   : Unsigned_64;
+       Freed   : in out Unsigned_64;
+       Success : out Boolean)
+   is
+      Per_Blk   : Unsigned_64;
+      Span      : Unsigned_64 := 1;
+      Buffer    : Operation_Data_Acc := null;
+      Dirty     : Boolean := False;
+      Dev_Count : Natural;
+      Succ      : Devices.Dev_Status;
+      Ok        : Boolean;
+      First_Entry, Sub_Start : Unsigned_64;
+      Sub, Child, Run_Start, Run_Len : Unsigned_32;
+   begin
+      Per_Blk := Unsigned_64 (FS_Data.Pointers_Per_Block);
+      Success := True;
+      if Block = 0 then
+         return;
+      elsif Level < 1 or else Level > 3 then
+         Success := False;
+         return;
+      end if;
+
+      for I in 2 .. Level loop
+         Span := Span * Per_Blk;
+      end loop;
+
+      First_Entry := Start / Span;
+      if First_Entry >= Per_Blk then
+         --  The cut falls past everything this subtree covers.
+         return;
+      end if;
+
+      Buffer := new Operation_Data (1 .. Natural (FS_Data.Block_Size));
+      Devices.Read
+         (Handle    => FS_Data.Handle,
+          Offset    => Unsigned_64 (Block) * Unsigned_64 (FS_Data.Block_Size),
+          Data      => Buffer.all,
+          Ret_Count => Dev_Count,
+          Success   => Succ);
+      if Succ /= Devices.Dev_Success or else Dev_Count /= Buffer'Length then
+         Success := False;
+         goto Cleanup;
+      end if;
+
+      Run_Start := 0;
+      Run_Len   := 0;
+      for I in First_Entry .. Per_Blk - 1 loop
+         Sub := Get_Pointer (Buffer.all, Unsigned_32 (I));
+         if Sub /= 0 then
+            if Level = 1 then
+               --  Gather neighbouring blocks so that a whole run of them is
+               --  given back with a single pass over a bitmap.
+               if Run_Len /= 0 and then Sub = Run_Start + Run_Len then
+                  Run_Len := Run_Len + 1;
+               else
+                  if Run_Len /= 0 then
+                     Free_Blocks (FS_Data, Run_Start, Run_Len, Ok);
+                     Success := Success and Ok;
+                     Freed   := Freed + Unsigned_64 (Run_Len);
+                  end if;
+                  Run_Start := Sub;
+                  Run_Len   := 1;
+               end if;
+               Set_Pointer (Buffer.all, Unsigned_32 (I), 0);
+               Dirty := True;
+            else
+               Child     := Sub;
+               Sub_Start := (if I = First_Entry then Start - I * Span else 0);
+               Free_Indirect_Tree
+                  (FS_Data, Child, Level - 1, Sub_Start, Freed, Ok);
+               Success := Success and Ok;
+               if Child /= Sub then
+                  Set_Pointer (Buffer.all, Unsigned_32 (I), Child);
+                  Dirty := True;
+               end if;
+            end if;
+         end if;
+      end loop;
+
+      if Run_Len /= 0 then
+         Free_Blocks (FS_Data, Run_Start, Run_Len, Ok);
+         Success := Success and Ok;
+         Freed   := Freed + Unsigned_64 (Run_Len);
+      end if;
+
+      if Start = 0 then
+         Free_Block (FS_Data, Block, Ok);
+         Success := Success and Ok;
+         Freed   := Freed + 1;
+         Block   := 0;
+      elsif Dirty then
+         Devices.Write
+            (Handle    => FS_Data.Handle,
+             Offset    => Unsigned_64 (Block) *
+                          Unsigned_64 (FS_Data.Block_Size),
+             Data      => Buffer.all,
+             Ret_Count => Dev_Count,
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success or else Dev_Count /= Buffer'Length then
+            Success := False;
+         end if;
+      end if;
+
+   <<Cleanup>>
+      Free (Buffer);
+   exception
+      when Constraint_Error =>
+         Free (Buffer);
+         Messages.Put_Line ("Exception while freeing an EXT indirect block");
+         Success := False;
+   end Free_Indirect_Tree;
+
+   procedure Free_Blocks_From
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       From_Block : Unsigned_64;
+       Success    : out Boolean)
+   is
+      Per_Blk : Unsigned_64;
+      Freed  : Unsigned_64 := 0;
+      Sects  : Unsigned_64;
+      Base, Start : Unsigned_64;
+      Run_Start, Run_Len : Unsigned_32;
+      Ok     : Boolean;
+   begin
+      Per_Blk := Unsigned_64 (FS_Data.Pointers_Per_Block);
+      Success := True;
+
+      --  The twelve blocks the inode names itself.
+      Run_Start := 0;
+      Run_Len   := 0;
+      for I in 0 .. 11 loop
+         if Unsigned_64 (I) >= From_Block and then
+            Inode_Data.Blocks (I) /= 0
+         then
+            if Run_Len /= 0 and then
+               Inode_Data.Blocks (I) = Run_Start + Run_Len
+            then
+               Run_Len := Run_Len + 1;
+            else
+               if Run_Len /= 0 then
+                  Free_Blocks (FS_Data, Run_Start, Run_Len, Ok);
+                  Success := Success and Ok;
+                  Freed   := Freed + Unsigned_64 (Run_Len);
+               end if;
+               Run_Start := Inode_Data.Blocks (I);
+               Run_Len   := 1;
+            end if;
+            Inode_Data.Blocks (I) := 0;
+         end if;
+      end loop;
+      if Run_Len /= 0 then
+         Free_Blocks (FS_Data, Run_Start, Run_Len, Ok);
+         Success := Success and Ok;
+         Freed   := Freed + Unsigned_64 (Run_Len);
+      end if;
+
+      --  Then each of the three trees of pointers, in turn.
+      Base := 12;
+      if From_Block < Base + Per_Blk then
+         Start := (if From_Block > Base then From_Block - Base else 0);
+         Free_Indirect_Tree
+            (FS_Data, Inode_Data.Blocks (12), 1, Start, Freed, Ok);
+         Success := Success and Ok;
+      end if;
+
+      Base := 12 + Per_Blk;
+      if From_Block < Base + Per_Blk * Per_Blk then
+         Start := (if From_Block > Base then From_Block - Base else 0);
+         Free_Indirect_Tree
+            (FS_Data, Inode_Data.Blocks (13), 2, Start, Freed, Ok);
+         Success := Success and Ok;
+      end if;
+
+      Base := 12 + Per_Blk + Per_Blk * Per_Blk;
+      if From_Block < Base + Per_Blk * Per_Blk * Per_Blk then
+         Start := (if From_Block > Base then From_Block - Base else 0);
+         Free_Indirect_Tree
+            (FS_Data, Inode_Data.Blocks (14), 3, Start, Freed, Ok);
+         Success := Success and Ok;
+      end if;
+
+      Sects := Freed * Unsigned_64 (FS_Data.Block_Size / Sector_Unit);
+      if Unsigned_64 (Inode_Data.Sectors) > Sects then
+         Inode_Data.Sectors := Inode_Data.Sectors - Unsigned_32 (Sects);
+      else
+         Inode_Data.Sectors := 0;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while trimming an EXT inode");
+         Success := False;
+   end Free_Blocks_From;
+
+   procedure Delete_Inode
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Num  : Unsigned_32;
+       Inode_Data : in out Inode;
+       Success    : out Boolean)
+   is
+      Kind : constant File_Type := Get_Inode_Type (Inode_Data.Permissions);
+      Ok   : Boolean;
+   begin
+      Success := True;
+
+      --  A symlink short enough to be kept inside the inode owns no blocks.
+      if Kind /= File_Symbolic_Link or else not Is_Fast_Symlink (Inode_Data)
+      then
+         Free_Blocks_From (FS_Data, Inode_Data, 0, Success);
+      end if;
+
+      Inode_Data.Hard_Link_Count    := 0;
+      Inode_Data.Deleted_Time_Epoch := Current_Epoch;
+      Inode_Data.Size_Low           := 0;
+      Inode_Data.Size_High          := 0;
+      Inode_Data.Sectors            := 0;
+      Inode_Data.Blocks             := [others => 0];
+
+      RW_Inode
+         (Data            => FS_Data,
+          Inode_Index     => Inode_Num,
+          Result          => Inode_Data,
+          Write_Operation => True,
+          Success         => Ok);
+      Success := Success and Ok;
+
+      Free_Inode_Number (FS_Data, Inode_Num, Kind = File_Directory, Ok);
+      Success := Success and Ok;
+   end Delete_Inode;
+
+   procedure Get_Dir_Entry
+      (Buffer   : Operation_Data;
+       Offset   : Natural;
+       Has_Type : Boolean;
+       Ino      : out Unsigned_32;
+       Rec_Len  : out Natural;
+       Name_Len : out Natural;
+       Kind     : out Unsigned_8)
+   is
+      Base : Natural;
+   begin
+      Base := Buffer'First + Offset;
+      Ino := Unsigned_32 (Buffer (Base))                       or
+             Shift_Left (Unsigned_32 (Buffer (Base + 1)),  8)  or
+             Shift_Left (Unsigned_32 (Buffer (Base + 2)), 16)  or
+             Shift_Left (Unsigned_32 (Buffer (Base + 3)), 24);
+      Rec_Len := Natural (Buffer (Base + 4)) +
+                 Natural (Buffer (Base + 5)) * 256;
+      if Has_Type then
+         Name_Len := Natural (Buffer (Base + 6));
+         Kind     := Buffer (Base + 7);
+      else
+         Name_Len := Natural (Buffer (Base + 6)) +
+                     Natural (Buffer (Base + 7)) * 256;
+         Kind     := 0;
+      end if;
+   exception
+      when Constraint_Error =>
+         Ino      := 0;
+         Rec_Len  := 0;
+         Name_Len := 0;
+         Kind     := 0;
+   end Get_Dir_Entry;
+
+   procedure Put_Dir_Entry
+      (Buffer   : in out Operation_Data;
+       Offset   : Natural;
+       Ino      : Unsigned_32;
+       Rec_Len  : Natural;
+       Kind     : Unsigned_8;
+       Name     : String;
+       Has_Type : Boolean)
+   is
+      Base : Natural;
+   begin
+      Base := Buffer'First + Offset;
+      Buffer (Base)     := Unsigned_8 (Ino and 16#FF#);
+      Buffer (Base + 1) := Unsigned_8 (Shift_Right (Ino,  8) and 16#FF#);
+      Buffer (Base + 2) := Unsigned_8 (Shift_Right (Ino, 16) and 16#FF#);
+      Buffer (Base + 3) := Unsigned_8 (Shift_Right (Ino, 24) and 16#FF#);
+      Buffer (Base + 4) := Unsigned_8 (Rec_Len mod 256);
+      Buffer (Base + 5) := Unsigned_8 ((Rec_Len / 256) mod 256);
+      if Has_Type then
+         Buffer (Base + 6) := Unsigned_8 (Name'Length);
+         Buffer (Base + 7) := Kind;
+      else
+         Buffer (Base + 6) := Unsigned_8 (Name'Length mod 256);
+         Buffer (Base + 7) := Unsigned_8 (Name'Length / 256);
+      end if;
+      for I in 1 .. Name'Length loop
+         Buffer (Base + Dir_Entry_Header + I - 1) :=
+            Character'Pos (Name (Name'First + I - 1));
+      end loop;
+   exception
+      when Constraint_Error =>
+         null;
+   end Put_Dir_Entry;
+
+   procedure Set_Dir_Rec_Len
+      (Buffer  : in out Operation_Data;
+       Offset  : Natural;
+       Rec_Len : Natural)
+   is
+      Base : Natural;
+   begin
+      Base := Buffer'First + Offset;
+      Buffer (Base + 4) := Unsigned_8 (Rec_Len mod 256);
+      Buffer (Base + 5) := Unsigned_8 ((Rec_Len / 256) mod 256);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Dir_Rec_Len;
+
+   procedure Set_Dir_Inode
+      (Buffer : in out Operation_Data;
+       Offset : Natural;
+       Ino    : Unsigned_32)
+   is
+      Base : Natural;
+   begin
+      Base := Buffer'First + Offset;
+      Buffer (Base)     := Unsigned_8 (Ino and 16#FF#);
+      Buffer (Base + 1) := Unsigned_8 (Shift_Right (Ino,  8) and 16#FF#);
+      Buffer (Base + 2) := Unsigned_8 (Shift_Right (Ino, 16) and 16#FF#);
+      Buffer (Base + 3) := Unsigned_8 (Shift_Right (Ino, 24) and 16#FF#);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Dir_Inode;
+
+   procedure Drop_Hash_Index
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Index : Unsigned_32;
+       Success     : out Boolean)
+   is
+   begin
+      Success := True;
+      if (Inode_Data.Flags and Flags_Hash_Index) /= 0 then
+         Inode_Data.Flags :=
+            Inode_Data.Flags and not Unsigned_32'(Flags_Hash_Index);
+         RW_Inode
+            (Data            => FS_Data,
+             Inode_Index     => Inode_Index,
+             Result          => Inode_Data,
+             Write_Operation => True,
+             Success         => Success);
+      end if;
+   end Drop_Hash_Index;
 
    procedure Add_Directory_Entry
       (FS_Data     : EXT_Data_Acc;
@@ -2711,145 +4213,135 @@ package body VFS.EXT with SPARK_Mode => Off is
        Name        : String;
        Success     : out Boolean)
    is
-      Buffer                           : Operation_Data_Acc;
-      Offset, Ret_Count                : Natural;
-      Required, Contracted, Available  : Unsigned_64;
-      Ino_Size                         : Unsigned_64 := Inode_Size;
+      Block_Sz  : Unsigned_64;
+      Needed    : Natural;
+      Buffer    : Operation_Data_Acc := null;
+      Cursor    : Map_Cursor := Empty_Cursor;
+      Blk_Off   : Unsigned_64 := 0;
+      Append_At : Unsigned_64;
+      Offset, Ret_Count : Natural;
+      Rec_Len, Name_Len, Actual : Natural;
+      Ino_Num   : Unsigned_32;
+      Kind_Byte : Unsigned_8;
+      Ok        : Boolean;
    begin
-      Buffer := new Operation_Data (1 .. Natural (Inode_Size));
-      Read_From_Inode
-         (FS_Data    => FS_Data,
-          Inode_Data => Inode_Data,
-          Inode_Size => Inode_Size,
-          Offset     => 0,
-          Data       => Buffer.all,
-          Ret_Count  => Ret_Count,
-          Success    => Success);
-      if not Success or Ret_Count /= Buffer'Length then
-         Success := False;
-         goto Cleanup;
+      Block_Sz := Unsigned_64 (FS_Data.Block_Size);
+      Needed   := ((Dir_Entry_Header + Name'Length + 3) / 4) * 4;
+
+      Success := False;
+      if Name'Length = 0 or else Name'Length > Max_File_Name_Size or else
+         Unsigned_64 (Needed) > Block_Sz or else Added_Index = 0
+      then
+         return;
       end if;
 
-      Required := ((Directory_Entry'Size / 8) + Name'Length + 4) and not 3;
-      Offset   := 0;
+      Drop_Hash_Index (FS_Data, Inode_Data, Inode_Index, Ok);
+      if not Ok then
+         return;
+      end if;
+      Invalidate_Memo (FS_Data);
 
-      while Offset < Natural (Inode_Size) loop
-         declare
-            Ent : Directory_Entry
-               with Import, Address => Buffer (Buffer'First + Offset)'Address;
-         begin
-            Contracted :=
-               ((Directory_Entry'Size / 8) +
-                Unsigned_64 (Ent.Name_Length) + 3) and not 3;
-            Available := Unsigned_64 (Ent.Entry_Count) - Contracted;
+      Buffer := new Operation_Data (1 .. Natural (Block_Sz));
 
-            if Available >= Required then
-               Ent.Entry_Count := Unsigned_16 (Contracted);
+      --  Look for room one block at a time.
+      while Blk_Off + Block_Sz <= Inode_Size loop
+         Read_From_Inode
+            (FS_Data    => FS_Data,
+             Inode_Data => Inode_Data,
+             Inode_Size => Inode_Size,
+             Offset     => Blk_Off,
+             Data       => Buffer.all,
+             Cursor     => Cursor,
+             Ret_Count  => Ret_Count,
+             Success    => Ok);
+         exit when not Ok or else Ret_Count /= Buffer'Length;
 
-               declare
-                  Ent2 : Directory_Entry with Import, Address =>
-                     Buffer (Buffer'First + Offset +
-                                  Natural (Contracted))'Address;
-                  Name_Buf : String (1 .. Name'Length) with Address =>
-                     Buffer (Buffer'First + Offset + Natural (Contracted) +
-                             (Directory_Entry'Size / 8))'Address, Import;
-               begin
-                  Ent2 :=
-                     (Inode_Index => Added_Index,
-                      Entry_Count => Unsigned_16 (Available),
-                      Name_Length => Name'Length,
-                      Dir_Type    => Dir_Type);
-                  Name_Buf := Name;
+         Offset := 0;
+         while Offset + Dir_Entry_Header <= Natural (Block_Sz) loop
+            Get_Dir_Entry
+               (Buffer   => Buffer.all,
+                Offset   => Offset,
+                Has_Type => FS_Data.Has_Directory_Types,
+                Ino      => Ino_Num,
+                Rec_Len  => Rec_Len,
+                Name_Len => Name_Len,
+                Kind     => Kind_Byte);
+            exit when Rec_Len < Dir_Entry_Header or else
+                      (Rec_Len mod 4) /= 0       or else
+                      Offset + Rec_Len > Natural (Block_Sz);
 
-                  Write_To_Inode
-                     (FS_Data    => FS_Data,
-                      Inode_Num  => Inode_Index,
-                      Inode_Data => Inode_Data,
-                      Inode_Size => Inode_Size,
-                      Offset     => 0,
-                      Data       => Buffer.all,
-                      Ret_Count  => Ret_Count,
-                      Success    => Success);
-                  if not Success or Ret_Count /= Buffer'Length then
-                     Success := False;
-                  end if;
-                  goto Cleanup;
-               end;
-            elsif Offset + Natural (Ent.Entry_Count) >= Natural (Inode_Size)
-            then
-               Ino_Size := Inode_Size + Unsigned_64 (FS_Data.Block_Size);
-               Ent.Entry_Count := Ent.Entry_Count +
-                  Unsigned_16 (FS_Data.Block_Size);
+            --  A record with no inode is free room.
+            if Ino_Num = 0 then
+               Actual := 0;
+            else
+               Actual := ((Dir_Entry_Header + Name_Len + 3) / 4) * 4;
+            end if;
 
-               Grow_Inode
-                  (FS_Data     => FS_Data,
-                   Inode_Data  => Inode_Data,
-                   Inode_Num   => Inode_Index,
-                   Start       => 0,
-                   Count       => Ino_Size,
-                   Success     => Success);
-               if not Success then
-                  goto Cleanup;
+            if Actual <= Rec_Len and then Rec_Len - Actual >= Needed then
+               if Actual /= 0 then
+                  Set_Dir_Rec_Len (Buffer.all, Offset, Actual);
                end if;
-
-               Set_Size
-                  (Ino        => Inode_Data,
-                   New_Size   => Ino_Size,
-                   Is_64_Bits => FS_Data.Has_64bit_Filesizes,
-                   Success    => Success);
-               if not Success then
-                  goto Cleanup;
-               end if;
-
-               RW_Inode
-                  (Data            => FS_Data,
-                   Inode_Index     => Inode_Index,
-                   Result          => Inode_Data,
-                   Write_Operation => True,
-                   Success         => Success);
-               if not Success then
-                  goto Cleanup;
-               end if;
+               Put_Dir_Entry
+                  (Buffer   => Buffer.all,
+                   Offset   => Offset + Actual,
+                   Ino      => Added_Index,
+                   Rec_Len  => Rec_Len - Actual,
+                   Kind     => Dir_Type,
+                   Name     => Name,
+                   Has_Type => FS_Data.Has_Directory_Types);
 
                Write_To_Inode
                   (FS_Data    => FS_Data,
-                   Inode_Num  => Inode_Index,
                    Inode_Data => Inode_Data,
+                   Inode_Num  => Inode_Index,
                    Inode_Size => Inode_Size,
-                   Offset     => 0,
+                   Offset     => Blk_Off,
                    Data       => Buffer.all,
+                   Cursor     => Cursor,
                    Ret_Count  => Ret_Count,
-                   Success    => Success);
-               if not Success or Ret_Count /= Buffer'Length then
-                  Success := False;
-                  goto Cleanup;
-               end if;
-
-               Add_Directory_Entry
-                  (FS_Data     => FS_Data,
-                   Inode_Data  => Inode_Data,
-                   Inode_Size  => Ino_Size,
-                   Inode_Index => Inode_Index,
-                   Added_Index => Added_Index,
-                   Dir_Type    => Dir_Type,
-                   Name        => Name,
-                   Success     => Success);
+                   Success    => Ok);
+               Success := Ok and then Ret_Count = Buffer'Length;
                goto Cleanup;
             end if;
-            Offset := Offset + Natural (Ent.Entry_Count);
-         end;
+
+            Offset := Offset + Rec_Len;
+         end loop;
+
+         Blk_Off := Blk_Off + Block_Sz;
       end loop;
 
-      raise Program_Error; -- Unreachable.
+      --  Nowhere left to put it, so the directory gains a block holding a
+      --  single record that spans the whole of it.
+      Append_At := ((Inode_Size + Block_Sz - 1) / Block_Sz) * Block_Sz;
+      Buffer.all := [others => 0];
+      Put_Dir_Entry
+         (Buffer   => Buffer.all,
+          Offset   => 0,
+          Ino      => Added_Index,
+          Rec_Len  => Natural (Block_Sz),
+          Kind     => Dir_Type,
+          Name     => Name,
+          Has_Type => FS_Data.Has_Directory_Types);
+      Write_To_Inode
+         (FS_Data    => FS_Data,
+          Inode_Data => Inode_Data,
+          Inode_Num  => Inode_Index,
+          Inode_Size => Inode_Size,
+          Offset     => Append_At,
+          Data       => Buffer.all,
+          Cursor     => Cursor,
+          Ret_Count  => Ret_Count,
+          Success    => Ok);
+      Success := Ok and then Ret_Count = Buffer'Length;
 
    <<Cleanup>>
+      Close_Cursor (Cursor);
       Free (Buffer);
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Exception while adding from an EXT dir entry");
-         Success := False;
-      when Program_Error =>
-         Messages.Put_Line ("Unreachable reached while adding EXT dir entry");
+         Close_Cursor (Cursor);
+         Free (Buffer);
+         Messages.Put_Line ("Exception while adding an EXT dir entry");
          Success := False;
    end Add_Directory_Entry;
 
@@ -2858,13 +4350,151 @@ package body VFS.EXT with SPARK_Mode => Off is
        Inode_Data  : in out Inode;
        Inode_Size  : Unsigned_64;
        Inode_Index : Unsigned_32;
-       Added_Index : Unsigned_32;
+       Name        : String;
+       Deleted_Ino : out Unsigned_32;
        Success     : out Boolean)
    is
-      Buffer                     : Operation_Data_Acc;
-      Offset, Offset2, Ret_Count : Natural;
+      Block_Sz  : Unsigned_64;
+      Buffer    : Operation_Data_Acc := null;
+      Cursor    : Map_Cursor := Empty_Cursor;
+      Blk_Off   : Unsigned_64 := 0;
+      Offset, Ret_Count : Natural;
+      Rec_Len, Name_Len : Natural;
+      Prev, Prev_Len    : Natural;
+      Has_Prev, Matches : Boolean;
+      Ino_Num   : Unsigned_32;
+      Kind_Byte : Unsigned_8;
+      Ok        : Boolean;
    begin
-      Buffer := new Operation_Data (1 .. Natural (Inode_Size));
+      Block_Sz    := Unsigned_64 (FS_Data.Block_Size);
+      Deleted_Ino := 0;
+      Success     := False;
+      if Name'Length = 0 or else Name'Length > Max_File_Name_Size then
+         return;
+      end if;
+
+      Drop_Hash_Index (FS_Data, Inode_Data, Inode_Index, Ok);
+      if not Ok then
+         return;
+      end if;
+      Invalidate_Memo (FS_Data);
+
+      Buffer := new Operation_Data (1 .. Natural (Block_Sz));
+
+      while Blk_Off + Block_Sz <= Inode_Size loop
+         Read_From_Inode
+            (FS_Data    => FS_Data,
+             Inode_Data => Inode_Data,
+             Inode_Size => Inode_Size,
+             Offset     => Blk_Off,
+             Data       => Buffer.all,
+             Cursor     => Cursor,
+             Ret_Count  => Ret_Count,
+             Success    => Ok);
+         exit when not Ok or else Ret_Count /= Buffer'Length;
+
+         --  Records are merged into the one before them, and a record never
+         --  reaches past its own block, so the search for a predecessor
+         --  restarts at every block.
+         Offset   := 0;
+         Prev     := 0;
+         Prev_Len := 0;
+         Has_Prev := False;
+         while Offset + Dir_Entry_Header <= Natural (Block_Sz) loop
+            Get_Dir_Entry
+               (Buffer   => Buffer.all,
+                Offset   => Offset,
+                Has_Type => FS_Data.Has_Directory_Types,
+                Ino      => Ino_Num,
+                Rec_Len  => Rec_Len,
+                Name_Len => Name_Len,
+                Kind     => Kind_Byte);
+            exit when Rec_Len < Dir_Entry_Header or else
+                      (Rec_Len mod 4) /= 0       or else
+                      Offset + Rec_Len > Natural (Block_Sz);
+
+            Matches := Ino_Num /= 0 and then Name_Len = Name'Length and then
+                       Offset + Dir_Entry_Header + Name_Len <=
+                       Natural (Block_Sz);
+            if Matches then
+               for I in 1 .. Name_Len loop
+                  if Character'Val
+                        (Buffer (Buffer'First + Offset +
+                                 Dir_Entry_Header + I - 1)) /=
+                     Name (Name'First + I - 1)
+                  then
+                     Matches := False;
+                     exit;
+                  end if;
+               end loop;
+            end if;
+
+            if Matches then
+               Deleted_Ino := Ino_Num;
+               if Has_Prev then
+                  --  Hand the room back to the record before it.
+                  Set_Dir_Rec_Len (Buffer.all, Prev, Prev_Len + Rec_Len);
+               else
+                  Set_Dir_Inode (Buffer.all, Offset, 0);
+               end if;
+
+               Write_To_Inode
+                  (FS_Data    => FS_Data,
+                   Inode_Data => Inode_Data,
+                   Inode_Num  => Inode_Index,
+                   Inode_Size => Inode_Size,
+                   Offset     => Blk_Off,
+                   Data       => Buffer.all,
+                   Cursor     => Cursor,
+                   Ret_Count  => Ret_Count,
+                   Success    => Ok);
+               Success := Ok and then Ret_Count = Buffer'Length;
+               goto Cleanup;
+            end if;
+
+            Prev     := Offset;
+            Prev_Len := Rec_Len;
+            Has_Prev := True;
+            Offset   := Offset + Rec_Len;
+         end loop;
+
+         Blk_Off := Blk_Off + Block_Sz;
+      end loop;
+
+   <<Cleanup>>
+      Close_Cursor (Cursor);
+      Free (Buffer);
+   exception
+      when Constraint_Error =>
+         Close_Cursor (Cursor);
+         Free (Buffer);
+         Messages.Put_Line ("Exception while deleting an EXT dir entry");
+         Success := False;
+   end Delete_Directory_Entry;
+
+   procedure Set_Parent_Entry
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Size  : Unsigned_64;
+       Inode_Index : Unsigned_32;
+       New_Parent  : Unsigned_32;
+       Success     : out Boolean)
+   is
+      Block_Sz  : Unsigned_64;
+      Buffer    : Operation_Data_Acc := null;
+      Offset, Ret_Count : Natural;
+      Rec_Len, Name_Len : Natural;
+      Ino_Num   : Unsigned_32;
+      Kind_Byte : Unsigned_8;
+      Ok        : Boolean;
+   begin
+      Block_Sz := Unsigned_64 (FS_Data.Block_Size);
+      Success  := False;
+      if Inode_Size < Block_Sz then
+         return;
+      end if;
+
+      Buffer := new Operation_Data (1 .. Natural (Block_Sz));
       Read_From_Inode
          (FS_Data    => FS_Data,
           Inode_Data => Inode_Data,
@@ -2872,52 +4502,70 @@ package body VFS.EXT with SPARK_Mode => Off is
           Offset     => 0,
           Data       => Buffer.all,
           Ret_Count  => Ret_Count,
-          Success    => Success);
-      if not Success or Ret_Count /= Buffer'Length then
-         Success := False;
+          Success    => Ok);
+      if not Ok or else Ret_Count /= Buffer'Length then
          goto Cleanup;
       end if;
 
-      Offset  := 0;
-      Offset2 := 0;
+      --  The '..' of a directory that moved has to name its new parent, or
+      --  everything walking upwards out of it lands in the old one.
+      Offset := 0;
+      while Offset + Dir_Entry_Header <= Natural (Block_Sz) loop
+         Get_Dir_Entry
+            (Buffer   => Buffer.all,
+             Offset   => Offset,
+             Has_Type => FS_Data.Has_Directory_Types,
+             Ino      => Ino_Num,
+             Rec_Len  => Rec_Len,
+             Name_Len => Name_Len,
+             Kind     => Kind_Byte);
+         exit when Rec_Len < Dir_Entry_Header or else
+                   (Rec_Len mod 4) /= 0       or else
+                   Offset + Rec_Len > Natural (Block_Sz);
 
-      while Offset < Natural (Inode_Size) loop
-         declare
-            Ent : Directory_Entry
-               with Import, Address => Buffer (Buffer'First + Offset)'Address;
-            Ent2 : Directory_Entry
-               with Import, Address => Buffer (Buffer'First + Offset2)'Address;
-         begin
-            if Ent.Inode_Index = Added_Index then
-               Ent2.Entry_Count := Ent2.Entry_Count + Ent.Entry_Count;
-               Write_To_Inode
-                  (FS_Data    => FS_Data,
-                   Inode_Num  => Inode_Index,
-                   Inode_Data => Inode_Data,
-                   Inode_Size => Inode_Size,
-                   Offset     => 0,
-                   Data       => Buffer.all,
-                   Ret_Count  => Ret_Count,
-                   Success    => Success);
-               if not Success or Ret_Count /= Buffer'Length then
-                  Success := False;
-               end if;
-               goto Cleanup;
-            end if;
-            Offset2 := Offset;
-            Offset  := Offset + Natural (Ent.Entry_Count);
-         end;
+         if Ino_Num /= 0 and then Name_Len = 2 and then
+            Buffer (Buffer'First + Offset + Dir_Entry_Header) =
+               Character'Pos ('.') and then
+            Buffer (Buffer'First + Offset + Dir_Entry_Header + 1) =
+               Character'Pos ('.')
+         then
+            Set_Dir_Inode (Buffer.all, Offset, New_Parent);
+            Write_To_Inode
+               (FS_Data    => FS_Data,
+                Inode_Data => Inode_Data,
+                Inode_Num  => Inode_Index,
+                Inode_Size => Inode_Size,
+                Offset     => 0,
+                Data       => Buffer.all,
+                Ret_Count  => Ret_Count,
+                Success    => Ok);
+            Success := Ok and then Ret_Count = Buffer'Length;
+            goto Cleanup;
+         end if;
+
+         Offset := Offset + Rec_Len;
       end loop;
-
-      Success := False;
 
    <<Cleanup>>
       Free (Buffer);
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Exception while deleting an EXT inode entry");
+         Free (Buffer);
+         Messages.Put_Line ("Exception while repointing an EXT directory");
          Success := False;
-   end Delete_Directory_Entry;
+   end Set_Parent_Entry;
+
+   procedure Invalidate_Memo (FS_Data : EXT_Data_Acc) is
+   begin
+      Synchronization.Seize (FS_Data.Memo_Lock);
+      FS_Data.Memo_Inode  := 0;
+      FS_Data.Memo_Index  := 0;
+      FS_Data.Memo_Offset := 0;
+      Synchronization.Release (FS_Data.Memo_Lock);
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while resetting the EXT scan memo");
+   end Invalidate_Memo;
 
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type is
    begin
@@ -2992,9 +4640,13 @@ package body VFS.EXT with SPARK_Mode => Off is
 
    function Get_Size (Ino : Inode; Is_64_Bits : Boolean) return Unsigned_64 is
    begin
-      if Is_64_Bits then
+      --  The upper half of the size is only a size for a plain file. For
+      --  anything else that field is i_dir_acl.
+      if Is_64_Bits and then
+         Get_Inode_Type (Ino.Permissions) = File_Regular
+      then
          return Shift_Left (Unsigned_64 (Ino.Size_High), 32) or
-                Shift_Left (Unsigned_64 (Ino.Size_Low),   0);
+                Unsigned_64 (Ino.Size_Low);
       else
          return Unsigned_64 (Ino.Size_Low);
       end if;
@@ -3011,7 +4663,9 @@ package body VFS.EXT with SPARK_Mode => Off is
       L32 := Unsigned_32 (New_Size and 16#FFFFFFFF#);
       H32 := Unsigned_32 (Shift_Right (New_Size, 32));
 
-      if Is_64_Bits then
+      if Is_64_Bits and then
+         Get_Inode_Type (Ino.Permissions) = File_Regular
+      then
          Ino.Size_Low  := L32;
          Ino.Size_High := H32;
          Success       := True;
@@ -3024,6 +4678,16 @@ package body VFS.EXT with SPARK_Mode => Off is
          Messages.Put_Line ("Exception while setting size of an EXT inode");
          Success := False;
    end Set_Size;
+
+   function Current_Epoch return Unsigned_32 is
+      Stamp : Time.Timestamp;
+   begin
+      Arch.Clocks.Get_Real_Time (Stamp);
+      return Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#);
+   exception
+      when Constraint_Error =>
+         return 0;
+   end Current_Epoch;
 
    procedure Act_On_Policy (Data : EXT_Data_Acc; Message : String) is
    begin

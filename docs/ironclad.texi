@@ -5292,6 +5292,17 @@ to panic when triggered. While other operating systems honor the policy as-is,
 Ironclad deliberately acts on it was a "Remount read only" policy. This is done
 to avoid denial of service attacks by mounting deliberately faulty flesystems.
 
+Ironclad reads the directory hash index that @code{dir_index} introduces, but
+does not keep it up to date. A directory that Ironclad adds a name to or takes
+a name out of therefore has its index flag cleared, which leaves a plain
+directory that every implementation, Ironclad included, searches linearly.
+Merely reading an indexed directory clears nothing. For the same reason,
+@code{EXT_SETFLAGS} will not set the index flag on an inode.
+
+Access times are not tracked at all, whatever the mount is asked for. A mount
+made @code{relatime} or @code{noatime} therefore behaves the same as one that
+was not, and @code{noatime} is what an EXT mount effectively gets.
+
 @node File Allocation Table (FAT)
 @section File Allocation Table (FAT)
 
