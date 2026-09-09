@@ -108,8 +108,6 @@ package body Devices.Ramdev is
 
       Dev      : Ramdev_Data with Import, Address => Key;
       Dev_Size : constant Unsigned_64 := Dev.Size;
-      Dev_Data : constant array (1 .. Dev_Size) of Unsigned_8
-         with Import, Address => Dev.Start_Address;
 
       Is_Holding : Boolean := False;
       Final_Loc  : Unsigned_64;
@@ -129,9 +127,12 @@ package body Devices.Ramdev is
 
       Synchronization.Seize_Reader (Dev.Mutex);
       Is_Holding := True;
-      for I in 1 .. To_Read loop
-         Data (Data'First + I - 1) := Dev_Data (Offset + Unsigned_64 (I));
-      end loop;
+      declare
+         Source : Operation_Data (1 .. To_Read) with Import,
+            Address => Dev.Start_Address + Storage_Offset (Offset);
+      begin
+         Data (Data'First .. Data'First + To_Read - 1) := Source;
+      end;
       Synchronization.Release_Reader (Dev.Mutex);
 
       Ret_Count := To_Read;
@@ -158,8 +159,6 @@ package body Devices.Ramdev is
 
       Dev      : Ramdev_Data with Import, Address => Key;
       Dev_Size : constant Unsigned_64 := Dev.Size;
-      Dev_Data : array (1 .. Dev_Size) of Unsigned_8
-         with Import, Address => Dev.Start_Address;
 
       Is_Holding : Boolean := False;
       Final_Loc  : Unsigned_64;
@@ -178,9 +177,12 @@ package body Devices.Ramdev is
 
       Synchronization.Seize_Writer (Dev.Mutex);
       Is_Holding := True;
-      for I in 1 .. To_Write loop
-         Dev_Data (Offset + Unsigned_64 (I)) := Data (Data'First + I - 1);
-      end loop;
+      declare
+         Target : Operation_Data (1 .. To_Write) with Import,
+            Address => Dev.Start_Address + Storage_Offset (Offset);
+      begin
+         Target := Data (Data'First .. Data'First + To_Write - 1);
+      end;
       Synchronization.Release_Writer (Dev.Mutex);
 
       Ret_Count := To_Write;
