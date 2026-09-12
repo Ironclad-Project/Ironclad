@@ -52,18 +52,18 @@ clone_repo_commit() {
 
 if ! test -f version; then
     clone_repo_commit \
-        https://codeberg.org/OSDev/freestnd-c-hdrs-0bsd.git \
+        https://github.com/osdev0/freestanding-c-hdrs.git \
         freestnd-c-hdrs \
         097259a899d30f0a4b7a694de2de5fdda942e923
 
     clone_repo_commit \
-        https://codeberg.org/OSDev/cc-runtime.git \
+        https://github.com/osdev0/cc-runtime.git \
         cc-runtime \
         dae79833b57a01b9fd3e359ee31def69f5ae899b
 
     # 3.0.2
     clone_repo_commit \
-        https://codeberg.org/Mintsuki/Flanterm.git \
+        https://github.com/Mintsuki/Flanterm.git \
         flanterm \
         112434532822dde252c84b25a6798a9c00515d66
 
