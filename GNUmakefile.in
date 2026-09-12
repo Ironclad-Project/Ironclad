@@ -36,6 +36,7 @@ override DIST_OUTPUT := $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
 # Take care of reproducible dates.
 override SOURCE_DATE_EPOCH := @SOURCE_DATE_EPOCH@
 export SOURCE_DATE_EPOCH
+override SOURCE_DATE_EPOCH_TOUCH := @SOURCE_DATE_EPOCH_TOUCH@
 
 # Autoconf dir variables.
 override prefix := @prefix@
@@ -201,8 +202,12 @@ dist:
 	rm -rf "$(DIST_OUTPUT)"/uacpi/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/uacpi/tests
 	echo "$(PACKAGE_VERSION)" >"$(DIST_OUTPUT)"/version
-	tar -zcf "$(DIST_OUTPUT)".tar.gz "$(DIST_OUTPUT)"
-	rm -rf "$(DIST_OUTPUT)"
+	find "$(DIST_OUTPUT)" ! -type d -perm -100 -exec chmod 755 '{}' +
+	find "$(DIST_OUTPUT)" ! -type d ! -perm -100 -exec chmod 644 '{}' +
+	TZ=UTC0 find "$(DIST_OUTPUT)" -exec touch -h -t $(SOURCE_DATE_EPOCH_TOUCH) '{}' +
+	tar -cf "$(DIST_OUTPUT)".tar $$(find "$(DIST_OUTPUT)" ! -type d | LC_ALL=C sort)
+	gzip -n <"$(DIST_OUTPUT)".tar >"$(DIST_OUTPUT)".tar.gz
+	rm -rf "$(DIST_OUTPUT)" "$(DIST_OUTPUT)".tar
 ###############################################################################
 # Install artifacts and other files to their final locations.
 .PHONY: install

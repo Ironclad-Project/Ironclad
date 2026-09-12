@@ -212,6 +212,9 @@ AC_ARG_VAR([LDFLAGS], [linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
 # tarball users will (ideally) never see this.
 SOURCE_DATE_EPOCH="m4_esyscmd([if git log -1 >/dev/null 2>&1; then git log -1 --pretty=%ct | tr -d '\n'; else printf 1546300800; fi])"
 AC_SUBST([SOURCE_DATE_EPOCH])
+# The same instant in the form touch(1) takes, for the release tarball.
+SOURCE_DATE_EPOCH_TOUCH="m4_esyscmd([if git log -1 >/dev/null 2>&1; then TZ=UTC0 git log -1 --pretty=%cd --date='format-local:%Y%m%d%H%M' | tr -d '\n'; else printf 201901010000; fi])"
+AC_SUBST([SOURCE_DATE_EPOCH_TOUCH])
 ###############################################################################
 # Get programs and put them in comfortable variables.
 
