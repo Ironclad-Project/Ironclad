@@ -110,19 +110,19 @@ $(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES)
 .PHONY: info
 info: ironclad.info
 
-ironclad.info: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
+ironclad.info: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi $(call MKESCAPE,$(SRCDIR))/docs/fdl.texi GNUmakefile
 	$(MAKEINFO) '$(call SHESCAPE,$(SRCDIR))/docs/ironclad.texi' -o $@
 
 .PHONY: html
 html: ironclad.html
 
-ironclad.html: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
+ironclad.html: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi $(call MKESCAPE,$(SRCDIR))/docs/fdl.texi GNUmakefile
 	$(TEXI2HTML) --set-customization-variable 'HIGHLIGHT_SYNTAX highlight' '$(call SHESCAPE,$(SRCDIR))/docs/ironclad.texi' -o $@
 
 .PHONY: dvi
 dvi: ironclad.dvi
 
-ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
+ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi $(call MKESCAPE,$(SRCDIR))/docs/fdl.texi GNUmakefile
 	$(TEXI2DVI) '$(call SHESCAPE,$(SRCDIR))/docs/ironclad.texi' -o $@
 ###############################################################################
 # Rules for checks and formal verification.
