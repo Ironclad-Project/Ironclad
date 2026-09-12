@@ -15,7 +15,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Project initialization.
-AC_PREREQ([2.69])
+AC_PREREQ([2.62])
 AC_INIT([Ironclad], [m4_esyscmd([./version.sh])], [https://ironclad-os.org/contributing.html], [ironclad], [https://ironclad-os.org/])
 ###############################################################################
 # General project options.
