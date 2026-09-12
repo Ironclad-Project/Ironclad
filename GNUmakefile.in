@@ -17,6 +17,9 @@
 # Nuke built-in rules.
 .SUFFIXES:
 
+# Delete the target of a failed recipe.
+.DELETE_ON_ERROR:
+
 # Macros to make our build system still work from within paths with spaces
 # or other special characters.
 override SPACE := $(subst ,, )
