@@ -141,6 +141,10 @@ project Ironclad is
       for Default_Switches ("Ada") use Base_Ada_Switches;
       for Default_Switches ("C") use Base_C_Switches;
       for Default_Switches ("Asm_Cpp") use Base_Asm_Switches;
+
+      --  The compiler runtime has to survive as real object code, as the calls
+      --  to it are generated after LTO has already chosen what to keep.
+      for Switches ("cc-runtime.c") use Base_C_Switches & ("-fno-lto");
       for Local_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
    end Compiler;
 
