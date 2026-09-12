@@ -64,9 +64,9 @@ memcmp:
     repe cmpsb
     je 2f
 
-    mov -1(%rdi), %al
-    sub -1(%rsi), %al
-    movsx %al, %rax
+    movzbl -1(%rdi), %eax
+    movzbl -1(%rsi), %ecx
+    sub %ecx, %eax
     jmp 3f
 2:
     xor %eax, %eax
