@@ -61,11 +61,11 @@ if ! test -f version; then
         cc-runtime \
         dae79833b57a01b9fd3e359ee31def69f5ae899b
 
-    # 3.0.2
+    # 3.1.2
     clone_repo_commit \
         https://github.com/Mintsuki/Flanterm.git \
         flanterm \
-        112434532822dde252c84b25a6798a9c00515d66
+        e231edd0e508022521c8233392aabc8ce5c9b242
 
     # 6.1.0
     clone_repo_commit \

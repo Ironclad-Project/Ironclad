@@ -196,6 +196,7 @@ dist:
 	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.git
 	rm -rf "$(DIST_OUTPUT)"/freestnd-c-hdrs/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.git
+	rm -rf "$(DIST_OUTPUT)"/flanterm/.github
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/uacpi/.git
 	rm -rf "$(DIST_OUTPUT)"/uacpi/.github
