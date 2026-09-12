@@ -75,7 +75,8 @@ package body Arch.Flanterm is
           Font_Spacing      => 1,
           Font_Scale_X      => 1,
           Font_Scale_Y      => 1,
-          Margin            => 0);
+          Margin            => 0,
+          Rotation          => 0);
       Is_Enabled := Ctx /= System.Null_Address;
    end Init;
 

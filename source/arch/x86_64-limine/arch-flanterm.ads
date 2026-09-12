@@ -16,6 +16,7 @@
 
 with System; use System;
 with Interfaces; use Interfaces;
+with Interfaces.C; use Interfaces.C;
 
 package Arch.Flanterm is
    procedure Init;
@@ -54,7 +55,8 @@ private
        Font_Spacing      : Unsigned_64;
        Font_Scale_X      : Unsigned_64;
        Font_Scale_Y      : Unsigned_64;
-       Margin            : Unsigned_64) return Flanterm_Ctx
+       Margin            : Unsigned_64;
+       Rotation          : int) return Flanterm_Ctx
       with Import, Convention => C, External_Name => "flanterm_fb_init";
 
    procedure Term_Write
