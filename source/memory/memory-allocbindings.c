@@ -17,7 +17,7 @@
 #include <stddef.h>
 
 extern void internal_alloc(size_t size, void **addr);
-extern void internal_free(void *addr);
+extern void internal_free(size_t addr);
 
 void *__gnat_malloc(size_t size) {
     void *result;
@@ -33,5 +33,5 @@ void *__gnat_malloc(size_t size) {
 }
 
 void __gnat_free(void *addr) {
-    internal_free(addr);
+    internal_free((size_t)addr);
 }
