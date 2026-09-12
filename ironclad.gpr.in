@@ -132,6 +132,7 @@ project Ironclad is
          "-gnateDArchName="""     & Arch                  & """"
       );
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags & (
+         "-std=gnu11",
          "-I@SRCDIR@/uacpi/include"
       );
       Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags;
