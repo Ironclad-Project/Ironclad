@@ -57,6 +57,8 @@ package Arch.Limine is
    end record with Pack;
    type Video_Mode_Arr is array (Natural range <>) of Video_Mode;
 
+   LIMINE_FRAMEBUFFER_RGB : constant := 1;
+
    type Framebuffer_Padding is array (1 .. 7) of Unsigned_8;
    type Framebuffer is record
       Address          : System.Address;

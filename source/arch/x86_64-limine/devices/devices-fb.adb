@@ -127,6 +127,13 @@ package body Devices.FB with SPARK_Mode => Off is
             with Import, Address =>
                To_Address (To_Integer (FBPonse.Framebuffers));
       begin
+         --  The early console draws 32-bit RGB pixels and nothing else.
+         if Fb.Memory_Model /= Limine.LIMINE_FRAMEBUFFER_RGB or else
+            Fb.BPP /= 32
+         then
+            return;
+         end if;
+
          Early_Init_Addr     := Fb.Address;
          Early_Init_PAddr    := To_Address (To_Integer (Fb.Address) -
                                 Memory.Memory_Offset);
