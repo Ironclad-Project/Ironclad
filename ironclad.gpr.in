@@ -152,6 +152,7 @@ project Ironclad is
          "-Wl,-nostdlib",
          "-Wl,-static",
          "-Wl,-z,max-page-size=0x1000",
+         "-Wl,-z,noexecstack",
          "-Wl,--gc-sections",
          "-T@SRCDIR@/source/arch/" & Arch & "/linker.ld",
          "rtsdir/adalib/libgnat.a"

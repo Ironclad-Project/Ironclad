@@ -89,5 +89,3 @@ memcmp:
         li      a0,0
 11:
         ret
-
-.section .note.GNU-stack, "", %progbits

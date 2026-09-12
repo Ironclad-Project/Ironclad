@@ -70,5 +70,3 @@ syscall_entry:
     # Swap context back and return.
     swapgs
     sysretq
-
-.section .note.GNU-stack, "", %progbits

@@ -69,5 +69,3 @@ memcmp:
     xor %eax, %eax
 3:
     ret
-
-.section .note.GNU-stack, "", %progbits
