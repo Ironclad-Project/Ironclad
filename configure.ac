@@ -29,6 +29,30 @@ AC_SUBST([SRCDIR])
 BUILDDIR="$(pwd -P)"
 AC_SUBST([BUILDDIR])
 
+# The source path is re-evaluated by config.status and names make
+# prerequisites, while the build path reaches the project files' string
+# literals and gprconfig's comma separated command line. '&' otherwise yields
+# an empty GNUmakefile with configure still exiting 0.
+for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|'; do
+    AS_CASE(["$SRCDIR"],
+        [*"$bad_char"*],
+        [AC_MSG_ERROR([the source directory path contains '$bad_char'; move the source tree])])
+done
+
+for bad_char in '"' "'" ':' '&' ','; do
+    AS_CASE(["$BUILDDIR"],
+        [*"$bad_char"*],
+        [AC_MSG_ERROR([the build directory path contains '$bad_char'; use a different build directory])])
+done
+
+# gprbuild rejects either inside a project file's string literal.
+AS_CASE(["$SRCDIR$BUILDDIR"],
+    [*"$(printf '\t')"*],
+    [AC_MSG_ERROR([the source or build directory path contains a tab; move the tree])])
+
+AS_IF([test "$(printf '%s' "$SRCDIR$BUILDDIR" | wc -l)" -gt 0],
+    [AC_MSG_ERROR([the source or build directory path contains a newline; move the tree])])
+
 AC_CANONICAL_HOST
 case "$host_cpu" in
     amd64) host_cpu=x86_64 ;;
