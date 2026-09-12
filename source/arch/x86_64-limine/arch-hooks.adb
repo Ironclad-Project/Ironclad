@@ -114,7 +114,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       (ID       => Limine.Modules_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers, Linker_Section => ".limine_requests";
+      with Export, Linker_Section => ".limine_requests";
 
    procedure Register_RAM_Files is
       Success : Boolean;
