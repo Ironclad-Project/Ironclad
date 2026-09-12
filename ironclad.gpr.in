@@ -133,6 +133,7 @@ project Ironclad is
       );
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags & (
          "-std=gnu11",
+         "-ffreestanding",
          "-I@SRCDIR@/uacpi/include"
       );
       Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags;
