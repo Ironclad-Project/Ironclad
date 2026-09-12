@@ -41,7 +41,7 @@
 /rts.cgpr
 /target.atp
 /rtsdir
-/freestnd-c-hdrs
+/freestanding-c-hdrs
 /cc-runtime
 /uacpi
 /flanterm
