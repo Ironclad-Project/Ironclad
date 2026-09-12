@@ -529,7 +529,12 @@ package body Arch.ACPI with SPARK_Mode => Off is
              Can_Execute       => False,
              Is_Global         => True),
           Success        => Success);
-      return To_Address (Memory.Memory_Offset + Integer_Address (Phys_Addr));
+      if Success then
+         return To_Address
+            (Memory.Memory_Offset + Integer_Address (Phys_Addr));
+      else
+         return Failed;
+      end if;
    exception
       when Constraint_Error =>
          return Failed;
