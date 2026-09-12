@@ -57,6 +57,9 @@ memmove:
 .global memcmp
 memcmp:
     endbr64
+    test %rdx, %rdx
+    jz 2f
+
     mov %rdx, %rcx
     repe cmpsb
     je 2f
