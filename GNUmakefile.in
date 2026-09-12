@@ -74,8 +74,8 @@ ifeq ($(PARALLELISM),)
 endif
 
 # Get a list of Ada source files to determine when to rebuild.
-override RTSFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | $(SED) 's| |\\ |g')
-override ADAFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f | $(GREP) -v rts | $(SED) 's| |\\ |g')
+override RTSFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | $(SED) 's/[[:blank:]]/\\&/g')
+override ADAFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f | $(GREP) -v rts | $(SED) 's/[[:blank:]]/\\&/g')
 
 ###############################################################################
 # Rules for generating executables, documentation, and other artifacts.
