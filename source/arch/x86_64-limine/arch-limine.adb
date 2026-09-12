@@ -20,6 +20,22 @@ with Messages;
 with Panic;
 
 package body Arch.Limine is
+   --  Delimiters of the request section, so that the bootloader does not have
+   --  to scan the whole executable in search of requests.
+   type Start_Marker is array (1 .. 4) of Unsigned_64;
+   type End_Marker   is array (1 .. 2) of Unsigned_64;
+
+   Requests_Start : constant Start_Marker :=
+      [16#f6b8f4b39de7d1ae#, 16#fab91a6940fcb9cf#,
+       16#785c6ed015d3e316#, 16#181e920a7852b9d9#]
+      with Linker_Section => ".limine_requests_start";
+   pragma Machine_Attribute (Requests_Start, "used");
+
+   Requests_End : constant End_Marker :=
+      [16#adc0e0531bb10d03#, 16#9572709f31764c62#]
+      with Linker_Section => ".limine_requests_end";
+   pragma Machine_Attribute (Requests_End, "used");
+
    Base_Request : Limine.Base_Revision :=
       (ID_1     => 16#f9562b2d5c95a6c8#,
        ID_2     => 16#6a7b384944536bdc#,
