@@ -30,7 +30,7 @@ reporting, and development guides, check https://ironclad-os.org
 The tools needed are:
 
 - standard *nix tools including `find` and GNU make.
-- autoconf and automake when not using a tarball (for `./bootstrap`).
+- git, autoconf and automake when not using a tarball (for `./bootstrap`).
 - gprbuild for compilation, along with a compatible Ada compiler and assembler.
   gprconfig is needed as well, which some distributions package separately.
 - GNU Info for building the documentation.
