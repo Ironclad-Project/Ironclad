@@ -47,10 +47,6 @@ package Arch.MMU is
    --  Get paging levels.
    function Paging_Levels return Levels;
 
-   --  Get the physical address at which the kernel was loaded as part of the
-   --  boot process.
-   procedure Get_Load_Addr (A : out System.Address; Success : out Boolean);
-
    --  Offset in virtual memory of the virtual memory canonical address hole
    --  that lies in between lower and higher half.
    function Canonical_Hole_Offset return Integer_Address;

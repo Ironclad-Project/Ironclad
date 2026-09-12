@@ -40,8 +40,13 @@ package Memory.MMU is
 
    --  Initialize global MMU state, at the end, it will activate Kernel_Table.
    --  @param Memmap Physical memory map, may be used to map MMIO regions.
+   --  @param Segments Loadable segments of the kernel, mapped with the
+   --  permissions their program headers call for.
    --  @param Success True in success, False in failure.
-   procedure Init (Memmap : Arch.Boot_Memory_Map; Success : out Boolean)
+   procedure Init
+      (Memmap   : Arch.Boot_Memory_Map;
+       Segments : Arch.Boot_Kernel_Segments;
+       Success  : out Boolean)
       with Post => (not Success xor Kernel_Table /= null);
 
    --  Create a new page table ready for switching.

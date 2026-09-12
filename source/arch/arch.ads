@@ -44,6 +44,19 @@ package Arch is
    end record;
    type Boot_RAM_Files is array (Natural range <>) of Boot_RAM_File;
 
+   --  Loadable segments the kernel executable is made of, as described by the
+   --  program headers of the executable itself. Read access is always granted
+   --  by the bootloader, so only write and execute are reported.
+   type Boot_Kernel_Segment is record
+      Physical_Start : System.Address;
+      Virtual_Start  : System.Address;
+      Length         : Storage_Count;
+      Can_Write      : Boolean;
+      Can_Execute    : Boolean;
+   end record;
+   type Boot_Kernel_Segments is
+      array (Natural range <>) of Boot_Kernel_Segment;
+
    --  Cmdline of the kernel.
    Cmdline_Len : Natural := 0;
    Cmdline     : String (1 .. 256) := [others => ' '];

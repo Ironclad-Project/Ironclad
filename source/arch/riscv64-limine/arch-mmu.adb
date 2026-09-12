@@ -32,13 +32,6 @@ package body Arch.MMU is
    PMBT_NC    : constant Unsigned_64 := Shift_Left (1, 61);
    PMBT_IO    : constant Unsigned_64 := Shift_Left (2, 61);
 
-   --  Response is a pointer to an Kernel_Address_Response.
-   Address_Request : Arch.Limine.Request :=
-      (ID       => Arch.Limine.Kernel_Address_ID,
-       Revision => 0,
-       Response => System.Null_Address)
-      with Export, Linker_Section => ".limine_requests";
-
    --  Response is a pointer to an HHDM_Response.
    HHDM_Request : Arch.Limine.Request :=
       (ID       => Arch.Limine.HHDM_ID,
@@ -67,19 +60,6 @@ package body Arch.MMU is
          when others => return Five_Level_Paging;
       end case;
    end Paging_Levels;
-
-   procedure Get_Load_Addr (A : out System.Address; Success : out Boolean) is
-      PhysPonse : Arch.Limine.Kernel_Address_Response
-         with Import, Address => Address_Request.Response;
-   begin
-      if Address_Request.Response /= System.Null_Address then
-         A       := PhysPonse.Phys_Addr;
-         Success := True;
-      else
-         A       := System.Null_Address;
-         Success := False;
-      end if;
-   end Get_Load_Addr;
 
    function Canonical_Hole_Offset return Integer_Address is
       PagingPonse : Arch.Limine.Paging_Mode_Response

@@ -31,7 +31,6 @@ SECTIONS
 {
     . = 0xffffffff80000000;
 
-    text_start = .;
     .limine_requests : {
         KEEP(*(.limine_requests_start))
         KEEP(*(.limine_requests))
@@ -44,9 +43,7 @@ SECTIONS
         *(.text .text.*)
     } :text
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    text_end = .;
 
-    rodata_start = .;
     .rodata : {
         *(.rodata .rodata.*)
         *(.srodata .srodata.*)
@@ -57,9 +54,7 @@ SECTIONS
         *(.note.gnu.build-id)
     } : rodata
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    rodata_end = .;
 
-    data_start = .;
     .data : {
         *(.data .data.*)
         *(.sdata .sdata.*)
@@ -71,7 +66,6 @@ SECTIONS
         *(COMMON)
     } :data
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    data_end = .;
 
     /DISCARD/ : {
         *(.eh_frame*)

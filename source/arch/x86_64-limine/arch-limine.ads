@@ -21,6 +21,21 @@ package Arch.Limine is
    --  Translate limine information into the information presented under
    --  arch.ads
    procedure Translate_Proto;
+
+   --  Upper bound on the count of loadable segments a kernel may be made of.
+   Max_Kernel_Segments : constant := 8;
+
+   --  Fetch the loadable segments the kernel was loaded from, by walking the
+   --  program headers of the kernel executable itself.
+   --  @param Segments Array to fill with the found segments.
+   --  @param Count    Count of segments written to the array, 0 on failure.
+   --  @param Success  True on success, False if the executable could not be
+   --                  walked or has more segments than the array holds.
+   procedure Get_Kernel_Segments
+      (Segments : out Boot_Kernel_Segments;
+       Count    : out Natural;
+       Success  : out Boolean)
+      with Pre => Segments'Length = Max_Kernel_Segments;
    ----------------------------------------------------------------------------
    Limine_Common_Magic_1 : constant := 16#c7b1dd30df4c8b88#;
    Limine_Common_Magic_2 : constant := 16#0a82e883a194f07b#;

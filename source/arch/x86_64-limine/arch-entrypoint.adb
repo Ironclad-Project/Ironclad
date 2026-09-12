@@ -50,6 +50,9 @@ package body Arch.Entrypoint is
          with Import, Address => MemPonse.Entries;
       Type_Entry : Boot_Memory_Type;
       Idx : Natural := 0;
+
+      Segments  : Boot_Kernel_Segments (1 .. Limine.Max_Kernel_Segments);
+      Seg_Count : Natural;
    begin
       --  Initialize architectural state first.
       GDT.Init;
@@ -86,9 +89,16 @@ package body Arch.Entrypoint is
                 MemType => Type_Entry);
          end loop;
 
+         --  Fetch the kernel's own loadable segments, so that the MMU can
+         --  map them as their program headers ask for.
+         Limine.Get_Kernel_Segments (Segments, Seg_Count, Success);
+         if not Success then
+            Panic.Hard_Panic ("Could not fetch the kernel's segments");
+         end if;
+
          --  Initialize the allocators and MMU.
          Memory.Physical.Init_Allocator (Memmap);
-         Memory.MMU.Init (Memmap, Success);
+         Memory.MMU.Init (Memmap, Segments (1 .. Seg_Count), Success);
          if not Success then
             Panic.Hard_Panic ("The VMM could not be initialized");
          end if;

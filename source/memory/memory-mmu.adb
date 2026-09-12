@@ -16,6 +16,7 @@
 
 with Interfaces.C; use Interfaces.C;
 with Ada.Unchecked_Deallocation;
+with Alignment;
 with Memory.Physical;
 with Panic;
 with Messages;
@@ -29,47 +30,21 @@ package body Memory.MMU with SPARK_Mode => Off is
 
    procedure F is new Ada.Unchecked_Deallocation (Page_Table, Page_Table_Acc);
 
-   procedure Init (Memmap : Arch.Boot_Memory_Map; Success : out Boolean) is
+   procedure Init
+      (Memmap   : Arch.Boot_Memory_Map;
+       Segments : Arch.Boot_Kernel_Segments;
+       Success  : out Boolean)
+   is
+      package Align is new Alignment (Integer_Address);
+
       NX_Flags : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accessible => False,
           Can_Read           => True,
           Can_Write          => True,
           Can_Execute        => False,
           Is_Global          => True);
-      RX_Flags : constant Arch.MMU.Page_Permissions :=
-         (Is_User_Accessible => False,
-          Can_Read           => True,
-          Can_Write          => False,
-          Can_Execute        => True,
-          Is_Global          => True);
-      R_Flags : constant Arch.MMU.Page_Permissions :=
-         (Is_User_Accessible => False,
-          Can_Read           => True,
-          Can_Write          => False,
-          Can_Execute        => False,
-          Is_Global          => True);
-
-      --  Start of sections for correct permission loading.
-      text_start   : Character with Import, Convention => C;
-      text_end     : Character with Import, Convention => C;
-      rodata_start : Character with Import, Convention => C;
-      rodata_end   : Character with Import, Convention => C;
-      data_start   : Character with Import, Convention => C;
-      data_end     : Character with Import, Convention => C;
-      TSAddr : constant Integer_Address := To_Integer (text_start'Address);
-      OSAddr : constant Integer_Address := To_Integer (rodata_start'Address);
-      DSAddr : constant Integer_Address := To_Integer (data_start'Address);
-
-      --  Physical address.
-      Tmp  : System.Address;
-      Phys : Integer_Address;
    begin
       Messages.Put_Line ("Paging type used: " & Arch.MMU.Paging_Levels'Image);
-      Arch.MMU.Get_Load_Addr (Tmp, Success);
-      if not Success then
-         return;
-      end if;
-      Phys := To_Integer (Tmp);
 
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
@@ -109,40 +84,42 @@ package body Memory.MMU with SPARK_Mode => Off is
          end if;
       end loop;
 
-      --  Map the kernel sections.
-      Map_Range
-         (Map            => Kernel_Table,
-          Physical_Start => To_Address (TSAddr - Kernel_Offset + Phys),
-          Virtual_Start  => text_start'Address,
-          Length         => text_end'Address - text_start'Address,
-          Permissions    => RX_Flags,
-          Caching        => Arch.MMU.Write_Back,
-          Success        => Success);
-      if not Success then return; end if;
-      Map_Range
-         (Map            => Kernel_Table,
-          Physical_Start => To_Address (OSAddr - Kernel_Offset + Phys),
-          Virtual_Start  => rodata_start'Address,
-          Length         => rodata_end'Address - rodata_start'Address,
-          Permissions    => R_Flags,
-          Caching        => Arch.MMU.Write_Back,
-          Success        => Success);
-      if not Success then return; end if;
-      Map_Range
-         (Map            => Kernel_Table,
-          Physical_Start => To_Address (DSAddr - Kernel_Offset + Phys),
-          Virtual_Start  => data_start'Address,
-          Length         => data_end'Address - data_start'Address,
-          Permissions    => NX_Flags,
-          Caching        => Arch.MMU.Write_Back,
-          Success        => Success);
-      if not Success then return; end if;
+      --  Map the kernel as its own program headers ask for. Ironclad forces
+      --  W^X, so a segment asking for both is refused rather than weakened.
+      for Seg of Segments loop
+         declare
+            Perms : constant Arch.MMU.Page_Permissions :=
+               (Is_User_Accessible => False,
+                Can_Read           => True,
+                Can_Write          => Seg.Can_Write,
+                Can_Execute        => Seg.Can_Execute,
+                Is_Global          => True);
+            Start : constant Integer_Address :=
+               To_Integer (Seg.Virtual_Start);
+            Virt : Integer_Address := Start;
+            Len  : Integer_Address := Integer_Address (Seg.Length);
+         begin
+            if Seg.Can_Write and Seg.Can_Execute then
+               Success := False;
+               return;
+            end if;
 
-      --  Update the stats we can update now and unlock.
-      Global_Kernel_Usage :=
-         Memory.Size (text_end'Address - text_start'Address)     +
-         Memory.Size (rodata_end'Address - rodata_start'Address) +
-         Memory.Size (data_end'Address - data_start'Address);
+            Align.Align_Memory_Range (Virt, Len, Page_Size);
+            Map_Range
+               (Map            => Kernel_Table,
+                Physical_Start => To_Address
+                   (To_Integer (Seg.Physical_Start) - (Start - Virt)),
+                Virtual_Start  => To_Address (Virt),
+                Length         => Storage_Count (Len),
+                Permissions    => Perms,
+                Caching        => Arch.MMU.Write_Back,
+                Success        => Success);
+            if not Success then return; end if;
+
+            --  Update the stats we can update now.
+            Global_Kernel_Usage := Global_Kernel_Usage + Memory.Size (Len);
+         end;
+      end loop;
 
       --  Load the kernel table at last.
       Success := Make_Active (Kernel_Table);
