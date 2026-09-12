@@ -35,7 +35,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Revision => 0,
           Response => System.Null_Address),
        Flags => Limine.SMP_ENABLE_X2APIC)
-      with Export, Async_Writers;
+      with Export, Async_Writers, Linker_Section => ".limine_requests";
 
    procedure Init_Cores is
       BSP_LAPIC_ID : Unsigned_32;

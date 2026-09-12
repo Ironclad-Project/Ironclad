@@ -34,7 +34,7 @@ package body Arch.Entrypoint is
       (ID       => Limine.Memmap_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export;
+      with Export, Linker_Section => ".limine_requests";
 
    procedure Bootstrap_Main is
       Addr : System.Address;

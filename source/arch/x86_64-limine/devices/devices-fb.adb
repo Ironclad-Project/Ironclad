@@ -89,7 +89,7 @@ package body Devices.FB with SPARK_Mode => Off is
       (ID       => Limine.Framebuffer_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export, Async_Writers, Linker_Section => ".limine_requests";
 
    --  Data for storing device data.
    type Internal_FB_Data is record

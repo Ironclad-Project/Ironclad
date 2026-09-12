@@ -37,14 +37,14 @@ package body Arch.MMU is
       (ID       => Arch.Limine.Kernel_Address_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export;
+      with Export, Linker_Section => ".limine_requests";
 
    --  Response is a pointer to an HHDM_Response.
    HHDM_Request : Arch.Limine.Request :=
       (ID       => Arch.Limine.HHDM_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export;
+      with Export, Linker_Section => ".limine_requests";
 
    --  Paging level request.
    Paging_Request : Arch.Limine.Paging_Mode_Request :=
@@ -55,7 +55,7 @@ package body Arch.MMU is
        Preferred_Mode => Arch.Limine.Paging_RISCV_64_SV57,
        Max_Mode => Arch.Limine.Paging_RISCV_64_SV57,
        Min_Mode => Arch.Limine.Paging_RISCV_64_SV39)
-      with Export;
+      with Export, Linker_Section => ".limine_requests";
 
    function Paging_Levels return Levels is
       PagingPonse : Arch.Limine.Paging_Mode_Response

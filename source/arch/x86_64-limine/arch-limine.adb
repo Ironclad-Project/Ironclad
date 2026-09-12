@@ -24,19 +24,19 @@ package body Arch.Limine is
       (ID_1     => 16#f9562b2d5c95a6c8#,
        ID_2     => 16#6a7b384944536bdc#,
        Revision => 6)
-      with Export;
+      with Export, Linker_Section => ".limine_requests";
 
    Bootloader_Info_Request : Request :=
       (ID       => Bootloader_Info_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export;
+      with Export, Linker_Section => ".limine_requests";
 
    Kernel_File_Request : Request :=
       (ID       => Kernel_File_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export;
+      with Export, Linker_Section => ".limine_requests";
 
    procedure Translate_Proto is
       InfoPonse : Bootloader_Info_Response

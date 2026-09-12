@@ -25,7 +25,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Revision => 0,
           Response => System.Null_Address),
        Flags => 0)
-      with Export, Async_Writers;
+      with Export, Async_Writers, Linker_Section => ".limine_requests";
 
    procedure Init_Cores is
       BSP_Hart_ID : Unsigned_64;

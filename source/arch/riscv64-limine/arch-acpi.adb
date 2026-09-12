@@ -40,7 +40,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
               16#c5e77b6b397e7b43#, 16#27637845accdcf3c#],
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export, Async_Writers, Linker_Section => ".limine_requests";
 
    type Buffer     is array (1 .. 4096) of Unsigned_8;
    type Buffer_Acc is access Buffer;
