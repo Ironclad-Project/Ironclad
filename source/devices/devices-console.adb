@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Characters.Latin_1;
 with Arch.Debug;
 
 package body Devices.Console is
@@ -69,7 +70,14 @@ package body Devices.Console is
    is
       pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
-      Arch.Debug.Print (Data);
+      --  The console is a terminal, and Flanterm only moves the cursor down on
+      --  a line feed, so translate as the ONLCR output mode would.
+      for C of Data loop
+         if C = Character'Pos (Ada.Characters.Latin_1.LF) then
+            Arch.Debug.Print (Ada.Characters.Latin_1.CR);
+         end if;
+         Arch.Debug.Print (Character'Val (C));
+      end loop;
       Ret_Count := Data'Length;
       Success   := Dev_Success;
    end Write;
