@@ -15,8 +15,8 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Project initialization.
-AC_INIT([Ironclad], [m4_esyscmd([./version.sh])], [https://ironclad-os.org/contributing.html], [ironclad])
 AC_PREREQ([2.69])
+AC_INIT([Ironclad], [m4_esyscmd([./version.sh])], [https://ironclad-os.org/contributing.html], [ironclad], [https://ironclad-os.org/])
 ###############################################################################
 # General project options.
 AC_CONFIG_AUX_DIR([build-aux])
@@ -90,11 +90,10 @@ werror_state="no"
 AC_ARG_ENABLE([werror],
     [AS_HELP_STRING([--enable-werror], [treat warnings as errors])],
     [werror_state="$enableval"])
-if test "$werror_state" = "yes"; then
-    AC_SUBST([WERROR_FLAG], [-Werror])
-else
-    AC_SUBST([WERROR_FLAG], [-Wno-error])
-fi
+AS_IF([test "x$werror_state" = "xyes"],
+    [WERROR_FLAG="-Werror"],
+    [WERROR_FLAG="-Wno-error"])
+AC_SUBST([WERROR_FLAG])
 
 AC_PROG_MKDIR_P
 MKDIR_P="$(rel2abs "$MKDIR_P")"
@@ -106,9 +105,8 @@ AC_PROG_SED
 SED="$(rel2abs "$SED")"
 
 AC_CHECK_PROG([FIND_FOUND], [find], [yes])
-if ! test "x$FIND_FOUND" = "xyes"; then
-    AC_MSG_ERROR([find not found, please install find before configuring])
-fi
+AS_IF([test "x$FIND_FOUND" != "xyes"],
+    [AC_MSG_ERROR([find not found, please install find before configuring])])
 
 # $1 - UPPERCASEVAR, $2 - default command, $3 - 'tool' if toolchain, $4 - 'no-err' to ignore errors
 AC_DEFUN([GET_PROG], [
@@ -180,9 +178,8 @@ cc_cmd="$(echo "$CC" | cut -f 1 -d " ")"
 cc_dir="$(dirname "$(command -v "$cc_cmd")")"
 CC_DIR=""
 for cc_gnatls in "$cc_dir"/*gnatls; do
-    if test -f "$cc_gnatls" && test -x "$cc_gnatls"; then
-        CC_DIR="$cc_dir"
-    fi
+    AS_IF([test -f "$cc_gnatls" && test -x "$cc_gnatls"],
+        [CC_DIR="$cc_dir"])
 done
 AC_MSG_CHECKING([for a GNAT installation next to $cc_cmd])
 AC_MSG_RESULT([${CC_DIR:-no, leaving the search to PATH}])
@@ -191,23 +188,22 @@ AC_ARG_VAR([STRIP], [strip command])
 GET_PROG([STRIP], [strip], [tool])
 
 GCC_VERSION="$($CC -dumpversion)"
-if test "${GCC_VERSION%%.*}" -lt "14"; then
-    AC_MSG_ERROR([GCC version 14 or greater is required to build Ironclad])
-fi
+AS_VERSION_COMPARE([$GCC_VERSION], [14],
+    [AC_MSG_ERROR([GCC version 14 or greater is required to build Ironclad, $GCC_VERSION found])])
 
 m4_define([DEFAULT_CFLAGS], [-g -O2 -pipe])
 AC_ARG_VAR([CFLAGS], [C compiler flags @<:@default: ]DEFAULT_CFLAGS[@:>@])
-test "x${CFLAGS+set}" = "x" && CFLAGS="DEFAULT_CFLAGS"
+: "${CFLAGS=DEFAULT_CFLAGS}"
 
 AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: same as CFLAGS@:>@])
-test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="$CFLAGS"
+: "${ADAFLAGS=$CFLAGS}"
 
 AC_ARG_VAR([ASFLAGS], [assembler flags @<:@default: same as CFLAGS@:>@])
-test "x${ASFLAGS+set}" = "x" && ASFLAGS="$CFLAGS"
+: "${ASFLAGS=$CFLAGS}"
 
 m4_define([DEFAULT_LDFLAGS], [])
 AC_ARG_VAR([LDFLAGS], [linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
-test "x${LDFLAGS+set}" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
+: "${LDFLAGS=DEFAULT_LDFLAGS}"
 ###############################################################################
 # A ton of tools use source date epoch in order to not use date in the effort
 # of doing reproducible builds.
@@ -233,13 +229,12 @@ GET_PROG([GPRBUILD], [gprbuild])
 # in PATH second, so check both, else the build dies halfway through with a
 # cryptic 'could not locate gprconfig for auto-configuration'.
 AC_ARG_VAR([GPRCONFIG], [gprconfig command])
-if test "x${GPRCONFIG+set}" != "xset"; then
+AS_IF([test "x${GPRCONFIG+set}" != "xset"], [
     gprbuild_cmd="$(echo "$GPRBUILD" | cut -f 1 -d " ")"
     gprconfig_path="$(dirname "$(command -v "$gprbuild_cmd")")/gprconfig"
-    if test -f "$gprconfig_path" && test -x "$gprconfig_path"; then
-        GPRCONFIG="$gprconfig_path"
-    fi
-fi
+    AS_IF([test -f "$gprconfig_path" && test -x "$gprconfig_path"],
+        [GPRCONFIG="$gprconfig_path"])
+])
 GET_PROG([GPRCONFIG], [gprconfig])
 AC_ARG_VAR([GNATPROVE], [gnatprove command])
 GET_PROG([GNATPROVE], [gnatprove], [], [no-err])
@@ -270,18 +265,11 @@ GET_TOOL_FROM_GPRBUILD([GPRLIB], [gprlib])
 ###############################################################################
 # Platform acquisition and checking.
 AC_ARG_VAR([PLATFORM], [target platform to build Ironclad for @<:@default: limine@:>@])
+: "${PLATFORM:=limine}"
 
-if test "x$PLATFORM" = "x"; then
-    PLATFORM=limine
-fi
-
-case $PLATFORM in
-    limine)
-        ;;
-    *)
-        AC_MSG_ERROR([$PLATFORM is not a valid target platform])
-        ;;
-esac
+AS_CASE([$PLATFORM],
+    [limine], [],
+    [AC_MSG_ERROR([$PLATFORM is not a valid target platform])])
 
 ###############################################################################
 # Finalize the settings and output the files.
