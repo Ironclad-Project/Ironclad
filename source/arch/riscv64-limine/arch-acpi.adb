@@ -509,6 +509,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       package A is new Alignment (Integer_Address);
 
+      --  uACPI takes this, rather than a null address, as a failure.
+      Failed : constant System.Address := To_Address (Integer_Address'Last);
+
       Success : Boolean;
       Start   : Integer_Address := Integer_Address (Phys_Addr);
       Len     : Integer_Address := Integer_Address (Length);
@@ -529,7 +532,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return To_Address (Memory.Memory_Offset + Integer_Address (Phys_Addr));
    exception
       when Constraint_Error =>
-         return System.Null_Address;
+         return Failed;
    end Map;
 
    procedure Unmap (Address : System.Address; Length : size_t) is
