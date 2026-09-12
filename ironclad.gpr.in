@@ -145,7 +145,7 @@ project Ironclad is
    end Compiler;
 
    package Linker is
-      Base_Link_Switches := Split (Linker_Flags, " ") & (
+      Base_Link_Switches := Split (Linker_Flags, " ") & Common_Compiler_Flags & (
          "-nostdlib",
          "-static",
          "-no-pie",
