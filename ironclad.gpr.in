@@ -20,7 +20,10 @@ project Ironclad is
       "x86_64-limine"
    );
 
+   type Proving_State is ("false", "true");
+
    Arch : Arch_Name := "@host_cpu@-@PLATFORM@";
+   Proving : Proving_State := external ("IRONCLAD_PROVING", "false");
    Ada_Flags        := "@ADAFLAGS@";
    C_Flags          := "@CFLAGS@";
    Asm_Flags        := "@ASFLAGS@";
@@ -72,6 +75,16 @@ project Ironclad is
    package Builder is
       for Executable ("main.adb") use "ironclad";
       for Switches ("Ada") use ("-nostdlib");
+
+      --  gnatprove analyzes with a compiler of its own, built for the host,
+      --  so it gets told the target properties of the one we build with.
+      case Proving is
+         when "true" =>
+            for Global_Compilation_Switches ("Ada") use
+              ("-gnateT=" & "@BUILDDIR@" & "/target.atp");
+         when "false" =>
+            null;
+      end case;
    end Builder;
 
    Common_Compiler_Flags := (
@@ -84,7 +97,9 @@ project Ironclad is
       "-fno-PIC",
       "-ffunction-sections",
       "-fdata-sections",
-      "-ffile-prefix-map=" & "@SRCDIR@" & "=."
+      "-ffile-prefix-map=" & "@SRCDIR@" & "=.",
+      "-ffile-prefix-map=" & "@BUILDDIR@" & "=.",
+      "-gno-record-gcc-switches"
    );
 
    case Arch is

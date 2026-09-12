@@ -24,6 +24,11 @@ AC_CONFIG_AUX_DIR([build-aux])
 SRCDIR="$(cd "$srcdir" && pwd -P)"
 AC_SUBST([SRCDIR])
 
+# The build directory ends up in debug information just like the source one,
+# and is mapped away in the project files, to keep builds path independent.
+BUILDDIR="$(pwd -P)"
+AC_SUBST([BUILDDIR])
+
 AC_CANONICAL_HOST
 case "$host_cpu" in
     amd64) host_cpu=x86_64 ;;
@@ -133,6 +138,22 @@ AC_ARG_VAR([AR], [archiver command])
 GET_PROG([AR], [gcc-ar], [tool])
 AC_ARG_VAR([CC], [C compiler command])
 GET_PROG([CC], [gcc], [tool])
+
+# gprconfig searches PATH for the toolchain, which may not be the one CC points
+# to, and the driver would then come from CC and the runtime from elsewhere.
+# Point it at CC's directory when a GNAT lives there, else leave it to PATH, as
+# is the case for compiler caches and other things that are not toolchains.
+cc_cmd="$(echo "$CC" | cut -f 1 -d " ")"
+cc_dir="$(dirname "$(command -v "$cc_cmd")")"
+CC_DIR=""
+for cc_gnatls in "$cc_dir"/*gnatls; do
+    if test -f "$cc_gnatls" && test -x "$cc_gnatls"; then
+        CC_DIR="$cc_dir"
+    fi
+done
+AC_MSG_CHECKING([for a GNAT installation next to $cc_cmd])
+AC_MSG_RESULT([${CC_DIR:-no, leaving the search to PATH}])
+AC_SUBST([CC_DIR])
 AC_ARG_VAR([STRIP], [strip command])
 GET_PROG([STRIP], [strip], [tool])
 
@@ -173,6 +194,20 @@ AC_ARG_VAR([TEXI2HTML], [texi2html command])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [], [no-err])
 AC_ARG_VAR([GPRBUILD], [gprbuild command])
 GET_PROG([GPRBUILD], [gprbuild])
+
+# gprbuild does not detect compilers itself, it runs gprconfig, which several
+# distributions package separately. It is looked for next to gprbuild first and
+# in PATH second, so check both, else the build dies halfway through with a
+# cryptic 'could not locate gprconfig for auto-configuration'.
+AC_ARG_VAR([GPRCONFIG], [gprconfig command])
+if test "x${GPRCONFIG+set}" != "xset"; then
+    gprbuild_cmd="$(echo "$GPRBUILD" | cut -f 1 -d " ")"
+    gprconfig_path="$(dirname "$(command -v "$gprbuild_cmd")")/gprconfig"
+    if test -f "$gprconfig_path" && test -x "$gprconfig_path"; then
+        GPRCONFIG="$gprconfig_path"
+    fi
+fi
+GET_PROG([GPRCONFIG], [gprconfig])
 AC_ARG_VAR([GNATPROVE], [gnatprove command])
 GET_PROG([GNATPROVE], [gnatprove], [], [no-err])
 

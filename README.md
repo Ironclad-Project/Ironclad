@@ -32,6 +32,7 @@ The tools needed are:
 - standard *nix tools including `find` and GNU make.
 - autoconf and automake when not using a tarball (for `./bootstrap`).
 - gprbuild for compilation, along with a compatible Ada compiler and assembler.
+  gprconfig is needed as well, which some distributions package separately.
 - GNU Info for building the documentation.
 - highlight for syntax highlighting when building the HTML documentation.
 - gnatprove for formal verification, if desired.

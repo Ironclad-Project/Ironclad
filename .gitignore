@@ -29,6 +29,7 @@
 /ironclad
 /gprconfig/*.xml
 /ironclad.gpr
+/ironclad.cgpr
 /GNUmakefile
 /autom4te.cache
 /build-aux
@@ -37,6 +38,8 @@
 /configure
 /*~
 /rts.gpr
+/rts.cgpr
+/target.atp
 /rtsdir
 /freestnd-c-hdrs
 /cc-runtime

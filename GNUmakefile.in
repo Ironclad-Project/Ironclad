@@ -49,14 +49,20 @@ MAKEINFO := @MAKEINFO@
 TEXI2HTML := @TEXI2HTML@
 TEXI2DVI := @TEXI2DVI@
 GPRBUILD := @GPRBUILD@
+GPRCONFIG := @GPRCONFIG@
 GNATPROVE := @GNATPROVE@
 STRIP := @STRIP@
 
 # Target information.
 override CC := @CC@
+override CC_DIR := @CC_DIR@
 override GPRBUILD_TARGET := $(shell $(CC) -dumpmachine)
 override host_cpu := @host_cpu@
 override PLATFORM := @PLATFORM@
+
+# Paths passed to gprconfig, escaped for the shell.
+override RTS_PATH := '$(call SHESCAPE,$(CURDIR))'/rtsdir
+override CC_PATH := '$(call SHESCAPE,$(CC_DIR))'
 
 # Attempt to get the job count from the make command line.
 override PARALLELISM := $(shell ps T | $(SED) -E -n 's%.*'$$PPID'.*$(MAKE).* (-j *|--jobs( +|=))([0-9]+).*%\3%p')
@@ -73,6 +79,8 @@ override ADAFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f
 .PHONY: all
 all: $(OUTPUT) info
 
+# gprbuild runs gprconfig on its own, but always the one sitting next to its
+# own executable, so the configuration projects are generated here instead.
 rtsdir/adalib/libgnat.a: GNUmakefile $(RTSFILES)
 	rm -rf rtsdir
 	$(MKDIR_P) rtsdir/adalib
@@ -80,13 +88,20 @@ rtsdir/adalib/libgnat.a: GNUmakefile $(RTSFILES)
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/*.adb rtsdir/adainclude/
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/*.ads rtsdir/adainclude/
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/$(host_cpu)-$(PLATFORM)/*.ads rtsdir/adainclude/
-	$(GPRBUILD) -P ./rts.gpr \
+	$(GPRCONFIG) --batch -o rts.cgpr \
 		--target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
+		--config=Ada,,$(RTS_PATH),$(CC_PATH)
+	$(GPRBUILD) -P ./rts.gpr --config=rts.cgpr \
+		--target=$(GPRBUILD_TARGET) \
 		-j$(PARALLELISM)
 
 $(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES)
-	$(GPRBUILD) -P ./ironclad.gpr \
-		--RTS=./rtsdir --target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
+	$(GPRCONFIG) --batch -o ironclad.cgpr \
+		--target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
+		--config=Ada,,$(RTS_PATH),$(CC_PATH) \
+		--config=C,,,$(CC_PATH) --config=Asm_Cpp,,,$(CC_PATH)
+	$(GPRBUILD) -P ./ironclad.gpr --config=ironclad.cgpr \
+		--target=$(GPRBUILD_TARGET) \
 		-j$(PARALLELISM)
 
 .PHONY: info
@@ -111,32 +126,43 @@ ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
 .PHONY: check
 check: check-rts check-kernel
 
+# Target properties of $(CC), as gnatprove analyzes with its own compiler.
+target.atp: GNUmakefile
+	echo 'package Target_Probe is end Target_Probe;' >target_probe.ads
+	$(CC) -c -gnatet=target.atp target_probe.ads
+	rm -f target_probe.ads target_probe.ali target_probe.o
+
 .PHONY: check-rts
-check-rts: rtsdir/adalib/libgnat.a
-	$(GNATPROVE) -P ./rts.gpr \
+check-rts: rtsdir/adalib/libgnat.a target.atp
+	$(GNATPROVE) -P ./rts.gpr --target=$(GPRBUILD_TARGET) \
+		-XIRONCLAD_PROVING=true \
 		-U --level=4 --mode=all --counterexamples=on \
 		-j$(PARALLELISM)
 
 .PHONY: check-rts-stone
-check-rts-stone: rtsdir/adalib/libgnat.a
-	$(GNATPROVE) -P ./rts.gpr \
+check-rts-stone: rtsdir/adalib/libgnat.a target.atp
+	$(GNATPROVE) -P ./rts.gpr --target=$(GPRBUILD_TARGET) \
+		-XIRONCLAD_PROVING=true \
 		-U --level=4 --mode=stone -j$(PARALLELISM)
 
 .PHONY: check-kernel
-check-kernel: rtsdir/adalib/libgnat.a
-	$(GNATPROVE) -P ./ironclad.gpr \
+check-kernel: rtsdir/adalib/libgnat.a target.atp
+	$(GNATPROVE) -P ./ironclad.gpr --target=$(GPRBUILD_TARGET) \
+		-XIRONCLAD_PROVING=true \
 		--RTS=./rtsdir -U --level=4 --mode=all --counterexamples=on \
 		-j$(PARALLELISM)
 
 .PHONY: check-kernel-stone
-check-kernel-stone: rtsdir/adalib/libgnat.a
-	$(GNATPROVE) -P ./ironclad.gpr \
+check-kernel-stone: rtsdir/adalib/libgnat.a target.atp
+	$(GNATPROVE) -P ./ironclad.gpr --target=$(GPRBUILD_TARGET) \
+		-XIRONCLAD_PROVING=true \
 		--RTS=./rtsdir --level=4 --mode=stone -j$(PARALLELISM)
 ###############################################################################
 # Rules for cleaning build and configuration artifacts.
 .PHONY: clean
 clean:
-	rm -rf $(OUTPUT) obj gnatprove rtsdir \
+	rm -rf $(OUTPUT) obj gnatprove rtsdir rts.cgpr ironclad.cgpr \
+		target.atp target_probe.* \
 		ironclad.info ironclad.html ironclad.dvi ironclad.log ironclad.toc \
 		ironclad.aux
 
