@@ -22,9 +22,9 @@ ENTRY(kernel_main)
 PHDRS
 {
     limine_requests PT_LOAD;
-    text            PT_LOAD;
-    rodata          PT_LOAD;
-    data            PT_LOAD;
+    text PT_LOAD;
+    rodata PT_LOAD;
+    data PT_LOAD;
 }
 
 SECTIONS
@@ -42,6 +42,7 @@ SECTIONS
     .text : {
         *(.text .text.*)
     } :text
+
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .rodata : {
@@ -50,7 +51,8 @@ SECTIONS
 
     .note.gnu.build-id : {
         *(.note.gnu.build-id)
-    } : rodata
+    } :rodata
+
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .data : {
@@ -61,7 +63,6 @@ SECTIONS
         *(.bss .bss.*)
         *(COMMON)
     } :data
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     /DISCARD/ : {
         *(.eh_frame*)
