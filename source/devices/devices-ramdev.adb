@@ -128,7 +128,8 @@ package body Devices.Ramdev is
       Synchronization.Seize_Reader (Dev.Mutex);
       Is_Holding := True;
       declare
-         Source : Operation_Data (1 .. To_Read) with Import,
+         Source_Len : constant Natural := To_Read;
+         Source     : Operation_Data (1 .. Source_Len) with Import,
             Address => Dev.Start_Address + Storage_Offset (Offset);
       begin
          Data (Data'First .. Data'First + To_Read - 1) := Source;
@@ -178,7 +179,8 @@ package body Devices.Ramdev is
       Synchronization.Seize_Writer (Dev.Mutex);
       Is_Holding := True;
       declare
-         Target : Operation_Data (1 .. To_Write) with Import,
+         Target_Len : constant Natural := To_Write;
+         Target     : Operation_Data (1 .. Target_Len) with Import,
             Address => Dev.Start_Address + Storage_Offset (Offset);
       begin
          Target := Data (Data'First .. Data'First + To_Write - 1);
