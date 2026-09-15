@@ -1588,7 +1588,8 @@ advance the reading counter of the passed device or inode.
 @code{hint} and @code{length}, if not matching page boundaries for the
 architecture, will be aligned by the kernel to the closest page boundaries.
 
-@code{protection} and @code{flags} are a bitfield of the following flags:
+@code{protection} is either empty, which will make @code{mmap} reserve memory
+instead of map it, or a bitfield of:
 
 @itemize @bullet
 @item
@@ -1599,13 +1600,14 @@ architecture, will be aligned by the kernel to the closest page boundaries.
 
 @item
 @code{MAP_FIXED} (0b00100): Use hint as a hard requirement.
+@end itemize
 
+@code{flags} is a bitfield of:
+
+@itemize @bullet
 @item
 @code{MAP_ANON} (0b01000): Mapping is not backed by any file, and @code{fd} is
 ignored. Memory will be initialized to 0s.
-
-@item
-@code{MAP_WC} (0b10000): Map using write-combining when possible.
 @end itemize
 
 @code{munmap} will unmap a range for the virtual address space of the calling

@@ -328,7 +328,20 @@ package body Memory.MMU with SPARK_Mode => Off is
       Addr  : Virtual_Address;
       Orig  : Integer_Address;
       Perms : Arch.MMU.Clean_Result;
+      Fill  : constant Boolean := Permissions.Can_Read or
+                                  Permissions.Can_Write or
+                                  Permissions.Can_Execute;
    begin
+      --  XXX: A mapping that grants no access reserves address space, it does
+      --  not ask for memory. Software like glibc tends to reserve this way
+      --  large swathes of memory and actually use it when Remap_Range'ing it
+      --  later on. We will do a little hack and not do anything, since
+      --  Remap_Range can allocate.
+      if not Fill then
+         Success := True;
+         return;
+      end if;
+
       Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
          Get_Page (Map, Virt, True, Addr);
@@ -388,7 +401,16 @@ package body Memory.MMU with SPARK_Mode => Off is
       Phys  : Virtual_Address;
       Orig  : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
+      Fill  : constant Boolean := Permissions.Can_Read or
+                                  Permissions.Can_Write or
+                                  Permissions.Can_Execute;
    begin
+      --  XXX: See above for Map_Range.
+      if not Fill then
+         Success := True;
+         return;
+      end if;
+
       Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
          Get_Page (Map, Virt, True, Addr);
@@ -454,25 +476,58 @@ package body Memory.MMU with SPARK_Mode => Off is
       Virt  : Virtual_Address          := To_Integer (Virtual_Start);
       Final : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr  : Virtual_Address;
+      Addr1 : Virtual_Address;
+      Frame : Integer_Address;
+      User  : Boolean;
       Perms : Arch.MMU.Clean_Result;
+      Fill  : constant Boolean := Permissions.Can_Read or
+                                  Permissions.Can_Write or
+                                  Permissions.Can_Execute;
    begin
       Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
-         Get_Page (Map, Virt, False, Addr);
+         Get_Page (Map, Virt, Fill, Addr);
 
          declare
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             if Addr /= 0 then
-               Perms      := Arch.MMU.Clean_Entry_Perms (Entry_Body);
-               Entry_Body := Arch.MMU.Construct_Entry
-                  (To_Address (Arch.MMU.Clean_Entry (Entry_Body)),
-                      Permissions, Caching, Perms.User_Flag);
-               if Perms.Perms.Is_User_Accessible then
-                  Map.User_Size := Map.User_Size - Page_Size;
+               Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+               Frame := Arch.MMU.Clean_Entry (Entry_Body);
+               User  := Perms.User_Flag;
+
+               --  Nothing is behind this address yet. If this call is what
+               --  grants access to it, that is the point at which it has to
+               --  be given memory, and the point at which the process is
+               --  charged for it.
+               if Fill and then Frame = 0 then
+                  Memory.Physical.User_Alloc (Addr1, Page_Size, Success);
+                  if not Success then
+                     Synchronization.Release (Map.Mutex);
+                     return;
+                  end if;
+                  declare
+                     Allocated : array (1 .. Page_Size) of Unsigned_8
+                        with Import, Address => To_Address (Addr1);
+                  begin
+                     Allocated := [others => 0];
+                  end;
+                  Frame := Addr1 - Memory.Memory_Offset;
+                  User  := Permissions.Is_User_Accessible;
                end if;
-               if Permissions.Is_User_Accessible then
-                  Map.User_Size := Map.User_Size + Page_Size;
+
+               --  An address with nothing behind it stays that way. Writing
+               --  an entry for it would hand out physical address zero as if
+               --  it were the caller's page.
+               if Frame /= 0 then
+                  Entry_Body := Arch.MMU.Construct_Entry
+                     (To_Address (Frame), Permissions, Caching, User);
+                  if Perms.Perms.Is_User_Accessible then
+                     Map.User_Size := Map.User_Size - Page_Size;
+                  end if;
+                  if Permissions.Is_User_Accessible then
+                     Map.User_Size := Map.User_Size + Page_Size;
+                  end if;
                end if;
             end if;
          end;
