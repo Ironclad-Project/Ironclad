@@ -130,24 +130,25 @@ ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi $(call MKESCAPE,$(SR
 .PHONY: check
 check: check-rts check-kernel
 
-# Target properties of $(CC), as gnatprove analyzes with its own compiler.
-target.atp: GNUmakefile
+# Target properties of $(CC), as gnatprove analyzes with its own compiler. The
+# probe uses our runtime, as bare metal toolchains come without a default one.
+target.atp: GNUmakefile rtsdir/adalib/libgnat.a
 	echo 'package Target_Probe is end Target_Probe;' >target_probe.ads
-	$(CC) -c -gnatet=target.atp target_probe.ads
+	$(CC) -c --RTS=./rtsdir -gnatet=target.atp target_probe.ads
 	rm -f target_probe.ads target_probe.ali target_probe.o
 
 .PHONY: check-rts
 check-rts: rtsdir/adalib/libgnat.a target.atp
 	$(GNATPROVE) -P ./rts.gpr --target=$(GPRBUILD_TARGET) \
 		-XIRONCLAD_PROVING=true \
-		-U --level=4 --mode=all --counterexamples=on \
+		--RTS=./rtsdir -U --level=4 --mode=all --counterexamples=on \
 		-j$(PARALLELISM)
 
 .PHONY: check-rts-stone
 check-rts-stone: rtsdir/adalib/libgnat.a target.atp
 	$(GNATPROVE) -P ./rts.gpr --target=$(GPRBUILD_TARGET) \
 		-XIRONCLAD_PROVING=true \
-		-U --level=4 --mode=stone -j$(PARALLELISM)
+		--RTS=./rtsdir -U --level=4 --mode=stone -j$(PARALLELISM)
 
 .PHONY: check-kernel
 check-kernel: rtsdir/adalib/libgnat.a target.atp
