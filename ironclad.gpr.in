@@ -94,6 +94,7 @@ project Ironclad is
       "-nostdinc",
       "-fno-stack-protector",
       "-fno-stack-check",
+      "-fno-stack-clash-protection",
       "-fno-PIC",
       "-ffunction-sections",
       "-fdata-sections",
@@ -107,6 +108,7 @@ project Ironclad is
          Common_Compiler_Flags := Common_Compiler_Flags & (
             "-march=rv64imac_zicsr_zifencei",
             "-mabi=lp64",
+            "-mcmodel=medlow",
             "-mno-relax"
          );
       when "x86_64-limine" =>
@@ -114,7 +116,6 @@ project Ironclad is
             "-fcf-protection",
             "-m64",
             "-march=x86-64",
-            "-mabi=sysv",
             "-mgeneral-regs-only",
             "-mno-red-zone",
             "-mcmodel=kernel"
@@ -153,11 +154,11 @@ project Ironclad is
          "-nostdlib",
          "-static",
          "-no-pie",
-         "-Wl,-nostdlib",
-         "-Wl,-static",
+         "-Wl,-no-pie",
          "-Wl,-z,max-page-size=0x1000",
          "-Wl,-z,noexecstack",
          "-Wl,--gc-sections",
+         "-Wl,--build-id=sha1",
          "-T@SRCDIR@/source/arch/" & Arch & "/linker.ld",
          "rtsdir/adalib/libgnat.a"
       );

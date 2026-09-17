@@ -59,6 +59,7 @@ library project RTS is
          "-nostdinc",
          "-fno-stack-protector",
          "-fno-stack-check",
+         "-fno-stack-clash-protection",
          "-fno-PIC",
          "-ffunction-sections",
          "-fdata-sections",
@@ -72,13 +73,14 @@ library project RTS is
             Base_Ada_Switches := Base_Ada_Switches & (
                "-march=rv64imac_zicsr_zifencei",
                "-mabi=lp64",
+               "-mcmodel=medlow",
                "-mno-relax"
             );
          when "x86_64-limine" =>
             Base_Ada_Switches := Base_Ada_Switches & (
+               "-fcf-protection",
                "-m64",
                "-march=x86-64",
-               "-mabi=sysv",
                "-mgeneral-regs-only",
                "-mno-red-zone",
                "-mcmodel=kernel"
