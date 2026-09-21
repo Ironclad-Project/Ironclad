@@ -22,6 +22,7 @@ with Alignment;
 with Panic;
 with Arch.Snippets;
 with Arch.Context;
+with Arch.Virtualization;
 with System; use System;
 with Memory;
 
@@ -338,6 +339,10 @@ package body Arch.CPU with SPARK_Mode => Off is
       Core_Locals (Core_Number).Core_TSS.Stack_Ring0 := Int_Stk_Top;
       Core_Locals (Core_Number).Core_TSS.IST1 := IST_Stk_Top;
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
+
+      --  Hardware virtualization is enabled per core, and last, as it needs
+      --  the core local installed above.
+      Arch.Virtualization.Enable_For_This_Core;
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception when initializing core");

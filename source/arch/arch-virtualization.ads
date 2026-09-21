@@ -35,6 +35,10 @@ package Arch.Virtualization with SPARK_Mode => Off is
 
    --  Initialize virtualization if available, otherwise return silently.
    procedure Initialize;
+
+   --  Enable hardware virtualization on the calling core, which every core
+   --  that may run a VCPU needs. A core already enabled is left alone.
+   procedure Enable_For_This_Core;
    ----------------------------------------------------------------------------
    --  Create a new virtual machine.
    --  @return Machine ID on success, Invalid_Machine on failure.

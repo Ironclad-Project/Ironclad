@@ -15,8 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Conversion;
+with Interfaces.C;
 with System.Machine_Code;
 with Arch.Snippets;
+with Arch.CPU;
 with Arch.MMU;
 with Arch.GDT;
 with Memory.Physical;
@@ -28,8 +30,9 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
    VMXON_LOCK_FLAG   : constant := 2#001#;
    VMXON_ENABLE_FLAG : constant := 2#100#;
 
-   VMXON_Region_Addr : Integer_Address := 0;
-   VMX_Initialized   : Boolean := False;
+   --  The VMXON region of each core, a core with one being enabled already.
+   VMXON_Regions   : array (1 .. 256) of Integer_Address := [others => 0];
+   VMX_Initialized : Boolean := False;
 
    --  CR0/CR4 fixed bits (populated during initialization)
    CR0_Fixed0 : Unsigned_64 := 0;
@@ -46,7 +49,15 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
       EAX, EBX, ECX, EDX : Unsigned_32;
       Value, Revision_ID : Unsigned_64;
       Success_U16 : Unsigned_16;
+      Core_Num : Positive;
+      VMXON_Region_Addr : Integer_Address;
    begin
+      Core_Num := Arch.CPU.Get_Local.Number;
+      if VMXON_Regions (Core_Num) /= 0 then
+         Success := True;
+         return;
+      end if;
+
       --  Check VMX is present via CPUID.1:ECX[5]
       Arch.Snippets.Get_CPUID
          (Leaf    => 1,
@@ -139,7 +150,10 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
 
       Success := Success_U16 /= 0;
       if Success then
+         VMXON_Regions (Core_Num) := VMXON_Region_Addr;
          VMX_Initialized := True;
+      else
+         Memory.Physical.Free (Interfaces.C.size_t (VMXON_Region_Addr));
       end if;
    exception
       when Constraint_Error =>

@@ -100,7 +100,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       return Has_Initialized;
    end Is_Supported;
 
-   procedure Initialize is
+   procedure Enable_For_This_Core is
       SVM_OK : Boolean := False;
       VMX_OK : Boolean := False;
    begin
@@ -117,6 +117,11 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Has_Initialized := True;
          end if;
       end if;
+   end Enable_For_This_Core;
+
+   procedure Initialize is
+   begin
+      Enable_For_This_Core;
 
       if Has_Initialized then
          --  Initialize all machines as inactive

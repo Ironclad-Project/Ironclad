@@ -33,10 +33,9 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
    --  EFER bits
    EFER_SVME : constant := Shift_Left (Unsigned_64'(1), 12);
 
-   --  Host save area addresses (one per core, up to 256 cores)
-   --  Stored for potential future use (e.g., cleanup on shutdown)
+   --  Host save area addresses (one per core, up to 256 cores), a core with
+   --  one being enabled already.
    Host_Save_Areas : array (1 .. 256) of Integer_Address := [others => 0];
-   pragma Unreferenced (Host_Save_Areas);
 
    --  Track initialization state
    SVM_Initialized : Boolean := False;
@@ -64,12 +63,17 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
          return;
       end if;
 
+      Core_Num := Arch.CPU.Get_Local.Number;
+      if Host_Save_Areas (Core_Num) /= 0 then
+         Success := True;
+         return;
+      end if;
+
       --  Enable the SVME bit in EFER.
       Value := Snippets.Read_MSR (EFER_MSR);
       Snippets.Write_MSR (EFER_MSR, Value or EFER_SVME);
 
       --  Allocate and set up host save area for this core.
-      Core_Num := Arch.CPU.Get_Local.Number;
       Memory.Physical.Alloc (Memory.MMU.Page_Size, Host_Save_Addr);
       if Host_Save_Addr = 0 then
          Success := False;

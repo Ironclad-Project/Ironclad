@@ -24,6 +24,11 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    begin
       null;
    end Initialize;
+
+   procedure Enable_For_This_Core is
+   begin
+      null;
+   end Enable_For_This_Core;
    ----------------------------------------------------------------------------
    function Machine_Create return Machine_ID is
    begin
