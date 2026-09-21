@@ -441,10 +441,12 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          end if;
          Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr := FPU_Addr_Local;
 
-         --  Initialize FPU buffer with default x87/SSE state
+         --  Initialize FPU buffer with default x87/SSE state. The whole
+         --  buffer is zeroed, the XSAVE header past the legacy region
+         --  included, which XRSTOR checks.
          declare
-            type Byte_Array is array (0 .. 511) of Unsigned_8;
-            FPU_Buf : Byte_Array
+            type Byte_Array is array (Integer_Address range <>) of Unsigned_8;
+            FPU_Buf : Byte_Array (0 .. FPU_Size - 1)
                with Import, Address => To_Address (FPU_Addr_Local);
          begin
             FPU_Buf := [others => 0];
