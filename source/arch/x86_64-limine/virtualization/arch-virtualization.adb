@@ -2488,8 +2488,9 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       end if;
 
       --  Validate GPA range (must fit in first 2MB for now - our PT pool)
-      --  We only have PTs pre-allocated for the first 2MB
-      if GPA + Size > Page_2MB then
+      --  We only have PTs pre-allocated for the first 2MB. Written so that
+      --  it cannot wrap.
+      if GPA > Page_2MB or else Size > Page_2MB - GPA then
          Release (Machines (Positive (Mach)).Lock);
          return False;  --  Beyond 2MB limit with 4KB pages
       end if;
