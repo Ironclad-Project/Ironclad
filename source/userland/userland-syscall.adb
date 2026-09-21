@@ -1872,21 +1872,34 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
+      Total : Natural;
+      Slots : Natural;
    begin
       Get_Common_Map (Proc, Map);
 
+      --  Size the kernel's copy by what exists, never by what was asked.
       declare
-         subtype KProc_List is Process_Info_Arr (1 .. Natural (Length));
-         subtype Proc_List  is Proc_Info_Arr (1 .. Natural (Length));
-         package Trans is new Memory.Userland_Transfer (Proc_List);
-         Ret   : Natural;
-         KProc : KProc_List;
-         Procs : Proc_List;
-         Succs : Boolean;
-         Stamp : Timestamp;
+         None : Process_Info_Arr (1 .. 0);
+      begin
+         List_All (None, Total);
+      end;
+      Slots :=
+         (if Length < Unsigned_64 (Total) then Natural (Length) else Total);
+
+      declare
+         Slot_Count : constant Natural := Slots;
+         subtype KProc_List is Process_Info_Arr (1 .. Slot_Count);
+         subtype Proc_List  is Proc_Info_Arr (1 .. Slot_Count);
+         Ret    : Natural;
+         Filled : Natural;
+         KProc  : KProc_List;
+         Procs  : Proc_List;
+         Succs  : Boolean;
+         Stamp  : Timestamp;
       begin
          List_All (KProc, Ret);
-         for I in 1 .. Ret loop
+         Filled := Natural'Min (Ret, Slot_Count);
+         for I in 1 .. Filled loop
             Procs (I) :=
                (Identifier  => KProc (I).Identifier,
                 Id_Len      => Unsigned_16 (KProc (I).Identifier_Len),
@@ -1905,7 +1918,14 @@ package body Userland.Syscall is
             end if;
          end loop;
 
-         Trans.Paste_Into_Userland (Map, Procs, SAddr, Succs);
+         declare
+            Out_Count : constant Natural := Filled;
+            subtype Out_List is Proc_Info_Arr (1 .. Out_Count);
+            package Trans is new Memory.Userland_Transfer (Out_List);
+         begin
+            Trans.Paste_Into_Userland
+               (Map, Procs (1 .. Filled), SAddr, Succs);
+         end;
          if Succs then
             Returned := Unsigned_64 (Ret);
             Errno    := Error_No_Error;
@@ -2066,22 +2086,35 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
+      Total : Natural;
+      Slots : Natural;
    begin
       Get_Common_Map (Proc, Map);
 
+      --  Size the kernel's copy by what exists, never by what was asked.
       declare
-         subtype KTh is Scheduler.Thread_Listing_Arr  (1 .. Natural (Length));
-         subtype Th_List is Thread_Info_Arr (1 .. Natural (Length));
-         package Trans is new Memory.Userland_Transfer (Th_List);
+         None : Scheduler.Thread_Listing_Arr (1 .. 0);
+      begin
+         List_All (None, Total);
+      end;
+      Slots :=
+         (if Length < Unsigned_64 (Total) then Natural (Length) else Total);
 
-         KInfo : KTh;
-         Ret  : Natural;
-         N    : Niceness;
-         Info : Th_List;
-         Succ : Boolean;
+      declare
+         Slot_Count : constant Natural := Slots;
+         subtype KTh is Scheduler.Thread_Listing_Arr (1 .. Slot_Count);
+         subtype Th_List is Thread_Info_Arr (1 .. Slot_Count);
+
+         KInfo  : KTh;
+         Ret    : Natural;
+         Filled : Natural;
+         N      : Niceness;
+         Info   : Th_List;
+         Succ   : Boolean;
       begin
          List_All (KInfo, Ret);
-         for I in 1 .. Ret loop
+         Filled := Natural'Min (Ret, Slot_Count);
+         for I in 1 .. Filled loop
             Info (I) :=
                (Thread_Id   => Unsigned_16 (Convert (KInfo (I).Thread)),
                 Niceness    => 0,
@@ -2100,7 +2133,13 @@ package body Userland.Syscall is
             Info (I).Flags := (if Succ then Thread_Suspended else 0);
          end loop;
 
-         Trans.Paste_Into_Userland (Map, Info, SAddr, Succ);
+         declare
+            Out_Count : constant Natural := Filled;
+            subtype Out_List is Thread_Info_Arr (1 .. Out_Count);
+            package Trans is new Memory.Userland_Transfer (Out_List);
+         begin
+            Trans.Paste_Into_Userland (Map, Info (1 .. Filled), SAddr, Succ);
+         end;
          if Succ then
             Returned := Unsigned_64 (Ret);
             Errno    := Error_No_Error;
@@ -2126,23 +2165,36 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
+      Total : Natural;
+      Slots : Natural;
    begin
       Get_Common_Map (Proc, Map);
 
+      --  Size the kernel's copy by what exists, never by what was asked.
       declare
-         subtype KInter_Arr is
-            Networking.Interfaces.Interface_Arr (1 .. Natural (Length));
-         subtype Inter_Arr is Interface_Arr (1 .. Natural (Length));
-         package Trans is new Memory.Userland_Transfer (Inter_Arr);
+         None : Networking.Interfaces.Interface_Arr (1 .. 0);
+      begin
+         Networking.Interfaces.List_Interfaces (None, Total);
+      end;
+      Slots :=
+         (if Length < Unsigned_64 (Total) then Natural (Length) else Total);
 
-         KInfo : KInter_Arr;
-         Ret   : Natural;
-         NLen  : Natural;
-         Info  : Inter_Arr;
-         Succ  : Boolean;
+      declare
+         Slot_Count : constant Natural := Slots;
+         subtype KInter_Arr is
+            Networking.Interfaces.Interface_Arr (1 .. Slot_Count);
+         subtype Inter_Arr is Interface_Arr (1 .. Slot_Count);
+
+         KInfo  : KInter_Arr;
+         Ret    : Natural;
+         Filled : Natural;
+         NLen   : Natural;
+         Info   : Inter_Arr;
+         Succ   : Boolean;
       begin
          Networking.Interfaces.List_Interfaces (KInfo, Ret);
-         for I in 1 .. Ret loop
+         Filled := Natural'Min (Ret, Slot_Count);
+         for I in 1 .. Filled loop
             Fetch_Name (KInfo (I).Handle, Info (I).Name (1 .. 64), NLen);
             Info (I).Name (NLen + 1) := Ada.Characters.Latin_1.NUL;
             if KInfo (I).Is_Blocked then
@@ -2157,7 +2209,13 @@ package body Userland.Syscall is
             Info (I).IPv6_Subnet := KInfo (I).IPv6_Subnet;
          end loop;
 
-         Trans.Paste_Into_Userland (Map, Info, SAddr, Succ);
+         declare
+            Out_Count : constant Natural := Filled;
+            subtype Out_List is Interface_Arr (1 .. Out_Count);
+            package Trans is new Memory.Userland_Transfer (Out_List);
+         begin
+            Trans.Paste_Into_Userland (Map, Info (1 .. Filled), SAddr, Succ);
+         end;
          if Succ then
             Returned := Unsigned_64 (Ret);
             Errno    := Error_No_Error;
@@ -2231,21 +2289,34 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
+      Total : Natural;
+      Slots : Natural;
    begin
       Get_Common_Map (Proc, Map);
 
+      --  Size the kernel's copy by what exists, never by what was asked.
       declare
-         subtype KLocks_Arr is IPC.FileLock.Lock_Arr (1 .. Natural (Length));
-         subtype Lock_Arr   is Flock_Info_Arr (1 .. Natural (Length));
-         package Trans is new Memory.Userland_Transfer (Lock_Arr);
+         None : IPC.FileLock.Lock_Arr (1 .. 0);
+      begin
+         IPC.FileLock.List_All (None, Total);
+      end;
+      Slots :=
+         (if Length < Unsigned_64 (Total) then Natural (Length) else Total);
 
-         KLks : KLocks_Arr;
-         Ret  : Natural;
-         Lks  : Lock_Arr;
-         Succ : Boolean;
+      declare
+         Slot_Count : constant Natural := Slots;
+         subtype KLocks_Arr is IPC.FileLock.Lock_Arr (1 .. Slot_Count);
+         subtype Lock_Arr   is Flock_Info_Arr (1 .. Slot_Count);
+
+         KLks   : KLocks_Arr;
+         Ret    : Natural;
+         Filled : Natural;
+         Lks    : Lock_Arr;
+         Succ   : Boolean;
       begin
          IPC.FileLock.List_All (KLks, Ret);
-         for I in 1 .. Ret loop
+         Filled := Natural'Min (Ret, Slot_Count);
+         for I in 1 .. Filled loop
             Lks (I).PID    := Unsigned_32 (Convert (KLks (I).Acquirer));
             Lks (I).Mode   := (if KLks (I).Is_Writing then 1 else 0);
             Lks (I).Start  := KLks (I).Start;
@@ -2255,7 +2326,13 @@ package body Userland.Syscall is
             Lks (I).Ino    := Unsigned_64 (KLks (I).Ino);
          end loop;
 
-         Trans.Paste_Into_Userland (Map, Lks, SAddr, Succ);
+         declare
+            Out_Count : constant Natural := Filled;
+            subtype Out_List is Flock_Info_Arr (1 .. Out_Count);
+            package Trans is new Memory.Userland_Transfer (Out_List);
+         begin
+            Trans.Paste_Into_Userland (Map, Lks (1 .. Filled), SAddr, Succ);
+         end;
          if Succ then
             Returned := Unsigned_64 (Ret);
             Errno    := Error_No_Error;
@@ -2362,11 +2439,23 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
+      Total : Natural;
+      Slots : Natural;
    begin
       Get_Common_Map (Proc, Map);
 
+      --  Size the kernel's copy by what exists, never by what was asked.
       declare
-         subtype PCIs is Devices.PCI.PCI_Listing_Arr (1 .. Natural (Length));
+         None : Devices.PCI.PCI_Listing_Arr (1 .. 0);
+      begin
+         Devices.PCI.List_All (None, Total);
+      end;
+      Slots :=
+         (if Length < Unsigned_64 (Total) then Natural (Length) else Total);
+
+      declare
+         Slot_Count : constant Natural := Slots;
+         subtype PCIs is Devices.PCI.PCI_Listing_Arr (1 .. Slot_Count);
          package Trans is new Memory.Userland_Transfer (PCIs);
 
          Ret  : Natural;

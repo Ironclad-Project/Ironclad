@@ -1047,7 +1047,7 @@ package body Scheduler with SPARK_Mode => Off is
       for I in Thread_Pool.all'Range loop
          if Thread_Pool (I).Is_Present then
             Total := Total + 1;
-            if Curr_Index < Thread_Pool'Length then
+            if Curr_Index < List'Length then
                List (List'First + Curr_Index) :=
                   (I, Userland.Process.Convert (Thread_Pool (I).Process));
                Curr_Index := Curr_Index + 1;

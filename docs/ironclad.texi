@@ -2139,7 +2139,9 @@ size_t listprocs(struct procinfo *addr, size_t len);
 @end example
 
 This syscall writes a list of all processes available on the system to
-@code{addr}, which contains @code{len} items.
+@code{addr}, which contains @code{len} items. If there are more than
+@code{len}, only the first @code{len} are written, and nothing past them is
+touched.
 
 The number of processes in the system is returned in success, and @code{-1} in
 failure, with the following errno:
@@ -4548,7 +4550,8 @@ size_t listthreads(struct thread_info *addr, size_t len);
 @end example
 
 This syscall writes a list of all threads currently in the system to
-@code{addr}, which contains @code{len} items.
+@code{addr}, which contains @code{len} items. If there are more than
+@code{len}, only the first @code{len} are written.
 
 The number of threads in the system is returned in success, and @code{-1} in
 failure, with the following errno:
@@ -4577,10 +4580,11 @@ size_t listnetinter(struct thread_info *addr, size_t len);
 @end example
 
 This syscall writes a list of all network interfaces currently in the system to
-@code{addr}, which contains @code{len} items.
+@code{addr}, which contains @code{len} items. If there are more than
+@code{len}, only the first @code{len} are written.
 
-The number of threads in the system is returned in success, and @code{-1} in
-failure, with the following errno:
+The number of network interfaces in the system is returned in success, and
+@code{-1} in failure, with the following errno:
 
 @itemize @bullet
 @item
@@ -4625,7 +4629,8 @@ size_t listflocks(struct flock_info *addr, size_t len);
 @end example
 
 This syscall writes a list of all POSIX file locks currently in use set with
-@code{fcntl} to @code{addr}, which contains @code{len} items.
+@code{fcntl} to @code{addr}, which contains @code{len} items. If there are more
+than @code{len}, only the first @code{len} are written.
 
 The number of file locks is returned in success, and @code{-1} in
 failure, with the following errno:
@@ -4725,7 +4730,8 @@ size_t listpci(struct pci_info *addr, size_t len);
 
 This syscall writes a list of all detected PCI devices in the system alongside
 their identification information to the buffer contained at @code{addr}, which
-contains @code{len} items.
+contains @code{len} items. If there are more than @code{len}, only the first
+@code{len} are written.
 
 The numbers returned for device and vendor IDs can be translated to human
 readable strings by the use of a PCI database, like
