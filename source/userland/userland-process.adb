@@ -118,6 +118,7 @@ package body Userland.Process with SPARK_Mode => Off is
                 Current_Dir_Ino => 0,
                 Thread_List     => [others => Error_TID],
                 File_Table => new File_Arr'[others => (False, False, null)],
+                SHM_Attachments => [others => (0, IPC.SHM.Error_ID)],
                 Common_Map      => null,
                 Alloc_Base      => 0,
                 Perms           => MAC.Default_Context,
@@ -610,6 +611,96 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Duplicate_FD_Table;
 
+   function Map_Owner (Process : PID) return PID is
+      Owner : PID := Process;
+   begin
+      while Registry (Owner).VFork_Mark and then
+            Registry (Owner).Parent /= Error_PID
+      loop
+         Owner := Registry (Owner).Parent;
+      end loop;
+      return Owner;
+   exception
+      when Constraint_Error =>
+         return Process;
+   end Map_Owner;
+
+   procedure Add_SHM_Attachment
+      (Process : PID;
+       Address : Unsigned_64;
+       Segment : IPC.SHM.Segment_ID;
+       Success : out Boolean)
+   is
+      Owner : constant PID := Map_Owner (Process);
+   begin
+      Success := False;
+      Synchronization.Seize (Registry (Owner).Data_Mutex);
+      for A of Registry (Owner).SHM_Attachments loop
+         if A.Segment = IPC.SHM.Error_ID then
+            A       := (Address, Segment);
+            Success := True;
+            exit;
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Owner).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Add_SHM_Attachment;
+
+   procedure Remove_SHM_Attachment
+      (Process : PID;
+       Address : Unsigned_64;
+       Segment : out IPC.SHM.Segment_ID)
+   is
+      Owner : constant PID := Map_Owner (Process);
+   begin
+      Segment := IPC.SHM.Error_ID;
+      Synchronization.Seize (Registry (Owner).Data_Mutex);
+      for A of Registry (Owner).SHM_Attachments loop
+         if A.Segment /= IPC.SHM.Error_ID and A.Address = Address then
+            Segment := A.Segment;
+            A       := (0, IPC.SHM.Error_ID);
+            exit;
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Owner).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Segment := IPC.SHM.Error_ID;
+   end Remove_SHM_Attachment;
+
+   procedure Duplicate_SHM_Attachments (Process, Target : PID) is
+      Owner : constant PID := Map_Owner (Process);
+   begin
+      Synchronization.Seize (Registry (Owner).Data_Mutex);
+      Registry (Target).SHM_Attachments := Registry (Owner).SHM_Attachments;
+      for A of Registry (Target).SHM_Attachments loop
+         if A.Segment /= IPC.SHM.Error_ID then
+            IPC.SHM.Modify_Attachment (A.Segment, True);
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Owner).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Duplicate_SHM_Attachments;
+
+   procedure Detach_All_SHM (Process : PID) is
+   begin
+      Synchronization.Seize (Registry (Process).Data_Mutex);
+      for A of Registry (Process).SHM_Attachments loop
+         if A.Segment /= IPC.SHM.Error_ID then
+            IPC.SHM.Modify_Attachment (A.Segment, False);
+            A := (0, IPC.SHM.Error_ID);
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Detach_All_SHM;
+
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);
@@ -970,6 +1061,7 @@ package body Userland.Process with SPARK_Mode => Off is
       Flush_Threads (Process);
       Flush_Files   (Process);
       Free (Registry (Process).File_Table);
+      Detach_All_SHM (Process);
 
       Registry (Process).Did_Exit     := True;
       Registry (Process).Signal_Exit  := True;
@@ -1009,6 +1101,7 @@ package body Userland.Process with SPARK_Mode => Off is
       Flush_Threads (Process);
       Flush_Files   (Process);
       Free (Registry (Process).File_Table);
+      Detach_All_SHM (Process);
       Issue_Exit (Process, Code);
 
       if Exiting_Ourselves then

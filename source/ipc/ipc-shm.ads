@@ -46,12 +46,6 @@ package IPC.SHM is
    --  Fetch a segment from its key.
    procedure Get_Segment (Key : Unsigned_32; Segment : out Segment_ID);
 
-   --  Fetch a segment and its size from its physical address.
-   procedure Get_Segment_And_Size
-      (Address : Unsigned_64;
-       Size    : out Unsigned_64;
-       ID      : out Segment_ID);
-
    --  Fetch a segment's physical address and size.
    procedure Get_Address
       (ID      : Segment_ID;

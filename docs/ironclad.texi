@@ -4124,8 +4124,16 @@ the segment is attached for read and write and the process must have read and
 write permission for the segment. There is no notion of a write-only shared
 memory segment.
 
-The syscall returns @code{0} on success or @code{-1} on failure, with the
-following errno:
+Each attachment is counted in the segment's @code{shm_nattch} for as long as
+it lasts. A child made by @code{fork} inherits the attachments of its parent,
+each counted again, while one made with @code{FORK_VFORK} shares them until it
+calls @code{exec}; @code{exit} and @code{exec} detach every attachment of the
+process, as @code{shmdt} would. Unmapping an attached segment with
+@code{munmap} does not detach it: it stays counted until @code{shmdt},
+@code{exit} or @code{exec}. A process can hold 32 attachments at a time.
+
+The syscall returns the address the segment was attached at on success or
+@code{-1} on failure, with the following errno:
 
 @table @code
 @item EACCES
@@ -4136,6 +4144,9 @@ The caller does not have enough permissions for attaching.
 
 @item EINVAL
 Invalid @code{shmid} or invalid @code{shmaddr}.
+
+@item EMFILE
+The process holds as many attachments as it can.
 
 @item ENOMEM
 Not enough memory.
@@ -4216,15 +4227,16 @@ following errno:
 int shmdt(const void *shmaddr);
 @end example
 
-This syscall detaches the shared memory segment located at @code{shmaddr} from
-the calling process.
+This syscall detaches the shared memory segment attached at @code{shmaddr}
+from the calling process, and a segment removed with @code{IPC_RMID} is freed
+once its last attachment in any process is gone.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
 
 @table @code
 @item EINVAL
-The passed @code{shmaddr} is not valid.
+The passed @code{shmaddr} is not an address a segment is attached at.
 @end table
 
 @node shmget

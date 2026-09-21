@@ -1639,4 +1639,12 @@ private
       (ID      : Unsigned_64;
        Clock   : out Time.Clock_Type;
        Success : out Boolean);
+
+   --  Unmap every page of a range that maps the matching page of a shared
+   --  memory segment, and leave whatever else is mapped there.
+   procedure Unmap_Segment
+      (Map      : Memory.MMU.Page_Table_Acc;
+       Address  : Unsigned_64;
+       Seg_Addr : Unsigned_64;
+       Size     : Unsigned_64);
 end Userland.Syscall;

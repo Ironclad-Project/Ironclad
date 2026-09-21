@@ -984,6 +984,7 @@ package body Userland.Syscall is
             Pop_VFork_Marker (Proc, Success);
             Set_Exec_Marker (Proc);
             if not Success then
+               Detach_All_SHM (Proc);
                Memory.MMU.Destroy_Table (Orig);
             end if;
             Free (Envp);
@@ -1048,6 +1049,7 @@ package body Userland.Syscall is
          if Table = null then
             goto Block_Error;
          end if;
+         Duplicate_SHM_Attachments (Proc, Child);
       end if;
       Set_Common_Map (Child, Table);
 
@@ -6784,14 +6786,28 @@ package body Userland.Syscall is
              Length         => Storage_Count (Ret_Size),
              Permissions    => Perms,
              Success        => Success);
-         if Success then
-            IPC.SHM.Modify_Attachment (Truncated, True);
-            Errno := Error_No_Error;
-            Returned := VAddr;
-         else
+         if not Success then
             Errno := Error_No_Memory;
             Returned := Unsigned_64'Last;
+            return;
          end if;
+
+         --  The attachment is counted for as long as it is recorded, so that
+         --  fork, exit and exec count it as they must.
+         Add_SHM_Attachment (Proc, VAddr, Truncated, Success);
+         if not Success then
+            Memory.MMU.Unmap_Range
+               (Map           => Map,
+                Virtual_Start => To_Address (Integer_Address (VAddr)),
+                Length        => Storage_Count (Ret_Size),
+                Success       => Success);
+            Errno := Error_Too_Many_Files;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+         IPC.SHM.Modify_Attachment (Truncated, True);
+         Errno := Error_No_Error;
+         Returned := VAddr;
          return;
       end if;
 
@@ -6900,43 +6916,25 @@ package body Userland.Syscall is
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Map : Page_Table_Acc;
-      Phys : System.Address;
-      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
-      Is_User_Accessible : Boolean;
       ID : IPC.SHM.Segment_ID;
-      Size : Unsigned_64;
+      Seg_Addr, Size : Unsigned_64;
    begin
-      Get_Common_Map (Proc, Map);
-      Memory.MMU.Translate_Address
-         (Map                => Map,
-          Virtual            => To_Address (Integer_Address (Address)),
-          Length             => Memory.MMU.Page_Size,
-          Physical           => Phys,
-          Is_Mapped          => Is_Mapped,
-          Is_User_Accessible => Is_User_Accessible,
-          Is_Readable        => Is_Readable,
-          Is_Writeable       => Is_Writeable,
-          Is_Executable      => Is_Executable);
-      IPC.SHM.Get_Segment_And_Size (Unsigned_64 (To_Integer (Phys)), Size, ID);
-
-      if Is_Mapped and ID /= IPC.SHM.Error_ID then
-         Memory.MMU.Unmap_Range
-            (Map           => Map,
-             Virtual_Start => To_Address (Integer_Address (Address)),
-             Length        => Storage_Count (Size),
-             Success       => Is_Mapped);
-         if Is_Mapped then
-            IPC.SHM.Modify_Attachment (ID, False);
-            Errno := Error_No_Error;
-            Returned := 0;
-         else
-            Errno := Error_No_Memory;
-            Returned := Unsigned_64'Last;
-         end if;
-      else
+      --  Only an address a segment was attached at detaches anything.
+      Remove_SHM_Attachment (Proc, Address, ID);
+      if ID = IPC.SHM.Error_ID then
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
+         return;
       end if;
+
+      --  Any part of the segment may have been unmapped or mapped over since,
+      --  so what still maps it goes before its count drops.
+      IPC.SHM.Get_Address (ID, Seg_Addr, Size);
+      Get_Common_Map (Proc, Map);
+      Unmap_Segment (Map, Address, Seg_Addr, Size);
+      IPC.SHM.Modify_Attachment (ID, False);
+      Errno := Error_No_Error;
+      Returned := 0;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing SHMDt");
@@ -9188,4 +9186,40 @@ package body Userland.Syscall is
             Success := False;
       end case;
    end Translate_Clock;
+
+   procedure Unmap_Segment
+      (Map      : Memory.MMU.Page_Table_Acc;
+       Address  : Unsigned_64;
+       Seg_Addr : Unsigned_64;
+       Size     : Unsigned_64)
+   is
+      Phys, Virt : System.Address;
+      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
+      Is_User_Accessible, Success : Boolean;
+      Offset : Unsigned_64 := 0;
+   begin
+      while Offset < Size loop
+         Virt := To_Address (Integer_Address (Address + Offset));
+         Memory.MMU.Translate_Address
+            (Map                => Map,
+             Virtual            => Virt,
+             Length             => Memory.MMU.Page_Size,
+             Physical           => Phys,
+             Is_Mapped          => Is_Mapped,
+             Is_User_Accessible => Is_User_Accessible,
+             Is_Readable        => Is_Readable,
+             Is_Writeable       => Is_Writeable,
+             Is_Executable      => Is_Executable);
+         if Is_Mapped and then
+            To_Integer (Phys) = Integer_Address (Seg_Addr + Offset)
+         then
+            Memory.MMU.Unmap_Range
+               (Map           => Map,
+                Virtual_Start => Virt,
+                Length        => Memory.MMU.Page_Size,
+                Success       => Success);
+         end if;
+         Offset := Offset + Memory.MMU.Page_Size;
+      end loop;
+   end Unmap_Segment;
 end Userland.Syscall;

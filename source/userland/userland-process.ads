@@ -25,6 +25,7 @@ with Userland.MAC; use Userland.MAC;
 with IPC.FIFO;     use IPC.FIFO;
 with IPC.PTY;      use IPC.PTY;
 with IPC.Socket;   use IPC.Socket;
+with IPC.SHM;
 
 package Userland.Process is
    --  FIXME: This unit is not preelaborate, and that generates certain binding
@@ -324,6 +325,44 @@ package Userland.Process is
    --  @param Target  Target process.
    procedure Duplicate_FD_Table (Process, Target : PID)
       with Pre => Process /= Error_PID and Target /= Error_PID;
+   ----------------------------------------------------------------------------
+   --  Shared memory segments attached to a process, by the address each is
+   --  attached at, each counted in the segment's number of attachments. A
+   --  vforked process that has not exec'd runs on its parent's map, so what it
+   --  attaches and detaches there is its parent's.
+
+   --  Record a segment attached at an address.
+   --  @param Process Process to operate on.
+   --  @param Address Address the segment is attached at.
+   --  @param Segment Segment attached there.
+   --  @param Success False if the process has as many attached as it may.
+   procedure Add_SHM_Attachment
+      (Process : PID;
+       Address : Unsigned_64;
+       Segment : IPC.SHM.Segment_ID;
+       Success : out Boolean)
+      with Pre => Process /= Error_PID and Segment /= IPC.SHM.Error_ID;
+
+   --  Forget the segment attached at an address.
+   --  @param Process Process to operate on.
+   --  @param Address Address the segment is attached at.
+   --  @param Segment Segment that was attached there, Error_ID if none was.
+   procedure Remove_SHM_Attachment
+      (Process : PID;
+       Address : Unsigned_64;
+       Segment : out IPC.SHM.Segment_ID)
+      with Pre => Process /= Error_PID;
+
+   --  Give the child of a fork the segments attached to its parent, which the
+   --  copy of the parent's map keeps mapped, counting each attachment.
+   --  @param Process Parent.
+   --  @param Target  Child.
+   procedure Duplicate_SHM_Attachments (Process, Target : PID)
+      with Pre => Process /= Error_PID and Target /= Error_PID;
+
+   --  Detach every segment attached to a process whose map is going away.
+   --  @param Process Process to operate on.
+   procedure Detach_All_SHM (Process : PID) with Pre => Process /= Error_PID;
 
    --  Close and free an individual file.
    --  @param F File to operate on.
@@ -813,6 +852,20 @@ private
 
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
    type Handle_Arr is array (Signal)                  of Signal_Handlers;
+
+   --  At most this many attachments at once (POSIX.1-2024, shmat [EMFILE]);
+   --  a free slot names no segment.
+   Max_SHM_Attachments : constant := 32;
+   type SHM_Attachment is record
+      Address : Unsigned_64;
+      Segment : IPC.SHM.Segment_ID;
+   end record;
+   type SHM_Attachment_Arr is array (1 .. Max_SHM_Attachments)
+      of SHM_Attachment;
+
+   --  The process whose map a process runs on.
+   function Map_Owner (Process : PID) return PID;
+
    type Process_Data is record
       Data_Mutex      : aliased Synchronization.Mutex;
       Controlling_TTY : IPC.PTY.Inner_Acc;
@@ -840,6 +893,7 @@ private
       Current_Dir_Ino : VFS.File_Inode_Number;
       Thread_List     : Thread_Arr;
       File_Table      : File_Arr_Acc;
+      SHM_Attachments : SHM_Attachment_Arr;
       Common_Map      : Memory.MMU.Page_Table_Acc;
       Alloc_Base      : Unsigned_64;
       Perms           : MAC.Context;

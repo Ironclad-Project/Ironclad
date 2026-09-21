@@ -146,28 +146,6 @@ package body IPC.SHM is
       Synchronization.Release (Registry_Mutex);
    end Get_Segment;
 
-   procedure Get_Segment_And_Size
-      (Address : Unsigned_64;
-       Size    : out Unsigned_64;
-       ID      : out Segment_ID)
-   is
-   begin
-      Size := 0;
-      ID   := Error_ID;
-
-      Synchronization.Seize (Registry_Mutex);
-      for I in Registry'Range loop
-         if Registry (I).Is_Present and
-            Registry (I).Physical_Address = Memory.Physical_Address (Address)
-         then
-            Size := Unsigned_64 (Registry (I).Size);
-            ID   := I;
-            exit;
-         end if;
-      end loop;
-      Synchronization.Release (Registry_Mutex);
-   end Get_Segment_And_Size;
-
    procedure Get_Address
       (ID      : Segment_ID;
        Address : out Unsigned_64;
