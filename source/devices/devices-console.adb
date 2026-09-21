@@ -51,9 +51,7 @@ package body Devices.Console is
       pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       if Arch.Debug.Supports_Read then
-         Arch.Debug.Read (Data);
-         Ret_Count := Data'Length;
-         Success   := Dev_Success;
+         Arch.Debug.Read (Data, Ret_Count, Success);
       else
          Ret_Count := 0;
          Success   := Dev_Not_Supported;

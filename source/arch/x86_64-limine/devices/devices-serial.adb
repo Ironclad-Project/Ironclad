@@ -17,6 +17,7 @@
 with System.Address_To_Access_Conversions;
 with Devices.TermIOs;
 with Arch.Snippets;
+with Scheduler;
 
 package body Devices.Serial with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (COM_Root);
@@ -77,11 +78,13 @@ package body Devices.Serial with SPARK_Mode => Off is
       Arch.Snippets.Port_Out (COM_Ports (1) + Modem_Control, 2#11#);
    end Init_COM1;
 
-   procedure Read_COM1 (S : out Operation_Data) is
-      Count : Natural;
-      Succ  : Dev_Status;
+   procedure Read_COM1
+      (S       : out Operation_Data;
+       Count   : out Natural;
+       Success : out Dev_Status)
+   is
    begin
-      Read (COM1'Address, 0, S, Count, Succ, True);
+      Read (COM1'Address, 0, S, Count, Success, True);
    end Read_COM1;
 
    procedure Write_COM1 (C : Character) is
@@ -109,9 +112,9 @@ package body Devices.Serial with SPARK_Mode => Off is
          null;
    end Write_COM1;
    ----------------------------------------------------------------------------
-   --  We will not yield instead of pausing here to avoid issues printing
-   --  inside the scheduler.
-
+   --  What has arrived is read, and a read waits for the first byte only. The
+   --  lock keeps interrupts off, so it is not held while waiting, and a thread
+   --  that has to give up its wait does so.
    procedure Read
       (Key         : System.Address;
        Offset      : Unsigned_64;
@@ -121,19 +124,30 @@ package body Devices.Serial with SPARK_Mode => Off is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Offset, Is_Blocking);
-      COM : COM_Root with Import, Address => Key;
+      COM   : COM_Root with Import, Address => Key;
+      Ready : Boolean;
    begin
+      Data      := [others => 0];
       Ret_Count := 0;
-      Synchronization.Seize (COM.Mutex);
+      Success   := Dev_Success;
       for I of Data loop
-         while not Can_Receive (COM.Port) loop
-            Arch.Snippets.Pause;
+         loop
+            Synchronization.Seize (COM.Mutex);
+            Ready := Can_Receive (COM.Port);
+            if Ready then
+               I := Arch.Snippets.Port_In (COM.Port);
+            end if;
+            Synchronization.Release (COM.Mutex);
+            exit when Ready or Ret_Count /= 0;
+            if Scheduler.Is_Doomed then
+               Success := Dev_IO_Failure;
+               return;
+            end if;
+            Scheduler.Yield_If_Able;
          end loop;
-         I := Arch.Snippets.Port_In (COM.Port);
+         exit when not Ready;
          Ret_Count := Ret_Count + 1;
       end loop;
-      Synchronization.Release (COM.Mutex);
-      Success := Dev_Success;
    exception
       when Constraint_Error =>
          Data      := [others => 0];
@@ -141,6 +155,8 @@ package body Devices.Serial with SPARK_Mode => Off is
          Success   := Dev_IO_Failure;
    end Read;
 
+   --  A write does not yield but pauses, as the kernel prints through it from
+   --  inside the scheduler.
    procedure Write
       (Key         : System.Address;
        Offset      : Unsigned_64;

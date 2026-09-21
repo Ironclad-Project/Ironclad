@@ -23,9 +23,15 @@ package Arch.Debug is
    --  Whether the abstracted channel supports write only or read / write.
    Supports_Read : constant Boolean;
 
-   --  Read byte device arrays atomically.
-   --  @param Message Array to print.
-   procedure Read (Message : out Devices.Operation_Data);
+   --  Read what has arrived of a byte device array, waiting for the first
+   --  byte, unless the calling thread has to give up its wait.
+   --  @param Message Array to read into.
+   --  @param Count   Bytes read.
+   --  @param Success Dev_Success, or a failure if the wait was given up.
+   procedure Read
+      (Message : out Devices.Operation_Data;
+       Count   : out Natural;
+       Success : out Devices.Dev_Status);
 
    --  Print a character message atomically.
    --  @param Message Character to print.

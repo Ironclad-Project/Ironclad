@@ -20,9 +20,15 @@ with Arch.SBI;
 with Arch.Flanterm;
 
 package body Arch.Debug with SPARK_Mode => Off is
-   procedure Read (Message : out Devices.Operation_Data) is
+   procedure Read
+      (Message : out Devices.Operation_Data;
+       Count   : out Natural;
+       Success : out Devices.Dev_Status)
+   is
    begin
-      null;
+      Message := [others => 0];
+      Count   := 0;
+      Success := Devices.Dev_Not_Supported;
    end Read;
 
    procedure Print (Message : Character) is
