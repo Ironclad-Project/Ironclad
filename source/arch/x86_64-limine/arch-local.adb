@@ -65,8 +65,11 @@ package body Arch.Local with SPARK_Mode => Off is
    procedure Set_Stacks (Kernel_Stack : System.Address) is
       Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
+      --  Interrupts and exceptions taken from userland come in on the
+      --  thread's kernel stack too, through the TSS.
       if Is_Ints then Snippets.Disable_Interrupts; end if;
       CPU.Get_Local.Kernel_Stack := Unsigned_64 (To_Integer (Kernel_Stack));
+      CPU.Get_Local.Core_TSS.Stack_Ring0 := Kernel_Stack;
       if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>

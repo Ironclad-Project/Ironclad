@@ -332,7 +332,9 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       --  Load the TSS.
       --  As we have written in the interrupt files, we use IST1 for special
-      --  exceptions like #DF and #MC.
+      --  exceptions like #DF and #MC. The ring 0 stack is only what the core
+      --  starts with: the first thread it runs replaces it with its own
+      --  kernel stack (Arch.Local.Set_Stacks).
       Core_Locals (Core_Number).Core_TSS.Stack_Ring0 := Int_Stk_Top;
       Core_Locals (Core_Number).Core_TSS.IST1 := IST_Stk_Top;
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
