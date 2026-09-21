@@ -872,7 +872,7 @@ package body VFS is
       case Mounts (Final_Key_Source).Mounted_FS is
          when FS_EXT =>
             EXT.Create_Hard_Link
-               (Mounts (Key).FS_Data, Final_Ino_Source,
+               (Mounts (Final_Key_Source).FS_Data, Final_Ino_Source,
                 Path (Path'Last - Parent_Idx_Source + 1 .. Child_End_Source),
                 Final_Ino_Target,
                 Target (Target'Last - Parent_Idx_Target + 1 ..
