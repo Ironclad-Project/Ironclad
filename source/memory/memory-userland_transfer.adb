@@ -82,7 +82,15 @@ package body Memory.Userland_Transfer is
       Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
       Is_User_Accessible : Boolean;
    begin
+      --  An empty object is never read nor written, so it is always
+      --  accessible. Its range would be empty if it started on a page
+      --  boundary, which the page walk below reports as unmapped.
       Length := Integer_Address (T'Object_Size / 8);
+      if Length = 0 then
+         Success := True;
+         return;
+      end if;
+
       A.Align_Memory_Range (Start, Length, Memory.MMU.Page_Size);
       Memory.MMU.Translate_Address
          (Map                => Map,
