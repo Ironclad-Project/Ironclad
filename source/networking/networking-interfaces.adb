@@ -111,13 +111,10 @@ package body Networking.Interfaces is
                   goto End_Iter;
                end if;
 
-               --  Skip loopback (127.x.x.x).
-               if IP2 (1) = 127 then
-                  goto End_Iter;
-               end if;
-
-               --  Remember first non-loopback interface as fallback.
-               if Fallback = Devices.Error_Handle then
+               --  A loopback interface carries its own subnet and nothing
+               --  else, so it is matched below like any other one and is
+               --  never the default route.
+               if IP2 (1) /= 127 and Fallback = Devices.Error_Handle then
                   Fallback := Int.Handle;
                end if;
 
