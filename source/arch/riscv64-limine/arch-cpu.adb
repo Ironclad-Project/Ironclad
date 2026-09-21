@@ -87,7 +87,10 @@ package body Arch.CPU with SPARK_Mode => Off is
 
    procedure Init_Common (Core_Number : Positive; Hart_ID : Unsigned_64) is
       Kernel_Stack_Size : constant := 16#4000#;
-      type Kernel_Stack is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
+      --  A stack's top is the address one past its last byte, and the RISC-V
+      --  psABI 1.0 wants it 16-byte aligned.
+      type Kernel_Stack is array (1 ..  Kernel_Stack_Size) of Unsigned_8
+         with Alignment => 16;
       type Kernel_Stack_Acc is access Kernel_Stack;
 
       Local : Core_Local_Acc;
@@ -97,7 +100,8 @@ package body Arch.CPU with SPARK_Mode => Off is
       Stk       := new Kernel_Stack'[others => 0];
       Local     := Core_Locals (Core_Number)'Access;
       Local.all :=
-         (Kernel_Stack    => Unsigned_64 (To_Integer (Stk (Stk'Last)'Address)),
+         (Kernel_Stack    =>
+             Unsigned_64 (To_Integer (Stk.all'Address)) + Kernel_Stack_Size,
           User_Stack      => 0,
           Scratch_ISR     => 0,
           Number          => Core_Number,

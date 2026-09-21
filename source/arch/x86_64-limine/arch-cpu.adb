@@ -26,7 +26,10 @@ with System; use System;
 with Memory;
 
 package body Arch.CPU with SPARK_Mode => Off is
-   type Interrupt_Stack is array (1 .. Memory.Kernel_Stack_Size) of Unsigned_8;
+   --  A stack's top is the address one past its last byte, and the x86-64
+   --  psABI 1.0 wants it 16-byte aligned.
+   type Interrupt_Stack is array (1 .. Memory.Kernel_Stack_Size) of Unsigned_8
+      with Alignment => 16;
    type Interrupt_Stack_Acc is access Interrupt_Stack;
 
    SMP_Request : Limine.SMP_Request :=
@@ -214,8 +217,10 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       Int_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
       IST_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
-      Int_Stk_Top : constant System.Address := Int_Stk (Int_Stk'Last)'Address;
-      IST_Stk_Top : constant System.Address := IST_Stk (IST_Stk'Last)'Address;
+      Int_Stk_Top : constant System.Address :=
+         Int_Stk.all'Address + Interrupt_Stack'Length;
+      IST_Stk_Top : constant System.Address :=
+         IST_Stk.all'Address + Interrupt_Stack'Length;
    begin
       --  Enable WP and SSE/2.
       CR0 := CR0 or Shift_Left (1, 16);
