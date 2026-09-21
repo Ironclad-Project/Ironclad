@@ -148,15 +148,16 @@ package body Userland.Loader is
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID;
-       Success     : out Boolean)
+       Success     : out Boolean;
+       Depth       : Natural := 0)
    is
    begin
       Start_ELF (FS, Ino, Arguments, Environment, Proc, Success);
-      if Success then
+      if Success or else Depth >= Max_Interpreter_Depth then
          return;
       end if;
       Start_Shebang (Exec_Path, FS, Ino, Arguments, Environment, Proc,
-                     Success);
+                     Success, Depth);
    end Start_Program;
 
    procedure Start_ELF
@@ -244,7 +245,8 @@ package body Userland.Loader is
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID;
-       Success     : out Boolean)
+       Success     : out Boolean;
+       Depth       : Natural := 0)
    is
       pragma SPARK_Mode (Off);
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
@@ -347,7 +349,8 @@ package body Userland.Loader is
                 Arguments   => [Path_Acc, Arg_Acc] & Touched_Arguments,
                 Environment => Environment,
                 Proc        => Proc,
-                Success     => Success);
+                Success     => Success,
+                Depth       => Depth + 1);
          else
             Start_Program
                (Exec_Path   => Exec_Path,
@@ -356,7 +359,8 @@ package body Userland.Loader is
                 Arguments   => (Path_Acc) & Touched_Arguments,
                 Environment => Environment,
                 Proc        => Proc,
-                Success     => Success);
+                Success     => Success,
+                Depth       => Depth + 1);
          end if;
 
          for I in Touched_Arguments'Range loop

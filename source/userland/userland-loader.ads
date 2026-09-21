@@ -19,6 +19,9 @@ with VFS;              use VFS;
 with Memory.MMU;         use Memory.MMU;
 
 package Userland.Loader is
+   --  How many interpreters a chain of shebangs may name.
+   Max_Interpreter_Depth : constant := 4;
+
    --  Start a program from a passed file, and create a process for it with
    --  1 thread running it.
    --  The format of the file is guessed.
@@ -40,6 +43,7 @@ package Userland.Loader is
 
    --  Same as above but with an existing process instead.
    --  Returns true on success, false on failure.
+   --  Depth is how many interpreters were named to reach this file.
    procedure Start_Program
       (Exec_Path   : String;
        FS          : FS_Handle;
@@ -47,7 +51,8 @@ package Userland.Loader is
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID;
-       Success     : out Boolean)
+       Success     : out Boolean;
+       Depth       : Natural := 0)
       with Pre =>
          Memory.MMU.Kernel_Table /= null and
          VFS.Is_Initialized            and
@@ -74,7 +79,8 @@ package Userland.Loader is
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID;
-       Success     : out Boolean)
+       Success     : out Boolean;
+       Depth       : Natural := 0)
       with Pre =>
          Memory.MMU.Kernel_Table /= null and
          VFS.Is_Initialized            and

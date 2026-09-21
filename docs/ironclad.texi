@@ -1671,6 +1671,9 @@ are cleared.
 The argument and environment strings may take up to 131072 bytes together,
 each counted with its terminator and the 8 bytes of its pointer.
 
+A file starting with @code{#!} is run by the interpreter it names, which may
+itself be such a file, down to 4 levels.
+
 This syscall only returns in failure with @code{-1} with the following errno:
 
 @itemize @bullet
