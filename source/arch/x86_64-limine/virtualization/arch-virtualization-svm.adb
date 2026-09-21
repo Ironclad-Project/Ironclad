@@ -253,8 +253,16 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
           "movq (%%rsp), %%rax;"      &
           --  CLGI - Clear Global Interrupt Flag
           "clgi;"                     &
+          --  IF is set for the VMRUN, and only for it: with V_INTR_MASKING
+          --  the host's IF at the VMRUN controls physical interrupts while
+          --  the guest runs (AMD APM 40332 rev 4.10, Vol. 2 15.21.1), and
+          --  the caller holds the machine's lock, which keeps it clear. GIF
+          --  holds any host interrupt pending around both instructions, and
+          --  IF is clear again before the STGI.
+          "sti;"                      &
           --  VMRUN - Enter guest mode
           "vmrun %%rax;"              &
+          "cli;"                      &
           --  STGI - Set Global Interrupt Flag
           "stgi;"                     &
           --  Save guest GPRs back to structure
