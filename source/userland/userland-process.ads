@@ -44,6 +44,7 @@ package Userland.Process is
    --  directories, threads, all of these things have maximum limits.
    Max_CWD_Length   : constant Natural;
    Max_Name_Length  : constant Natural;
+   Max_File_Count   : constant Natural;
    Max_Thread_Count : constant Natural;
 
    --  Each process has a umask, inherited from the parent, with a default mask

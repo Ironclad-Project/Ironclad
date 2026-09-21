@@ -4363,9 +4363,16 @@ package body Userland.Syscall is
       Map        : Page_Table_Acc;
       Success    : Boolean;
       Handled    : Boolean := False;
+      Mask_Set   : Boolean := False;
       Tim        : Time_Spec;
       Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
    begin
+      if FDs_Count > Unsigned_64 (Max_File_Count) then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       Get_Common_Map (Proc, Map);
 
       if S_IAddr /= 0 then
@@ -4379,6 +4386,7 @@ package body Userland.Syscall is
             end if;
             Get_Masked_Signals (Proc, Old_Set);
             Set_Masked_Signals (Proc, C1 (Passed_Set));
+            Mask_Set := True;
          end;
       end if;
 
@@ -4510,10 +4518,16 @@ package body Userland.Syscall is
       return;
 
    <<Would_Fault_Error>>
+      if Mask_Set then
+         Set_Masked_Signals (Proc, Old_Set);
+      end if;
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    exception
       when others =>
+         if Mask_Set then
+            Set_Masked_Signals (Proc, Old_Set);
+         end if;
          Messages.Put_Line ("Exception while executing PPoll");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;

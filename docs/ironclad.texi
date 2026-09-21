@@ -3113,7 +3113,8 @@ The syscall returns the number of FDs to have an event happen on success or
 The passed pointers are not in addressable memory.
 
 @item EINVAL
-The passed values are not valid.
+The passed values are not valid, such as more descriptors than a process can
+hold.
 @end table
 
 @node getuid/geteuid
