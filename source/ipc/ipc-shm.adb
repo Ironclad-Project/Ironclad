@@ -163,6 +163,25 @@ package body IPC.SHM is
       Synchronization.Release (Registry_Mutex);
    end Get_Address;
 
+   procedure Attach
+      (ID      : Segment_ID;
+       Address : out Unsigned_64;
+       Size    : out Unsigned_64)
+   is
+   begin
+      Synchronization.Seize (Registry_Mutex);
+      if Registry (ID).Is_Present and Registry (ID).Refcount /= Natural'Last
+      then
+         Registry (ID).Refcount := Registry (ID).Refcount + 1;
+         Address := Unsigned_64 (Registry (ID).Physical_Address);
+         Size    := Unsigned_64 (Registry (ID).Size);
+      else
+         Address := 0;
+         Size    := 0;
+      end if;
+      Synchronization.Release (Registry_Mutex);
+   end Attach;
+
    procedure Check_Permissions
       (ID      : Segment_ID;
        UID     : Unsigned_32;

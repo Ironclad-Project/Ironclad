@@ -6757,13 +6757,18 @@ package body Userland.Syscall is
          end if;
       end if;
 
-      IPC.SHM.Get_Address (Truncated, Ret_Addr, Ret_Size);
+      --  The attachment is counted before the segment is mapped, so that the
+      --  segment cannot go away in between.
+      IPC.SHM.Attach (Truncated, Ret_Addr, Ret_Size);
+      if Ret_Size = 0 then
+         goto Invalid_Error;
+      end if;
 
       if Addr /= 0 then
          if (Flags and SHM_RND) /= 0 then
             VAddr := Align.Align_Down (Addr, Memory.MMU.Page_Size);
          elsif (Addr mod Memory.MMU.Page_Size) /= 0 then
-            goto Invalid_Error;
+            goto Detach_Error;
          else
             VAddr := Addr;
          end if;
@@ -6771,45 +6776,45 @@ package body Userland.Syscall is
          Bump_Alloc_Base (Proc, Ret_Size, VAddr);
       end if;
 
-      if Ret_Size /= 0 then
-         Userland.Process.Get_Common_Map (Proc, Map);
-         Check_Userland_Mappability
-            (Map, Integer_Address (VAddr), Ret_Size, Success);
-         if not Success then
-            goto Invalid_Error;
-         end if;
+      Userland.Process.Get_Common_Map (Proc, Map);
+      Check_Userland_Mappability
+         (Map, Integer_Address (VAddr), Ret_Size, Success);
+      if not Success then
+         goto Detach_Error;
+      end if;
 
-         Memory.MMU.Map_Range
-            (Map            => Map,
-             Virtual_Start  => To_Address (Integer_Address (VAddr)),
-             Physical_Start => To_Address (Integer_Address (Ret_Addr)),
-             Length         => Storage_Count (Ret_Size),
-             Permissions    => Perms,
-             Success        => Success);
-         if not Success then
-            Errno := Error_No_Memory;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
-
-         --  The attachment is counted for as long as it is recorded, so that
-         --  fork, exit and exec count it as they must.
-         Add_SHM_Attachment (Proc, VAddr, Truncated, Success);
-         if not Success then
-            Memory.MMU.Unmap_Range
-               (Map           => Map,
-                Virtual_Start => To_Address (Integer_Address (VAddr)),
-                Length        => Storage_Count (Ret_Size),
-                Success       => Success);
-            Errno := Error_Too_Many_Files;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
-         IPC.SHM.Modify_Attachment (Truncated, True);
-         Errno := Error_No_Error;
-         Returned := VAddr;
+      Memory.MMU.Map_Range
+         (Map            => Map,
+          Virtual_Start  => To_Address (Integer_Address (VAddr)),
+          Physical_Start => To_Address (Integer_Address (Ret_Addr)),
+          Length         => Storage_Count (Ret_Size),
+          Permissions    => Perms,
+          Success        => Success);
+      if not Success then
+         Unmap_Segment (Map, VAddr, Ret_Addr, Ret_Size);
+         IPC.SHM.Modify_Attachment (Truncated, False);
+         Errno := Error_No_Memory;
+         Returned := Unsigned_64'Last;
          return;
       end if;
+
+      --  The attachment is recorded for as long as it is counted, so that
+      --  fork, exit and exec count it as they must.
+      Add_SHM_Attachment (Proc, VAddr, Truncated, Success);
+      if not Success then
+         Unmap_Segment (Map, VAddr, Ret_Addr, Ret_Size);
+         IPC.SHM.Modify_Attachment (Truncated, False);
+         Errno := Error_Too_Many_Files;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Errno := Error_No_Error;
+      Returned := VAddr;
+      return;
+
+   <<Detach_Error>>
+      IPC.SHM.Modify_Attachment (Truncated, False);
 
    <<Invalid_Error>>
       Errno := Error_Invalid_Value;

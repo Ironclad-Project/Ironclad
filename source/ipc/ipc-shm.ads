@@ -53,6 +53,14 @@ package IPC.SHM is
        Size    : out Unsigned_64)
       with Pre => ID /= Error_ID;
 
+   --  Count an attachment of a segment and fetch its physical address and
+   --  size, or a size of 0 and nothing counted if there is no such segment.
+   procedure Attach
+      (ID      : Segment_ID;
+       Address : out Unsigned_64;
+       Size    : out Unsigned_64)
+      with Pre => ID /= Error_ID;
+
    procedure Check_Permissions
       (ID      : Segment_ID;
        UID     : Unsigned_32;
