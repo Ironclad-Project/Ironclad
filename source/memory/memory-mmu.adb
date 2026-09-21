@@ -401,6 +401,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Phys  : Virtual_Address;
       Orig  : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
+      Stale : Boolean := False;
       Fill  : constant Boolean := Permissions.Can_Read or
                                   Permissions.Can_Write or
                                   Permissions.Can_Execute;
@@ -411,6 +412,7 @@ package body Memory.MMU with SPARK_Mode => Off is
          return;
       end if;
 
+      Success := True;
       Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
          Get_Page (Map, Virt, True, Addr);
@@ -419,10 +421,7 @@ package body Memory.MMU with SPARK_Mode => Off is
             (Addr    => Addr1,
              Size    => Page_Size,
              Success => Success);
-         if not Success then
-            Synchronization.Release (Map.Mutex);
-            return;
-         end if;
+         exit when not Success;
          Phys := Addr1 - Memory.Memory_Offset;
          declare
             Allocated : array (1 .. Page_Size) of Unsigned_8
@@ -436,6 +435,9 @@ package body Memory.MMU with SPARK_Mode => Off is
          begin
             Orig  := Arch.MMU.Clean_Entry (Entry_Body);
             Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+            if Arch.MMU.Is_Entry_Present (Entry_Body) then
+               Stale := True;
+            end if;
             if Perms.User_Flag and then Orig /= Phys then
                Physical.Free (size_t (Memory.Memory_Offset + Orig));
             end if;
@@ -452,9 +454,12 @@ package body Memory.MMU with SPARK_Mode => Off is
          Virt := Virt + Page_Size;
          Phys := Phys + Page_Size;
       end loop;
-      Synchronization.Release (Map.Mutex);
 
-      Success := True;
+      --  A replaced entry may still be cached by any core running the map.
+      if Stale then
+         Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
+      end if;
+      Synchronization.Release (Map.Mutex);
    exception
       when Constraint_Error =>
          declare
