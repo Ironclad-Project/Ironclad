@@ -438,8 +438,12 @@ package body Scheduler with SPARK_Mode => Off is
    end Yield_If_Able;
 
    procedure Bail is
-      Thread : constant TID := Arch.Local.Get_Current_Thread;
+      Thread  : constant TID := Arch.Local.Get_Current_Thread;
+      Discard : Boolean;
    begin
+      --  The core waits on the kernel's own table, as the thread's may be
+      --  freed before anything else runs here.
+      Discard := Memory.MMU.Make_Active (Memory.MMU.Kernel_Table);
       Synchronization.Seize (Scheduler_Mutex);
       if Thread_Pool (Thread).Is_Present then
          Thread_Pool (Thread).Is_Present := False;
