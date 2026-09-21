@@ -1277,6 +1277,9 @@ field. Here is a table of all the possible errno and its values and meaning:
 @item ERANGE (3)
 The passed value was not big enough.
 
+@item E2BIG (1001)
+The passed argument and environment lists are too long.
+
 @item EACCES (1002)
 The passed access for a variable points to bad memory.
 
@@ -1663,14 +1666,25 @@ Exception handlers marked as @code{SIG_DFL} and @code{SIG_IGN} are preserved,
 other handlers are not maintained, signal mask is maintained, raised signals
 are cleared.
 
+The argument and environment strings may take up to 131072 bytes together,
+each counted with its terminator and the 8 bytes of its pointer.
+
 This syscall only returns in failure with @code{-1} with the following errno:
 
 @itemize @bullet
 @item
-@code{EINVAL}: One of the passed strings or arrays is not valid.
+@code{E2BIG}: The argument and environment strings do not fit in 131072
+bytes.
 
 @item
-@code{ENOENT}: The file passed in path doesnt exist.
+@code{EFAULT}: The path, one of the arrays, or one of their strings is not
+readable memory.
+
+@item
+@code{ENAMETOOLONG}: The passed path is longer than 1024 bytes.
+
+@item
+@code{ENOENT}: The file passed in path doesnt exist, or path is empty.
 
 @item
 @code{EACCES}: The file couldn't be launched out of a permission error.

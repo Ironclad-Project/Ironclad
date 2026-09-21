@@ -19,7 +19,6 @@ with Ada.Unchecked_Conversion;
 with Config;
 with System; use System;
 with Messages;
-with Interfaces.C.Strings; use Interfaces.C.Strings;
 with Time; use Time;
 with Panic;
 with Alignment;
@@ -826,7 +825,27 @@ package body Userland.Syscall is
       Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
       Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
       Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
+      Str_Errno  : Errno_Value := Error_No_Error;
    begin
+      --  Refuse what cannot fit before anything is sized from it. Each
+      --  argument and environment string counts with its terminator and its
+      --  pointer against the limit.
+      if Path_Len = 0 then
+         Errno    := Error_No_Entity;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Path_Len > Path_Max_Len then
+         Errno    := Error_String_Too_Long;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Argv_Len > Arg_Max_Len / 8 or else
+            Envp_Len > Arg_Max_Len / 8 - Argv_Len
+      then
+         Errno    := Error_Arg_List_Too_Big;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       Get_Common_Map (Proc, Orig);
       Userland.Process.Get_Effective_UID (Proc, User);
       Userland.Process.Get_CWD (Proc, Rela_FS, Rela_Ino);
@@ -904,36 +923,46 @@ package body Userland.Syscall is
             procedure Free is new Ada.Unchecked_Deallocation
                (Environment_Arr, Environment_Arr_Acc);
 
-            Args : Argument_Arr_Acc := new Argument_Arr (1 .. Argv'Length);
-            Env  : Environment_Arr_Acc :=
+            Args   : Argument_Arr_Acc := new Argument_Arr (1 .. Argv'Length);
+            Env    : Environment_Arr_Acc :=
                new Environment_Arr (1 .. Envp'Length);
+            Budget : Natural :=
+               Arg_Max_Len - 8 * (Argv'Length + Envp'Length);
          begin
+            --  Take every string while the caller's image is still intact,
+            --  so a bad or oversized list is refused without harming it.
             for I in Argv'Range loop
-               Args (I) := To_String (To_Address (Integer_Address (Argv (I))));
+               Take_C_String (Orig, Argv (I), Budget, Args (I), Str_Errno);
+               exit when Str_Errno /= Error_No_Error;
             end loop;
-            for I in Envp'Range loop
-               Env (I) := To_String (To_Address (Integer_Address (Envp (I))));
-            end loop;
-
-            --  Create a new map for the process and reroll ASLR.
-            Userland.Process.Flush_Threads (Proc);
-            Userland.Process.Flush_Exec_Files (Proc);
-            Userland.Process.Reassign_Process_Addresses (Proc);
-            Memory.MMU.Create_Table (Map);
-            Set_Common_Map (Proc, Map);
-            if Args'Length > 0 then
-               Set_Identifier (Proc, Args (1).all);
+            if Str_Errno = Error_No_Error then
+               for I in Envp'Range loop
+                  Take_C_String (Orig, Envp (I), Budget, Env (I), Str_Errno);
+                  exit when Str_Errno /= Error_No_Error;
+               end loop;
             end if;
 
-            --  Start the actual program.
-            Userland.Loader.Start_Program
-               (Exec_Path   => Path,
-                FS          => Path_FS,
-                Ino         => Path_Ino,
-                Arguments   => Args.all,
-                Environment => Env.all,
-                Proc        => Proc,
-                Success     => Success);
+            if Str_Errno = Error_No_Error then
+               --  Create a new map for the process and reroll ASLR.
+               Userland.Process.Flush_Threads (Proc);
+               Userland.Process.Flush_Exec_Files (Proc);
+               Userland.Process.Reassign_Process_Addresses (Proc);
+               Memory.MMU.Create_Table (Map);
+               Set_Common_Map (Proc, Map);
+               if Args'Length > 0 then
+                  Set_Identifier (Proc, Args (1).all);
+               end if;
+
+               --  Start the actual program.
+               Userland.Loader.Start_Program
+                  (Exec_Path   => Path,
+                   FS          => Path_FS,
+                   Ino         => Path_Ino,
+                   Arguments   => Args.all,
+                   Environment => Env.all,
+                   Proc        => Proc,
+                   Success     => Success);
+            end if;
 
             for Arg of Args.all loop
                Free (Arg);
@@ -945,7 +974,10 @@ package body Userland.Syscall is
             Free (Env);
          end;
 
-         if Success and then Memory.MMU.Make_Active (Map) then
+         if Str_Errno /= Error_No_Error then
+            Errno    := Str_Errno;
+            Returned := Unsigned_64'Last;
+         elsif Success and then Memory.MMU.Make_Active (Map) then
             --  Free critical state now that we know wont be running.
             --  Of course dont remove the map if we are vforked.
             Userland.Process.Remove_Thread (Proc, Th);
@@ -8863,22 +8895,80 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end Translate_Status;
 
-   function To_String (Addr : System.Address) return String_Acc is
+   procedure Take_C_String
+      (Map    : Memory.MMU.Page_Table_Acc;
+       Addr   : Unsigned_64;
+       Budget : in out Natural;
+       Result : out String_Acc;
+       Errno  : out Errno_Value)
+   is
+      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
+      Piece_Size : constant := 512;
+      Length     : Natural := 0;
+      Found      : Boolean := False;
+      Success    : Boolean;
    begin
-      --  This degenerate localized SMAP disabling is required because of
-      --  the fact that we have no previous specified length.
-      Arch.Snippets.Enable_Userland_Memory_Access;
+      Result := null;
+
+      --  Find the terminator a piece at a time. A piece never crosses into
+      --  a page before that page is checked, so a string ending just before
+      --  unmapped memory is read, and one running into it is refused.
+      while not Found loop
+         if Length >= Budget then
+            Errno := Error_Arg_List_Too_Big;
+            return;
+         end if;
+
+         declare
+            Piece_Addr : constant Unsigned_64 := Addr + Unsigned_64 (Length);
+            Piece_Len  : constant Natural := Natural (Unsigned_64'Min
+               (Unsigned_64'Min
+                  (Page_Size - (Piece_Addr mod Page_Size), Piece_Size),
+                Unsigned_64 (Budget - Length)));
+            subtype Piece_Str is String (1 .. Piece_Len);
+            package Trans is new Memory.Userland_Transfer (Piece_Str);
+            Piece : Piece_Str;
+         begin
+            Trans.Take_From_Userland
+               (Map, Piece, To_Address (Integer_Address (Piece_Addr)),
+                Success);
+            if not Success then
+               Errno := Error_Would_Fault;
+               return;
+            end if;
+
+            for C of Piece loop
+               if C = Ada.Characters.Latin_1.NUL then
+                  Found := True;
+                  exit;
+               end if;
+               Length := Length + 1;
+            end loop;
+         end;
+      end loop;
+
       declare
-         Arg_Length : constant Natural := Interfaces.C.Strings.Strlen (Addr);
-         Arg_String : String (1 .. Arg_Length) with Import, Address => Addr;
-         Arg_Result : String_Acc;
+         Final_Len : constant Natural := Length;
+         subtype Final_Str is String (1 .. Final_Len);
+         package Trans is new Memory.Userland_Transfer (Final_Str);
       begin
-         Arg_Result := new String'(Arg_String);
-         Arch.Snippets.Full_Memory_Load_Store_Barrier;
-         Arch.Snippets.Disable_Userland_Memory_Access;
-         return Arg_Result;
+         Result := new String'(1 .. Final_Len => ' ');
+         Trans.Take_From_Userland
+            (Map, Result.all, To_Address (Integer_Address (Addr)), Success);
+         if not Success then
+            Free (Result);
+            Errno := Error_Would_Fault;
+            return;
+         end if;
       end;
-   end To_String;
+
+      Budget := Budget - (Length + 1);
+      Errno  := Error_No_Error;
+   exception
+      when Constraint_Error =>
+         Free (Result);
+         Errno := Error_Would_Fault;
+   end Take_C_String;
 
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions
    is

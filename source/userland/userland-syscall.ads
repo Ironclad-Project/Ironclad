@@ -37,6 +37,7 @@ package Userland.Syscall is
    type Errno_Value is
       (Error_No_Error,        --  No error
        Error_Not_Big_Enough,  --  ERANGE
+       Error_Arg_List_Too_Big, --  E2BIG
        Error_Bad_Access,      --  EACCES
        Error_AF_Unsupported,  --  EAFNOSUPPORT
        Error_Would_Block,     --  EAGAIN
@@ -71,6 +72,7 @@ package Userland.Syscall is
    for Errno_Value use
       (Error_No_Error        => 0,
        Error_Not_Big_Enough  => 3,
+       Error_Arg_List_Too_Big => 1001,
        Error_Bad_Access      => 1002,
        Error_AF_Unsupported  => 1005,
        Error_Would_Block     => 1006,
@@ -105,6 +107,7 @@ package Userland.Syscall is
 
    --  Syscall limits.
    Path_Max_Len    : constant := 1024;
+   Arg_Max_Len     : constant := 131072;
    Groups_Max_Len  : constant := 30;
    Entropy_Max_Len : constant := 256;
 
@@ -1595,8 +1598,16 @@ private
        Returned       : out Unsigned_64;
        Errno          : out Errno_Value);
 
-   --  Go from C string to Ada string.
-   function To_String (Addr : System.Address) return String_Acc;
+   --  Copy a NUL-terminated string out of userland. Budget is the room left
+   --  for the string and its terminator, and is reduced by what both take.
+   --  Errno is E2BIG when the string does not fit, EFAULT when it cannot be
+   --  read, and Result is null unless Errno is Error_No_Error.
+   procedure Take_C_String
+      (Map    : Memory.MMU.Page_Table_Acc;
+       Addr   : Unsigned_64;
+       Budget : in out Natural;
+       Result : out String_Acc;
+       Errno  : out Errno_Value);
 
    --  Translate mmap permissions.
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
