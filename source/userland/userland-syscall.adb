@@ -7494,6 +7494,7 @@ package body Userland.Syscall is
       end if;
       Pipe_Socket (New_Sock1, New_Sock2);
       if New_Sock2 = null then
+         Close (New_Sock1);
          goto Invalid_Value_Return;
       end if;
 
