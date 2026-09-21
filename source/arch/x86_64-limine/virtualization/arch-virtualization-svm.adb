@@ -128,8 +128,7 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
       return Success and (ECX and Shift_Left (1, 26)) /= 0;
    end XSAVE_Supported;
 
-   function Get_XSAVE_Size (XCR0_Mask : Unsigned_64) return Unsigned_32 is
-      pragma Unreferenced (XCR0_Mask);
+   function Get_XSAVE_Size return Unsigned_32 is
       EAX, EBX, ECX, EDX : Unsigned_32;
       Success : Boolean;
    begin
@@ -176,13 +175,13 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
          null;
    end Set_XCR0;
 
-   procedure XSAVE_Save (Area : out XSAVE_Area; XCR0_Mask : Unsigned_64) is
+   procedure XSAVE_Save (Area : System.Address; XCR0_Mask : Unsigned_64) is
       Lo : constant Unsigned_64 := XCR0_Mask and 16#FFFFFFFF#;
       Hi : constant Unsigned_64 := Shift_Right (XCR0_Mask, 32);
    begin
       Asm
          ("xsave64 (%%rdi)",
-          Inputs   => [System.Address'Asm_Input ("D", Area'Address),
+          Inputs   => [System.Address'Asm_Input ("D", Area),
                        Unsigned_32'Asm_Input ("a", Unsigned_32 (Lo)),
                        Unsigned_32'Asm_Input ("d", Unsigned_32 (Hi))],
           Clobber  => "memory",
@@ -192,13 +191,13 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
          null;
    end XSAVE_Save;
 
-   procedure XSAVE_Restore (Area : XSAVE_Area; XCR0_Mask : Unsigned_64) is
+   procedure XSAVE_Restore (Area : System.Address; XCR0_Mask : Unsigned_64) is
       Lo : constant Unsigned_64 := XCR0_Mask and 16#FFFFFFFF#;
       Hi : constant Unsigned_64 := Shift_Right (XCR0_Mask, 32);
    begin
       Asm
          ("xrstor64 (%%rdi)",
-          Inputs  => [System.Address'Asm_Input ("D", Area'Address),
+          Inputs  => [System.Address'Asm_Input ("D", Area),
                       Unsigned_32'Asm_Input ("a", Unsigned_32 (Lo)),
                       Unsigned_32'Asm_Input ("d", Unsigned_32 (Hi))],
          Volatile => True);

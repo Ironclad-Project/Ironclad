@@ -235,10 +235,6 @@ package Arch.Virtualization.SVM with SPARK_Mode => Off is
    --  FPU State Type (16-byte aligned for fxsave/fxrstor)
    type FPU_State_Area is array (0 .. 511) of Unsigned_8 with Alignment => 16;
 
-   --  XSAVE State Type (2048 bytes, 64-byte aligned for xsave/xrstor)
-   --  This is enough for x87 + SSE + AVX + AVX-512 state
-   type XSAVE_Area is array (0 .. 2047) of Unsigned_8 with Alignment => 64;
-
    --  FPU save/restore procedures (legacy FXSAVE)
    procedure FPU_Save (Area : out FPU_State_Area);
    procedure FPU_Restore (Area : FPU_State_Area);
@@ -246,8 +242,10 @@ package Arch.Virtualization.SVM with SPARK_Mode => Off is
    --  XSAVE support detection and save/restore
    function XSAVE_Supported return Boolean;
 
-   --  Get the size needed for XSAVE area with given XCR0 mask
-   function Get_XSAVE_Size (XCR0_Mask : Unsigned_64) return Unsigned_32;
+   --  The size of an XSAVE area that holds every user state component the
+   --  processor supports, CPUID.(EAX=0DH,ECX=0):ECX, and so the most XSAVE
+   --  writes under any XCR0 made of them; 0 if the processor does not say.
+   function Get_XSAVE_Size return Unsigned_32;
 
    --  Get the maximum supported XCR0 value
    function Get_XCR0_Max return Unsigned_64;
@@ -258,9 +256,12 @@ package Arch.Virtualization.SVM with SPARK_Mode => Off is
    --  Set the XCR0 value (via XSETBV)
    procedure Set_XCR0 (Value : Unsigned_64);
 
-   --  XSAVE/XRSTOR procedures
-   procedure XSAVE_Save (Area : out XSAVE_Area; XCR0_Mask : Unsigned_64);
-   procedure XSAVE_Restore (Area : XSAVE_Area; XCR0_Mask : Unsigned_64);
+   --  XSAVE and XRSTOR of the area at Area, which is 64-byte aligned and as
+   --  large as Get_XSAVE_Size: XSAVE writes each component that both
+   --  XCR0_Mask and XCR0 name, in use or not (Intel SDM 325462-092US,
+   --  Vol. 1 13.7).
+   procedure XSAVE_Save (Area : System.Address; XCR0_Mask : Unsigned_64);
+   procedure XSAVE_Restore (Area : System.Address; XCR0_Mask : Unsigned_64);
 
    --  Intercept bits for Misc_1 (offset 0x00C)
    INTERCEPT_INTR      : constant := 16#0000_0001#;

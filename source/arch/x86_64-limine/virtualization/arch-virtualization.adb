@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Alignment;
 with Arch.Virtualization.SVM;
 with Arch.Virtualization.VMX;
 with Arch.IDT;
@@ -85,6 +86,13 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    Has_XSAVE       : Boolean := False;
    Host_XCR0_Max   : Unsigned_64 := 0;  --  Maximum supported XCR0 value
 
+   --  The size of each of a VCPU's two FPU save areas, the guest's and then
+   --  the host's: with XSAVE, CPUID.(EAX=0DH,ECX=0):ECX rounded up to the 64
+   --  bytes XSAVE aligns to, which holds every user state component the
+   --  processor supports and so any XCR0 a guest may be given; without it,
+   --  the 512-byte FXSAVE image.
+   FPU_Area_Size   : Integer_Address := 512;
+
    --  ASID management (ASIDs 1-255, 0 is invalid)
    Max_ASID        : constant := 255;
    type ASID_Bitmap is array (1 .. Max_ASID) of Boolean;
@@ -134,6 +142,20 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          Has_XSAVE := Arch.Virtualization.SVM.XSAVE_Supported;
          if Has_XSAVE then
             Host_XCR0_Max := Arch.Virtualization.SVM.Get_XCR0_Max;
+
+            --  A processor with XSAVE describes it in leaf 0DH; without the
+            --  size there would be nothing to lay the areas out by.
+            declare
+               package Align is new Alignment (Integer_Address);
+               Size : constant Integer_Address :=
+                  Integer_Address (Arch.Virtualization.SVM.Get_XSAVE_Size);
+            begin
+               if Size = 0 then
+                  Has_XSAVE := False;
+               else
+                  FPU_Area_Size := Align.Align_Up (Size, 64);
+               end if;
+            end;
          end if;
       end if;
    end Initialize;
@@ -394,16 +416,18 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          end;
       end;
 
-      --  Allocate FPU buffer (1 page, 4KB - guarantees 16-byte alignment for
-      --  fxsave64/fxrstor64 which require 16-byte aligned memory operand)
+      --  Allocate the FPU buffer, the guest's save area and then the host's,
+      --  FPU_Area_Size each. It is page-aligned, which both the 64 bytes
+      --  XSAVE and the 16 FXSAVE ask of an area then are too.
       declare
          FPU_Addr_Local : Integer_Address;
-         FPU_Size : constant := 16#1000#;  --  4KB (1 page)
+         FPU_Size : constant Integer_Address := 2 * FPU_Area_Size;
          IOPM_Tmp : Integer_Address;
          MSRPM_Tmp : Integer_Address;
          NPT_Tmp : Integer_Address;
       begin
-         Memory.Physical.Alloc (FPU_Size, FPU_Addr_Local);
+         Memory.Physical.Alloc
+            (Interfaces.C.size_t (FPU_Size), FPU_Addr_Local);
          if FPU_Addr_Local = 0 then
             Memory.Physical.Free (Interfaces.C.size_t (CS_Addr));
             IOPM_Tmp := Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr;
@@ -1921,6 +1945,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       VMCB_Phys : Unsigned_64;
       VMCB_Ptr  : Arch.Virtualization.SVM.VMCB_Acc;
       Exit_Code : Unsigned_64;
+      Host_XCR0 : Unsigned_64;
    begin
       --  Initialize exit info
       Exit_Info.Reason := NVMM_EXIT_NONE;
@@ -2023,99 +2048,29 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          return True;
       end if;
 
-      --  FPU/XSAVE save/restore around VMRUN using page-aligned buffer.
-      --  The FPU_Addr buffer is 4KB (1 page), 64-byte aligned.
-      --  - With XSAVE: Guest at offset 0 (2KB), Host at offset 2048 (2KB)
-      --  - With FXSAVE: Guest at offset 0 (512B), Host at offset 512 (512B)
+      --  The guest's FPU state goes in for the entry and comes out after
+      --  it, the host's kept aside meanwhile (Enter_Guest_FPU).
+      Enter_Guest_FPU (Mach, CPU, Host_XCR0);
+
+      --  Save host FS and GS bases.
+      --  VMRUN may corrupt FS.BASE and GS.BASE, so we save and restore.
+      --  FS.BASE is used by userland for TLS (thread-local storage).
+      --  GS.BASE is used for per-CPU data via %gs:0.
       declare
-         FPU_Addr_Local : constant Integer_Address :=
-            Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
-         Guest_XCR0 : constant Unsigned_64 :=
-            Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
-         --  Save host's XCR0 value to restore after VMRUN
-         Saved_Host_XCR0 : Unsigned_64 := 0;
+         Host_FS_Base : constant Unsigned_64 := Arch.Snippets.Read_FS;
+         Host_GS_Base : constant Unsigned_64 := Arch.Snippets.Read_GS;
       begin
-         if Has_XSAVE then
-            --  Use XSAVE for extended state (AVX, etc.)
-            declare
-               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
-            begin
-               --  Read and save host's current XCR0 value
-               Saved_Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
-               --  Save host extended state with host's XCR0
-               Arch.Virtualization.SVM.XSAVE_Save
-                  (Host_XSAVE, Saved_Host_XCR0);
-               --  Set XCR0 to guest value if different and valid
-               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
-                  Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
-               end if;
-               --  Load guest extended state
-               Arch.Virtualization.SVM.XSAVE_Restore (Guest_XSAVE, Guest_XCR0);
-            end;
-         else
-            --  Use legacy FXSAVE for x87/SSE only
-            declare
-               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 512);
-            begin
-               Arch.Virtualization.SVM.FPU_Save (Host_FPU);
-               Arch.Virtualization.SVM.FPU_Restore (Guest_FPU);
-            end;
-         end if;
+         --  Run the VCPU
+         Arch.Virtualization.SVM.VMRUN
+            (VMCB_PA => VMCB_Phys,
+             GPRs    => Machines (Positive (Mach)).VCPUs (CPU).SVM_GPRs);
 
-         --  Save host FS and GS bases.
-         --  VMRUN may corrupt FS.BASE and GS.BASE, so we save and restore.
-         --  FS.BASE is used by userland for TLS (thread-local storage).
-         --  GS.BASE is used for per-CPU data via %gs:0.
-         declare
-            Host_FS_Base : constant Unsigned_64 := Arch.Snippets.Read_FS;
-            Host_GS_Base : constant Unsigned_64 := Arch.Snippets.Read_GS;
-         begin
-            --  Run the VCPU
-            Arch.Virtualization.SVM.VMRUN
-               (VMCB_PA => VMCB_Phys,
-                GPRs    => Machines (Positive (Mach)).VCPUs (CPU).SVM_GPRs);
-
-            --  Restore host FS and GS bases
-            Arch.Snippets.Write_FS (Host_FS_Base);
-            Arch.Snippets.Write_GS (Host_GS_Base);
-         end;
-
-         --  Save guest state and restore host state
-         if Has_XSAVE then
-            declare
-               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
-            begin
-               --  Save guest extended state with guest's XCR0
-               Arch.Virtualization.SVM.XSAVE_Save (Guest_XSAVE, Guest_XCR0);
-               --  Restore host XCR0 if it was changed
-               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
-                  Arch.Virtualization.SVM.Set_XCR0 (Saved_Host_XCR0);
-               end if;
-               --  Restore host extended state with host's XCR0
-               Arch.Virtualization.SVM.XSAVE_Restore
-                  (Host_XSAVE, Saved_Host_XCR0);
-            end;
-         else
-            declare
-               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 512);
-            begin
-               Arch.Virtualization.SVM.FPU_Save (Guest_FPU);
-               Arch.Virtualization.SVM.FPU_Restore (Host_FPU);
-            end;
-         end if;
+         --  Restore host FS and GS bases
+         Arch.Snippets.Write_FS (Host_FS_Base);
+         Arch.Snippets.Write_GS (Host_GS_Base);
       end;
+
+      Leave_Guest_FPU (Mach, CPU, Host_XCR0);
 
       --  Reload IDT after VMRUN (may not be fully restored)
       Arch.IDT.Load_IDT;
@@ -3231,6 +3186,80 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       when Constraint_Error =>
          return False;
    end GVA_To_GPA;
+
+   procedure Enter_Guest_FPU
+      (Mach      : Machine_ID;
+       CPU       : VCPU_ID;
+       Host_XCR0 : out Unsigned_64)
+   is
+      Guest_Area, Host_Area : Integer_Address;
+      Guest_XCR0            : Unsigned_64;
+   begin
+      Host_XCR0  := 0;
+      Guest_Area := Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
+      Host_Area  := Guest_Area + FPU_Area_Size;
+      Guest_XCR0 := Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
+
+      if Has_XSAVE then
+         Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
+         Arch.Virtualization.SVM.XSAVE_Save
+            (To_Address (Host_Area), Host_XCR0);
+         if Guest_XCR0 /= Host_XCR0 and then Guest_XCR0 /= 0 then
+            Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
+         end if;
+         Arch.Virtualization.SVM.XSAVE_Restore
+            (To_Address (Guest_Area), Guest_XCR0);
+      else
+         declare
+            Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
+               with Import, Address => To_Address (Guest_Area);
+            Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
+               with Import, Address => To_Address (Host_Area);
+         begin
+            Arch.Virtualization.SVM.FPU_Save (Host_FPU);
+            Arch.Virtualization.SVM.FPU_Restore (Guest_FPU);
+         end;
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Enter_Guest_FPU;
+
+   procedure Leave_Guest_FPU
+      (Mach      : Machine_ID;
+       CPU       : VCPU_ID;
+       Host_XCR0 : Unsigned_64)
+   is
+      Guest_Area, Host_Area : Integer_Address;
+      Guest_XCR0            : Unsigned_64;
+   begin
+      Guest_Area := Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
+      Host_Area  := Guest_Area + FPU_Area_Size;
+      Guest_XCR0 := Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
+
+      if Has_XSAVE then
+         Arch.Virtualization.SVM.XSAVE_Save
+            (To_Address (Guest_Area), Guest_XCR0);
+         if Guest_XCR0 /= Host_XCR0 and then Guest_XCR0 /= 0 then
+            Arch.Virtualization.SVM.Set_XCR0 (Host_XCR0);
+         end if;
+         Arch.Virtualization.SVM.XSAVE_Restore
+            (To_Address (Host_Area), Host_XCR0);
+      else
+         declare
+            Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
+               with Import, Address => To_Address (Guest_Area);
+            Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
+               with Import, Address => To_Address (Host_Area);
+         begin
+            Arch.Virtualization.SVM.FPU_Save (Guest_FPU);
+            Arch.Virtualization.SVM.FPU_Restore (Host_FPU);
+         end;
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Leave_Guest_FPU;
    ----------------------------------------------------------------------------
    function Allocate_ASID return Unsigned_32 is
       Result : Unsigned_32 := 0;
@@ -3325,6 +3354,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       VMCS_Phys  : Unsigned_64;
       Exit_Reason : Unsigned_64;
       Load_OK    : Boolean;
+      Host_XCR0  : Unsigned_64;
    begin
       VMCS_Phys := Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys;
 
@@ -3345,101 +3375,44 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          return True;
       end if;
 
-      --  FPU/XSAVE save/restore around VM entry
+      --  The guest's FPU state goes in for the entry and comes out after
+      --  it, the host's kept aside meanwhile (Enter_Guest_FPU).
+      Enter_Guest_FPU (Mach, CPU, Host_XCR0);
+
+      --  Save host FS and GS bases
       declare
-         FPU_Addr_Local : constant Integer_Address :=
-            Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
-         Guest_XCR0 : constant Unsigned_64 :=
-            Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
-         Saved_Host_XCR0 : Unsigned_64 := 0;
+         Host_FS_Base : constant Unsigned_64 := Arch.Snippets.Read_FS;
+         Host_GS_Base : constant Unsigned_64 := Arch.Snippets.Read_GS;
+         Is_Launch : constant Boolean :=
+            not Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched;
+         VM_Success : Boolean;
       begin
-         if Has_XSAVE then
-            declare
-               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
-            begin
-               Saved_Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
-               Arch.Virtualization.SVM.XSAVE_Save
-                  (Host_XSAVE, Saved_Host_XCR0);
-               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
-                  Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
-               end if;
-               Arch.Virtualization.SVM.XSAVE_Restore (Guest_XSAVE, Guest_XCR0);
-            end;
-         else
-            declare
-               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 512);
-            begin
-               Arch.Virtualization.SVM.FPU_Save (Host_FPU);
-               Arch.Virtualization.SVM.FPU_Restore (Guest_FPU);
-            end;
-         end if;
+         --  Run the VCPU using VMLAUNCH or VMRESUME
+         Arch.Virtualization.VMX.VMLAUNCH_VMRESUME
+            (VMCS_PA   => VMCS_Phys,
+             GPRs      => Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs,
+             Is_Launch => Is_Launch,
+             Success   => VM_Success);
 
-         --  Save host FS and GS bases
-         declare
-            Host_FS_Base : constant Unsigned_64 := Arch.Snippets.Read_FS;
-            Host_GS_Base : constant Unsigned_64 := Arch.Snippets.Read_GS;
-            Is_Launch : constant Boolean :=
-               not Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched;
-            VM_Success : Boolean;
-         begin
-            --  Run the VCPU using VMLAUNCH or VMRESUME
-            Arch.Virtualization.VMX.VMLAUNCH_VMRESUME
-               (VMCS_PA   => VMCS_Phys,
-                GPRs      => Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs,
-                Is_Launch => Is_Launch,
-                Success   => VM_Success);
-
-            --  Check if VMLAUNCH/VMRESUME failed
-            if not VM_Success then
-               --  Restore FS/GS before returning
-               Arch.Snippets.Write_FS (Host_FS_Base);
-               Arch.Snippets.Write_GS (Host_GS_Base);
-               --  Continue to return invalid exit
-            end if;
-
-            --  After first successful launch, use VMRESUME for next entries
-            if Is_Launch and VM_Success then
-               Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := True;
-            end if;
-
-            --  Restore host FS and GS bases
+         --  Check if VMLAUNCH/VMRESUME failed
+         if not VM_Success then
+            --  Restore FS/GS before returning
             Arch.Snippets.Write_FS (Host_FS_Base);
             Arch.Snippets.Write_GS (Host_GS_Base);
-         end;
-
-         --  Save guest state and restore host state
-         if Has_XSAVE then
-            declare
-               Guest_XSAVE : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_XSAVE  : Arch.Virtualization.SVM.XSAVE_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 2048);
-            begin
-               Arch.Virtualization.SVM.XSAVE_Save (Guest_XSAVE, Guest_XCR0);
-               if Guest_XCR0 /= Saved_Host_XCR0 and then Guest_XCR0 /= 0 then
-                  Arch.Virtualization.SVM.Set_XCR0 (Saved_Host_XCR0);
-               end if;
-               Arch.Virtualization.SVM.XSAVE_Restore
-                  (Host_XSAVE, Saved_Host_XCR0);
-            end;
-         else
-            declare
-               Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local);
-               Host_FPU  : Arch.Virtualization.SVM.FPU_State_Area
-                  with Import, Address => To_Address (FPU_Addr_Local + 512);
-            begin
-               Arch.Virtualization.SVM.FPU_Save (Guest_FPU);
-               Arch.Virtualization.SVM.FPU_Restore (Host_FPU);
-            end;
+            --  Continue to return invalid exit
          end if;
+
+         --  After first successful launch, use VMRESUME for next entries
+         if Is_Launch and VM_Success then
+            Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := True;
+         end if;
+
+         --  Restore host FS and GS bases
+         Arch.Snippets.Write_FS (Host_FS_Base);
+         Arch.Snippets.Write_GS (Host_GS_Base);
       end;
+
+      Leave_Guest_FPU (Mach, CPU, Host_XCR0);
 
       --  Reload IDT after VM exit
       Arch.IDT.Load_IDT;

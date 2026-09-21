@@ -378,6 +378,19 @@ private
           GPA  : Unsigned_64;
           HVA  : out Unsigned_64) return Boolean;
 
+      --  Save the host's FPU state and load the guest's, just before an
+      --  entry, answering in Host_XCR0 the XCR0 Leave_Guest_FPU puts back.
+      --  Called with the machine's lock held, as is Leave_Guest_FPU, which
+      --  saves the guest's state and loads the host's again after the exit.
+      procedure Enter_Guest_FPU
+         (Mach      : Machine_ID;
+          CPU       : VCPU_ID;
+          Host_XCR0 : out Unsigned_64);
+      procedure Leave_Guest_FPU
+         (Mach      : Machine_ID;
+          CPU       : VCPU_ID;
+          Host_XCR0 : Unsigned_64);
+
       function VCPU_Run_Ex_VMX
          (Mach      : Machine_ID;
           CPU       : VCPU_ID;
