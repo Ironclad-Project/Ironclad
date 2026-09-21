@@ -85,4 +85,9 @@ package Userland.Loader is
          Memory.MMU.Kernel_Table /= null and
          VFS.Is_Initialized            and
          FS /= VFS.Error_Handle;
+
+private
+
+   --  Longest interpreter path and argument a script may name.
+   Script_Max_Len : constant := 255;
 end Userland.Loader;

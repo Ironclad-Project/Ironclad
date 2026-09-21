@@ -173,7 +173,6 @@ package body Userland.Loader is
       Base_Slide   : Unsigned_64;
       LD_Slide     : Unsigned_64;
       Stack_Size   : Unsigned_64;
-      LD_Path      : String (1 .. 100);
       LD_FS        : FS_Handle;
       LD_Ino       : File_Inode_Number;
       Success2     : FS_Status;
@@ -193,11 +192,8 @@ package body Userland.Loader is
       end if;
 
       if Loaded_ELF.Linker_Len /= 0 then
-         --  Interpreter paths are relative, so we build an absolute one on
-         --  the spot using Path, which is absolute.
-         LD_Path (9 .. Loaded_ELF.Linker_Len + 8) :=
-            Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Len);
-         Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Len), LD_FS,
+         --  The interpreter's path is stored along with its terminator.
+         Open (Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Len - 1), LD_FS,
                LD_Ino, Success2, 0, True, False);
          if Success2 /= VFS.FS_Success then
             Success := False;
@@ -254,10 +250,10 @@ package body Userland.Loader is
       Path_Len  : Natural;
       Arg_Len   :     Natural := 0;
       Pos       : Unsigned_64 := 0;
-      Path      : String (1 .. 100);
-      Path_Data : Devices.Operation_Data (1 .. 100)
+      Path      : String (1 .. Script_Max_Len);
+      Path_Data : Devices.Operation_Data (1 .. Script_Max_Len)
          with Import, Address => Path'Address;
-      Arg       : String (1 .. 100);
+      Arg       : String (1 .. Script_Max_Len);
       Char      : Character;
       Char_Data : Devices.Operation_Data (1 .. 1)
          with Import, Address => Char'Address;
@@ -299,7 +295,13 @@ package body Userland.Loader is
          case Char is
             when ' '                       => exit;
             when Ada.Characters.Latin_1.LF => goto Return_Shebang;
-            when others => Path_Len := Path_Len + 1; Path (Path_Len) := Char;
+            when others =>
+               if Path_Len = Path'Length then
+                  Success := False;
+                  return;
+               end if;
+               Path_Len := Path_Len + 1;
+               Path (Path_Len) := Char;
          end case;
       end loop;
       loop
@@ -311,7 +313,13 @@ package body Userland.Loader is
          end if;
          case Char is
             when Ada.Characters.Latin_1.LF | ' ' => exit;
-            when others => Arg_Len := Arg_Len + 1; Arg (Arg_Len) := Char;
+            when others =>
+               if Arg_Len = Arg'Length then
+                  Success := False;
+                  return;
+               end if;
+               Arg_Len := Arg_Len + 1;
+               Arg (Arg_Len) := Char;
          end case;
       end loop;
 
