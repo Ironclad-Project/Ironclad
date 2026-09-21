@@ -29,6 +29,7 @@ with Arch.Interrupts;
 with Messages;
 with Devices.Ramdev;
 with Arch.Limine;
+with Arch.MMU;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook (Success : out Boolean) is
@@ -58,9 +59,15 @@ package body Arch.Hooks with SPARK_Mode => Off is
    begin
       case Code is
          when 1 =>
-            Snippets.Write_FS (Arg);
+            --  Loading a base that is not a canonical userland address would
+            --  fault in the kernel.
+            if Arg < Unsigned_64 (Arch.MMU.Canonical_Hole_Offset) then
+               Snippets.Write_FS (Arg);
+               Success := True;
+            else
+               Success := False;
+            end if;
             Write_Back := False;
-            Success    := True;
          when 2 =>
             Arg := Snippets.Read_FS;
             Write_Back := True;

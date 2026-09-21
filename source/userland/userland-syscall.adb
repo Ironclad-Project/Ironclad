@@ -84,7 +84,7 @@ package body Userland.Syscall is
       Arch.Hooks.PRCTL_Hook (Natural (Code and 16#FFFFFF#), Arg, WB, Succ);
       if not Succ then
          Returned := Unsigned_64'Last;
-         Errno    := Error_Would_Fault;
+         Errno    := Error_Invalid_Value;
          return;
       end if;
 

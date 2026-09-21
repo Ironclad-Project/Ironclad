@@ -1394,7 +1394,8 @@ This syscall interacts with architecture-specific thread-local storage. For
 
 @table @code
 @item ARCH_SET_FS (1)
-Sets @code{argument} as the current thread's FS.
+Sets @code{argument} as the current thread's FS. It must be a userland
+address, that is, one below the non-canonical hole.
 
 @item ARCH_GET_FS (2)
 Stores the current thread's FS into the variable pointed to by @code{argument}.
@@ -1409,7 +1410,8 @@ errno is to be set to the following values on failure:
 
 @itemize @bullet
 @item
-@code{EINVAL}: @code{code} is not valid.
+@code{EINVAL}: @code{code} is not valid, or the FS passed to
+@code{ARCH_SET_FS} is not a userland address.
 
 @item
 @code{EFAULT}: @code{argument} is outside the available address space.
