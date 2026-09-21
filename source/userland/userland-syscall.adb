@@ -5176,7 +5176,7 @@ package body Userland.Syscall is
       Succ2 : IPC.Futex.Wait_Status;
       Succ  : Boolean;
    begin
-      if Count > Unsigned_64 (Natural'Last) then
+      if Count > 128 then
          Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
