@@ -2345,13 +2345,9 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                XCR0_Valid : Boolean;
             begin
                if XCR_Num = 0 then
-                  --  XCR0 write - validate according to Intel SDM rules:
-                  --  1. Bit 0 (x87) must always be set
-                  --  2. If SSE (bit 1) is clear, AVX (bit 2) must also be 0
-                  --  3. Value must not exceed host's supported XCR0
-                  XCR0_Valid := (XCR_Val and 1) /= 0 and then  --  x87 required
-                     ((XCR_Val and 2) /= 0 or (XCR_Val and 4) = 0) and then
-                     (XCR_Val and not Host_XCR0_Max) = 0;  --  subset of host
+                  --  XCR0 write: the kernel loads it for every entry, so it
+                  --  is taken only as a value XSETBV itself would accept.
+                  XCR0_Valid := Guest_XCR0_Valid (XCR_Val);
 
                   if XCR0_Valid then
                      --  Store XCR0 value for use in XSAVE/XRSTOR
@@ -3187,6 +3183,28 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          return False;
    end GVA_To_GPA;
 
+   function Guest_XCR0_Valid (Value : Unsigned_64) return Boolean is
+      SSE_AVX : constant Unsigned_64 := 16#6#;
+      MPX     : constant Unsigned_64 := 16#18#;
+      AVX_512 : constant Unsigned_64 := 16#E0#;
+      AMX     : constant Unsigned_64 := 16#6_0000#;
+   begin
+      --  Nothing XSETBV would refuse with #GP, the stricter vendor's rule
+      --  where the two differ (Intel SDM 325462-092US, Vol. 1 13.3 and
+      --  Vol. 2D XSETBV; AMD APM 40332 rev 4.10, Vol. 4 XSETBV): only
+      --  components the processor supports, x87 always, AVX only beside SSE,
+      --  MPX's two components together, AVX-512's three together and only
+      --  beside SSE and AVX, and AMX's two together.
+      return (Value and not Host_XCR0_Max) = 0 and then
+             (Value and 1) /= 0 and then
+             (Value and SSE_AVX) /= 16#4# and then
+             (Value and MPX) in 0 | MPX and then
+             ((Value and AVX_512) = 0 or else
+              ((Value and AVX_512) = AVX_512 and then
+               (Value and SSE_AVX) = SSE_AVX)) and then
+             (Value and AMX) in 0 | AMX;
+   end Guest_XCR0_Valid;
+
    procedure Enter_Guest_FPU
       (Mach      : Machine_ID;
        CPU       : VCPU_ID;
@@ -3652,9 +3670,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                Guest_RIP : Unsigned_64;
             begin
                if XCR_Num = 0 then
-                  XCR0_Valid := (XCR_Val and 1) /= 0 and then
-                     ((XCR_Val and 2) /= 0 or (XCR_Val and 4) = 0) and then
-                     (XCR_Val and not Host_XCR0_Max) = 0;
+                  XCR0_Valid := Guest_XCR0_Valid (XCR_Val);
 
                   if XCR0_Valid then
                      Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value :=

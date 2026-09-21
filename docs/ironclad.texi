@@ -5274,6 +5274,13 @@ Ironclad only provides the non-IOCTL interfaces, using syscalls only. No
 @code{/dev/nvmm} is provided either. To check presence, @code{nvmm_capability}
 will fail with @code{ENOTSUPP} if there is no NVMM support.
 
+The guest sets XCR0 with XSETBV, and a value the processor would refuse, one
+naming a component the processor lacks, leaving out x87, naming AVX without
+SSE, naming only some of AVX-512's three components or naming them without SSE
+and AVX, or naming one of the two components of MPX or of AMX without the
+other, ends @ref{nvmm_vcpu_run} with @code{NVMM_VCPU_EXIT_INVALID} and leaves
+XCR0 as it was, where NetBSD injects a general-protection fault.
+
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces
 

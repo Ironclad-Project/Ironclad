@@ -378,6 +378,11 @@ private
           GPA  : Unsigned_64;
           HVA  : out Unsigned_64) return Boolean;
 
+      --  True if a guest may have Value in XCR0: the kernel loads it with
+      --  XSETBV on the guest's behalf, so no value may be one that XSETBV
+      --  refuses with #GP.
+      function Guest_XCR0_Valid (Value : Unsigned_64) return Boolean;
+
       --  Save the host's FPU state and load the guest's, just before an
       --  entry, answering in Host_XCR0 the XCR0 Leave_Guest_FPU puts back.
       --  Called with the machine's lock held, as is Leave_Guest_FPU, which
