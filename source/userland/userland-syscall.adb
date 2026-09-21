@@ -1779,11 +1779,20 @@ package body Userland.Syscall is
           Description       => Description_Writer_FIFO,
           Inner_Writer_FIFO => Returned2);
       Add_File (Proc, Reader_Desc, Res (1), Succ1);
-      Add_File (Proc, Writer_Desc, Res (2), Succ2);
-      if not Succ1 or not Succ2 then
-         Errno := Error_Too_Many_Files;
+      if not Succ1 then
+         Close (Reader_Desc);
+         Close (Writer_Desc);
+         Errno    := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
-         goto Cleanup;
+         return;
+      end if;
+      Add_File (Proc, Writer_Desc, Res (2), Succ2);
+      if not Succ2 then
+         Remove_File (Proc, Res (1));
+         Close (Writer_Desc);
+         Errno    := Error_Too_Many_Files;
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
       Set_FD_Flags (Proc, Unsigned_64 (Res (1)), Do_Cloexec, Do_CloFork);
@@ -1792,18 +1801,15 @@ package body Userland.Syscall is
       Get_Common_Map (Proc, Map);
       Trans.Paste_Into_Userland (Map, Res, To_Address (Ad), Succ1);
       if not Succ1 then
-         Errno := Error_Would_Fault;
+         Remove_File (Proc, Res (1));
+         Remove_File (Proc, Res (2));
+         Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
-         goto Cleanup;
+         return;
       end if;
 
       Errno := Error_No_Error;
       Returned := 0;
-      return;
-
-   <<Cleanup>>
-      Close (Reader_Desc);
-      Close (Writer_Desc);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Pipe");
@@ -3796,7 +3802,7 @@ package body Userland.Syscall is
        Errno       : out Errno_Value)
    is
       pragma SPARK_Mode (Off); --  File modifications are against SPARK.
-      type Result_Arr is array (1 .. 2) of Integer;
+      type Result_Arr is array (1 .. 2) of Natural;
       package Trans is new Memory.Userland_Transfer (Result_Arr);
 
       Res_IAddr : constant Integer_Address := Integer_Address (Result_Addr);
@@ -3814,17 +3820,23 @@ package body Userland.Syscall is
          return;
       end if;
 
+      --  Each description holds one of the two references the PTY is created
+      --  with, so closing both descriptions closes the PTY.
       P_Desc := new File_Description'
          (Description_Primary_PTY, 0, True, Res_PTY);
       S_Desc := new File_Description'
          (Description_Secondary_PTY, 0, True, Res_PTY);
       Add_File (Proc, P_Desc, Result (1), Succ1);
-      Add_File (Proc, S_Desc, Result (2), Succ2);
-      if not Succ1 or not Succ2 then
-   --  @param Group   GID to check against, 0 for root/bypass checks.
-         Close (Res_PTY);
-         Close (Res_PTY);
+      if not Succ1 then
          Close (P_Desc);
+         Close (S_Desc);
+         Errno := Error_Too_Many_Files;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+      Add_File (Proc, S_Desc, Result (2), Succ2);
+      if not Succ2 then
+         Remove_File (Proc, Result (1));
          Close (S_Desc);
          Errno := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
@@ -7450,7 +7462,7 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      type Result_Arr is array (1 .. 2) of Integer;
+      type Result_Arr is array (1 .. 2) of Natural;
       package Trans is new Memory.Userland_Transfer (Result_Arr);
       A     : constant Integer_Address := Integer_Address (FDs);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
@@ -7496,9 +7508,16 @@ package body Userland.Syscall is
           Description    => Description_Socket,
           Inner_Socket   => New_Sock2);
       Add_File (Proc, New_Desc1, Res (1), Succ1);
-      Add_File (Proc, New_Desc2, Res (2), Succ2);
-      if not Succ1 or not Succ2 then
+      if not Succ1 then
          Close (New_Desc1);
+         Close (New_Desc2);
+         Errno    := Error_Too_Many_Files;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+      Add_File (Proc, New_Desc2, Res (2), Succ2);
+      if not Succ2 then
+         Remove_File (Proc, Res (1));
          Close (New_Desc2);
          Errno    := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
