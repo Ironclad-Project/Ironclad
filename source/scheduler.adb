@@ -455,6 +455,15 @@ package body Scheduler with SPARK_Mode => Off is
          Waiting_Spot;
    end Bail;
 
+   function Is_Doomed return Boolean is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      return Thread /= Error_TID and then not Thread_Pool (Thread).Is_Present;
+   exception
+      when Constraint_Error =>
+         return False;
+   end Is_Doomed;
+
    procedure Get_Runtimes (Thread : TID; System, User : out Time.Timestamp) is
    begin
       Synchronization.Seize (Scheduler_Mutex);
@@ -893,6 +902,7 @@ package body Scheduler with SPARK_Mode => Off is
       Curr        : Time.Timestamp;
       Count       : Unsigned_32;
       Did_Seize : Boolean;
+      Discard   : Boolean;
    begin
       --  A switch leaves through a frame on the old thread's kernel stack, so
       --  the old thread stays running until the entry the switch asks for,
@@ -952,8 +962,21 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  We only get here if the thread search did not find anything, and we
-      --  are just going back to whoever called.
+      --  are just going back to whoever called. A thread deleted while in
+      --  userland is not gone back to: the core waits on its stack instead,
+      --  as after a Bail.
       if Next_TID = Error_TID then
+         if Current_TID /= Error_TID and then
+            not Thread_Pool (Current_TID).Is_Present and then
+            Arch.Context.Is_User_Context (State)
+         then
+            Discard := Memory.MMU.Make_Active (Memory.MMU.Kernel_Table);
+            Arch.Context.Init_Kernel_GP_Context
+               (State,
+                Thread_Pool (Current_TID).Kernel_Stack.all'Address +
+                Kernel_Stack'Length,
+                Waiting_Spot'Address);
+         end if;
          Synchronization.Release (Scheduler_Mutex);
          Arch.Local.Reschedule_In (Timeout);
          return;

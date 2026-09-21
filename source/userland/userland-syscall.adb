@@ -8577,14 +8577,28 @@ package body Userland.Syscall is
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
       Thread  : constant TID := Arch.Local.Get_Current_Thread;
    begin
+      --  A deleted thread goes at the edges of a syscall, where it holds
+      --  nothing.
+      if Scheduler.Is_Doomed then
+         Scheduler.Bail;
+      end if;
       Scheduler.Signal_Kernel_Entry (Thread);
       Common_Syscall_Hook (Thread, State);
+      if Scheduler.Is_Doomed then
+         Scheduler.Bail;
+      end if;
    end Pre_Syscall_Hook;
 
    procedure Post_Syscall_Hook (State : Arch.Context.GP_Context) is
       Thread  : constant TID := Arch.Local.Get_Current_Thread;
    begin
+      if Scheduler.Is_Doomed then
+         Scheduler.Bail;
+      end if;
       Common_Syscall_Hook (Thread, State);
+      if Scheduler.Is_Doomed then
+         Scheduler.Bail;
+      end if;
       Scheduler.Signal_Kernel_Exit (Thread);
    end Post_Syscall_Hook;
    ----------------------------------------------------------------------------

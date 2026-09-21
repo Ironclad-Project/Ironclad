@@ -47,10 +47,37 @@ package body Arch.Context with SPARK_Mode => Off is
           others  => 0);
    end Init_GP_Context;
 
+   procedure Init_Kernel_GP_Context
+      (Ctx        : out GP_Context;
+       Stack      : System.Address;
+       Start_Addr : System.Address)
+   is
+      Val : Unsigned_64;
+   begin
+      System.Machine_Code.Asm
+         ("csrr %0, sstatus",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Val),
+          Clobber  => "memory",
+          Volatile => True);
+      Ctx :=
+         (X2      => Unsigned_64 (To_Integer (Stack)),
+          SEPC    => Unsigned_64 (To_Integer (Start_Addr)),
+          --  Set SPP to return to supervisor mode, and SPIE so that the
+          --  return enables interrupts.
+          SSTATUS => Val or Shift_Left (1, 8) or Shift_Left (1, 5),
+          others  => 0);
+   end Init_Kernel_GP_Context;
+
    procedure Success_Fork_Result (Ctx : in out GP_Context) is
    begin
       Ctx.X10 := 0;
    end Success_Fork_Result;
+
+   function Is_User_Context (Ctx : GP_Context) return Boolean is
+   begin
+      --  SPP, the privilege the trap was taken from, is clear for userland.
+      return (Ctx.SSTATUS and Shift_Left (1, 8)) = 0;
+   end Is_User_Context;
 
    procedure Init_FP_Context (Ctx : out FP_Context) is
    begin

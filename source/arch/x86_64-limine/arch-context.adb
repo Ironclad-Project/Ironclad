@@ -42,10 +42,32 @@ package body Arch.Context with SPARK_Mode => Off is
           others => 0);
    end Init_GP_Context;
 
+   procedure Init_Kernel_GP_Context
+      (Ctx        : out GP_Context;
+       Stack      : System.Address;
+       Start_Addr : System.Address)
+   is
+   begin
+      --  Entered as if called, with (RSP + 8) 16-byte aligned as the x86-64
+      --  psABI 1.0 wants.
+      Ctx :=
+         (CS     => GDT.Kernel_Code64_Segment,
+          SS     => GDT.Kernel_Data64_Segment,
+          RFLAGS => 16#202#,
+          RIP    => Unsigned_64 (To_Integer (Start_Addr)),
+          RSP    => Unsigned_64 (To_Integer (Stack)) - 8,
+          others => 0);
+   end Init_Kernel_GP_Context;
+
    procedure Success_Fork_Result (Ctx : in out GP_Context) is
    begin
       Ctx.RAX := 0;
    end Success_Fork_Result;
+
+   function Is_User_Context (Ctx : GP_Context) return Boolean is
+   begin
+      return (Ctx.CS and 3) = 3;
+   end Is_User_Context;
 
    procedure Init_FP_Context (Ctx : out FP_Context) is
       FPU_Word : constant Unsigned_32 := 2#1100111111#;

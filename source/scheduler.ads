@@ -85,6 +85,9 @@ package Scheduler is
    --  Make the callee thread be dequeued.
    procedure Bail with No_Return;
 
+   --  Whether the calling thread has been deleted while running.
+   function Is_Doomed return Boolean;
+
    --  Get runtime times of the thread.
    procedure Get_Runtimes (Thread : TID; System, User : out Time.Timestamp);
 

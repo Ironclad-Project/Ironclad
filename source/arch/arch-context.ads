@@ -43,9 +43,19 @@ package Arch.Context is
        Argument_2 : Unsigned_64 := 0;
        Argument_3 : Unsigned_64 := 0);
 
+   --  A context that starts Start_Addr in kernel mode on Stack, with
+   --  interrupts enabled.
+   procedure Init_Kernel_GP_Context
+      (Ctx        : out GP_Context;
+       Stack      : System.Address;
+       Start_Addr : System.Address);
+
    --  When creating a thread, in success, some registers usually have to be
    --  set for success conditions, and said status is expected in userland.
    procedure Success_Fork_Result (Ctx : in out GP_Context);
+
+   --  Whether the context was saved while running in userland.
+   function Is_User_Context (Ctx : GP_Context) return Boolean;
 
    --  Save and restore floating-point context.
    procedure Init_FP_Context    (Ctx : out FP_Context);
