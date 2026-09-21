@@ -114,9 +114,11 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
       Area_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Area'Address));
    begin
+      --  The area is read, so what was stored to it has to be there first.
       Asm
          ("fxrstor64 (%%rax)",
           Inputs   => Unsigned_64'Asm_Input ("a", Area_Addr),
+          Clobber  => "memory",
           Volatile => True);
    end FPU_Restore;
 
@@ -195,12 +197,14 @@ package body Arch.Virtualization.SVM with SPARK_Mode => Off is
       Lo : constant Unsigned_64 := XCR0_Mask and 16#FFFFFFFF#;
       Hi : constant Unsigned_64 := Shift_Right (XCR0_Mask, 32);
    begin
+      --  The area is read, so what was stored to it has to be there first.
       Asm
          ("xrstor64 (%%rdi)",
           Inputs  => [System.Address'Asm_Input ("D", Area),
                       Unsigned_32'Asm_Input ("a", Unsigned_32 (Lo)),
                       Unsigned_32'Asm_Input ("d", Unsigned_32 (Hi))],
-         Volatile => True);
+          Clobber  => "memory",
+          Volatile => True);
    exception
       when Constraint_Error =>
          null;

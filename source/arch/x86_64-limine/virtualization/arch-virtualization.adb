@@ -3219,14 +3219,28 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       Guest_XCR0 := Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
 
       if Has_XSAVE then
-         Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
-         Arch.Virtualization.SVM.XSAVE_Save
-            (To_Address (Host_Area), Host_XCR0);
-         if Guest_XCR0 /= Host_XCR0 and then Guest_XCR0 /= 0 then
-            Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
-         end if;
-         Arch.Virtualization.SVM.XSAVE_Restore
-            (To_Address (Guest_Area), Guest_XCR0);
+         declare
+            --  The XSAVE header's XSTATE_BV, the components the area holds.
+            XSTATE_BV : Unsigned_64
+               with Import, Address => To_Address (Guest_Area + 512);
+         begin
+            Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
+            Arch.Virtualization.SVM.XSAVE_Save
+               (To_Address (Host_Area), Host_XCR0);
+            if Guest_XCR0 /= Host_XCR0 and then Guest_XCR0 /= 0 then
+               Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
+            end if;
+
+            --  Only what XCR0 has for the restore may be marked in the area:
+            --  XRSTOR raises #GP for an XSTATE_BV bit that XCR0 does not have
+            --  (Intel SDM 325462-092US, Vol. 1 13.8.1), and XSAVE leaves the
+            --  bits outside its mask as they were. A component a guest
+            --  disables starts from its initial state if the guest enables it
+            --  again.
+            XSTATE_BV := XSTATE_BV and Guest_XCR0;
+            Arch.Virtualization.SVM.XSAVE_Restore
+               (To_Address (Guest_Area), Guest_XCR0);
+         end;
       else
          declare
             Guest_FPU : Arch.Virtualization.SVM.FPU_State_Area
