@@ -1266,7 +1266,7 @@ package body Userland.Syscall is
             (DataType and SOCK_CLOFORK) /= 0);
          Errno := Error_No_Error;
       else
-         Close (New_Sock);
+         --  Closing the description closes the socket it holds.
          Close (Desc);
          Errno    := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
@@ -4131,7 +4131,6 @@ package body Userland.Syscall is
             Errno    := Error_No_Error;
             Returned := Unsigned_64 (Ret);
          else
-            Close (Sock);
             Close (Desc);
             Errno    := Error_Too_Many_Files;
             Returned := Unsigned_64'Last;
