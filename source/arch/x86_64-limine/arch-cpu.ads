@@ -37,6 +37,7 @@ package Arch.CPU is
       Core_TSS        : Arch.GDT.TSS;
       Current_Thread  : Scheduler.TID;
       Current_Process : Userland.Process.PID;
+      Retiring_Thread : Scheduler.TID;  --  See Arch.Local.
 
       Invalidate_Lock  : aliased Synchronization.Binary_Semaphore;
       Invalidate_Map   : Unsigned_64;

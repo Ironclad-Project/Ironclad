@@ -35,4 +35,9 @@ package Arch.Local is
    function Get_Current_Process return Userland.Process.PID;
    procedure Set_Current_Thread (Thread : Scheduler.TID);
    procedure Set_Current_Process (Proc : Userland.Process.PID);
+
+   --  The thread a core last switched away from, which the scheduler goes
+   --  on counting as running until the core has left its kernel stack.
+   function Get_Retiring_Thread return Scheduler.TID;
+   procedure Set_Retiring_Thread (Thread : Scheduler.TID);
 end Arch.Local;

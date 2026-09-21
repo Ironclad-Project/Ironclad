@@ -320,6 +320,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Core_TSS         => <>,
           Current_Thread   => Scheduler.Error_TID,
           Current_Process  => Userland.Process.Error_PID,
+          Retiring_Thread  => Scheduler.Error_TID,
           Invalidate_Lock  => Synchronization.Unlocked_Semaphore,
           Invalidate_Map   => 0,
           Invalidate_Start => System.Null_Address,

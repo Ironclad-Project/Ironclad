@@ -120,4 +120,28 @@ package body Arch.Local with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Set_Current_Process;
+
+   function Get_Retiring_Thread return Scheduler.TID is
+      Returned : Scheduler.TID;
+      Is_Ints  : constant Boolean := Snippets.Interrupts_Enabled;
+   begin
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
+      Returned := CPU.Get_Local.Retiring_Thread;
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
+      return Returned;
+   exception
+      when Constraint_Error =>
+         return Scheduler.Error_TID;
+   end Get_Retiring_Thread;
+
+   procedure Set_Retiring_Thread (Thread : Scheduler.TID) is
+      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
+   begin
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
+      CPU.Get_Local.Retiring_Thread := Thread;
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Retiring_Thread;
 end Arch.Local;

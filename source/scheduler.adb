@@ -887,12 +887,34 @@ package body Scheduler with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    procedure Scheduler_ISR (State : in out Arch.Context.GP_Context) is
       Current_TID : constant TID := Arch.Local.Get_Current_Thread;
+      Retiring    : constant TID := Arch.Local.Get_Retiring_Thread;
       Next_TID    :          TID := Error_TID;
       Timeout     : Natural;
       Curr        : Time.Timestamp;
       Count       : Unsigned_32;
       Did_Seize : Boolean;
    begin
+      --  A switch leaves through a frame on the old thread's kernel stack, so
+      --  the old thread stays running until the entry the switch asks for,
+      --  which comes in on the new thread's stack: it lets the old thread go
+      --  and arms the new one's time. A new thread that has gone meanwhile
+      --  is switched away from at once.
+      if Retiring /= Error_TID then
+         Thread_Pool (Retiring).Is_Running := False;
+         Arch.Local.Set_Retiring_Thread (Error_TID);
+         if Current_TID /= Error_TID and then
+            not Thread_Pool (Current_TID).Is_Present
+         then
+            Arch.Local.Reschedule_ASAP;
+         else
+            Arch.Local.Reschedule_In
+               (if Current_TID /= Error_TID
+                then Thread_Pool (Current_TID).RR_Micro_Inter
+                else Fast_Reschedule_Micros);
+         end if;
+         return;
+      end if;
+
       Arch.Clocks.Get_Monotonic_Time (Curr);
 
       Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
@@ -939,7 +961,9 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Save state.
       if Current_TID /= Error_TID then
-         Thread_Pool (Current_TID).Is_Running := False;
+         if Current_TID /= Next_TID then
+            Arch.Local.Set_Retiring_Thread (Current_TID);
+         end if;
          if Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).PageMap := MMU.Get_Curr_Table_Addr;
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
@@ -948,10 +972,13 @@ package body Scheduler with SPARK_Mode => Off is
          end if;
       end if;
 
-      --  FIXME: This originally was between the lock release and the
-      --  return of the procedure, putting it there though makes the kernel
-      --  panic under x86 SMP with memory corruption.
-      Arch.Local.Reschedule_In (Timeout);
+      --  A thread left behind is let go by the entry asked for here, which
+      --  arms the new thread's time; with none left, it is armed now.
+      if Arch.Local.Get_Retiring_Thread /= Error_TID then
+         Arch.Local.Reschedule_ASAP;
+      else
+         Arch.Local.Reschedule_In (Timeout);
+      end if;
 
       --  Reset state.
       Memory.MMU.Set_Table_Addr (Thread_Pool (Next_TID).PageMap);

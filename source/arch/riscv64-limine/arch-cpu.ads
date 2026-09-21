@@ -33,6 +33,7 @@ package Arch.CPU is
       Hart_ID         : Unsigned_64;    --  LAPIC ID of the core.
       Current_Thread  : Scheduler.TID;
       Current_Process : Userland.Process.PID;
+      Retiring_Thread : Scheduler.TID;  --  See Arch.Local.
    end record;
    for Core_Local use record
       Kernel_Stack at 0 range   0 ..  63;

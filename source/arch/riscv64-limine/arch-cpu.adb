@@ -107,7 +107,8 @@ package body Arch.CPU with SPARK_Mode => Off is
           Number          => Core_Number,
           Hart_ID         => Hart_ID,
           Current_Thread  => Scheduler.Error_TID,
-          Current_Process => Userland.Process.Error_PID);
+          Current_Process => Userland.Process.Error_PID,
+          Retiring_Thread => Scheduler.Error_TID);
 
       --  Enable floating point on sstatus by setting it [13:14] to dirty (11).
       --  TODO: We could do lazy FP by only saving registers on context
