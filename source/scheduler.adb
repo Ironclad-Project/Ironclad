@@ -31,7 +31,10 @@ package body Scheduler with SPARK_Mode => Off is
    Fast_Reschedule_Micros : constant := 10_000;
    type Thread_Stack is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64 is array (Natural range <>) of Unsigned_64;
-   type Kernel_Stack is array (1 ..  Memory.Kernel_Stack_Size) of Unsigned_8;
+   --  A stack's top is the address one past its last byte, and the psABIs
+   --  (x86-64 1.0, RISC-V 1.0) want it 16-byte aligned.
+   type Kernel_Stack is array (1 ..  Memory.Kernel_Stack_Size) of Unsigned_8
+      with Alignment => 16;
    type Kernel_Stack_Acc is access Kernel_Stack;
 
    type Thread_Info is record
@@ -956,7 +959,8 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
       Arch.Local.Set_Stacks
-         (Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
+         (Thread_Pool (Next_TID).Kernel_Stack.all'Address +
+          Kernel_Stack'Length);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       State := Thread_Pool (Next_TID).GP_State;
       Arch.Local.Load_TCB (State, Thread_Pool (Next_TID).TCB_Pointer);
