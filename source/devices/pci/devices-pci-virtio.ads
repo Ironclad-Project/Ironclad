@@ -117,6 +117,15 @@ package Devices.PCI.Virtio with SPARK_Mode => Off is
       (Dev : Pci_Common_Config_Acc;
        Feature : Unsigned_32);
 
+   --  Reset the device and wait for it to say it is done, which is when its
+   --  queues are out of its hands: "A device MUST NOT send notifications or
+   --  interact with the queues after indicating completion of the reset by
+   --  reinitializing device status to 0" (virtio 1.3, 2.4.1), and the driver
+   --  "MUST wait for a read of device_status to return 0 before reinitializing
+   --  the device" (4.1.4.3.2). A device that has not said so within a second
+   --  is taken never to, and Done is False.
+   procedure Reset_Device (Dev : Pci_Common_Config_Acc; Done : out Boolean);
+
    function Setup_Queue
       (Dev : Pci_Common_Config_Acc;
        Queue_Index : Virtqueue_Index;

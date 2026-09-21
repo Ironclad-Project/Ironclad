@@ -56,6 +56,12 @@ package Devices.PCI.VirtioNet with SPARK_Mode => Off is
       Recv_Queue : Devices.PCI.Virtio.Virtio_Queue_Acc;
       Send_Queue : Devices.PCI.Virtio.Virtio_Queue_Acc;
       Mutex : aliased Synchronization.Mutex;
+      --  Where the device's status lives, which is what resets it.
+      Common : Devices.PCI.Virtio.Pci_Common_Config_Acc;
+      --  Set when a command was given up on. The device is reset then, which
+      --  takes its queues out of its hands, and a reset device takes no
+      --  command until it is set up again, so no further command is issued.
+      Is_Retired : Boolean;
    end record;
    type Net_Data_Acc is not null access all Net_Data;
    pragma Warnings (On, "may call Last_Chance_Handler");
@@ -85,5 +91,6 @@ package Devices.PCI.VirtioNet with SPARK_Mode => Off is
        Data_Length : Unsigned_32;
        Send : Boolean;
        Ret_Count : out Natural;
-       Success : out Boolean);
+       Success : out Boolean;
+       Kept : out Boolean);
 end Devices.PCI.VirtioNet;

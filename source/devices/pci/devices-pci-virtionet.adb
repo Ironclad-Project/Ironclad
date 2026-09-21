@@ -19,6 +19,7 @@ with Alignment;
 with Devices.PCI.Virtio; use Devices.PCI.Virtio;
 with Messages;
 with Networking.Interfaces;
+with Scheduler;
 with System.Address_To_Access_Conversions;
 
 package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
@@ -155,7 +156,9 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
             Data_Addr := C2.To_Address (new Net_Data'(
                Recv_Queue => Recv_Queue,
                Send_Queue => Send_Queue,
-               Mutex => Synchronization.Unlocked_Mutex));
+               Mutex => Synchronization.Unlocked_Mutex,
+               Common => Common_Config,
+               Is_Retired => False));
 
             Common_Config.Device_Status := 15;
 
@@ -192,6 +195,14 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
          Success := False;
    end Init;
 
+   --  A command's header is written through by the device like its buffer,
+   --  so it lives where the buffer does: on the heap, freed once the device
+   --  is done with it, which for a command given up on is once the device has
+   --  been reset.
+   type Header_Acc is access Packet_Header;
+   procedure Free_Header is new Ada.Unchecked_Deallocation
+      (Packet_Header, Header_Acc);
+
    procedure Issue_Command
       (Device : Net_Data_Acc;
        Queue : Devices.PCI.Virtio.Virtio_Queue_Acc;
@@ -199,7 +210,8 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
        Data_Length : Unsigned_32;
        Send : Boolean;
        Ret_Count : out Natural;
-       Success : out Boolean)
+       Success : out Boolean;
+       Kept : out Boolean)
    is
       Queue_Highest_Index : constant Natural :=
          Natural (Queue.Queue_Size - 1);
@@ -221,7 +233,7 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
          with Import, Address => To_Address
             (Queue.Used_Addr + 4);
 
-      Req_Header : aliased Packet_Header :=
+      Req_Header : Header_Acc := new Packet_Header'
          (Flags => 0,
           Gso_Type => 0,
           Hdr_Len => 0,
@@ -235,8 +247,18 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
       Used_Index : Natural;
 
       Written : Unsigned_32 := 0;
+      Reset_Done : Boolean;
    begin
+      Kept := False;
       Synchronization.Seize (Device.Mutex);
+
+      if Device.Is_Retired then
+         Synchronization.Release (Device.Mutex);
+         Free_Header (Req_Header);
+         Success := False;
+         Ret_Count := 0;
+         return;
+      end if;
 
       Slot := Avail.Index;
       Slot_Idx := Natural (Slot mod Queue.Queue_Size);
@@ -246,7 +268,7 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
       Desc_Array (0) :=
          (Has_Next => True,
           Address => Unsigned_64
-            (To_Integer (Req_Header'Address) - Memory.Memory_Offset),
+            (To_Integer (Req_Header.all'Address) - Memory.Memory_Offset),
           Length => 10,
           Flag_Write => (if Send then False else True),
           Next => 1,
@@ -264,8 +286,30 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
 
       Queue.Notification.all := Queue.Notify_Index;
 
+      --  The wait yields and gives up when the thread is killed, since a
+      --  device that never completes a command would otherwise hold its
+      --  thread for good. What is given up is still named by the descriptors,
+      --  and the device may write through them at any time until it is reset:
+      --  a reset takes its queues out of its hands (virtio 1.3, 2.4.1), after
+      --  which the driver may take back what it exposed (3.3.1). So the device
+      --  is reset and retired, and the buffer and header are freed, unless it
+      --  never finishes resetting, and then both are left to it.
       while Used.HeadIndex = Queue.Used_Head loop
-         null;
+         if Scheduler.Is_Doomed then
+            Device.Is_Retired := True;
+            Devices.PCI.Virtio.Reset_Device (Device.Common, Reset_Done);
+            Kept := not Reset_Done;
+            Synchronization.Release (Device.Mutex);
+            if not Kept then
+               Free_Header (Req_Header);
+            end if;
+            Messages.Put_Line
+               ("virtio-net: a command was given up on, retiring it");
+            Success := False;
+            Ret_Count := 0;
+            return;
+         end if;
+         Scheduler.Yield_If_Able;
       end loop;
 
       declare
@@ -285,6 +329,7 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
 
       --  Unlock for other commands.
       Synchronization.Release (Device.Mutex);
+      Free_Header (Req_Header);
 
       Success := True;
       if Send then
@@ -294,13 +339,19 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
       end if;
       return;
 
+      --  A completion that names another command leaves this call's own in
+      --  the device's hands, and what it names with it.
    <<Failure_Cleanup>>
       Synchronization.Release (Device.Mutex);
+      Kept := True;
       Success := False;
       Ret_Count := 0;
       return;
    exception
       when Constraint_Error =>
+         --  Whether the command was handed over is not known here, so what
+         --  it named is left to the device.
+         Kept := True;
          Success := False;
          Ret_Count := 0;
          return;
@@ -317,6 +368,7 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
       pragma Unreferenced (Offset, Is_Blocking);
 
       Command_Success : Boolean := False;
+      Was_Kept : Boolean := False;
       Buffer : Operation_Data_Acc := null;
       procedure Free is
          new Ada.Unchecked_Deallocation (Operation_Data, Operation_Data_Acc);
@@ -331,7 +383,8 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
           Data_Length => Unsigned_32 (Data'Length),
           Send        => False,
           Ret_Count   => Ret_Count,
-          Success     => Command_Success);
+          Success     => Command_Success,
+          Kept        => Was_Kept);
 
       if Command_Success then
          Success := Dev_Success;
@@ -339,7 +392,11 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
       else
          Success := Dev_IO_Failure;
       end if;
-      Free (Buffer);
+
+      --  Unless the device may still write into it.
+      if not Was_Kept then
+         Free (Buffer);
+      end if;
    exception
       when Constraint_Error =>
          Success := Dev_IO_Failure;
@@ -356,6 +413,7 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
       pragma Unreferenced (Offset, Is_Blocking);
 
       Command_Success : Boolean := False;
+      Was_Kept : Boolean := False;
       Buffer : Operation_Data_Acc := null;
       procedure Free is
          new Ada.Unchecked_Deallocation (Operation_Data, Operation_Data_Acc);
@@ -371,9 +429,12 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
           Data_Length => Unsigned_32 (Data'Length),
           Send        => True,
           Ret_Count   => Ret_Count,
-          Success     => Command_Success);
+          Success     => Command_Success,
+          Kept        => Was_Kept);
 
-      Free (Buffer);
+      if not Was_Kept then
+         Free (Buffer);
+      end if;
       if Command_Success then
          Success := Dev_Success;
       else

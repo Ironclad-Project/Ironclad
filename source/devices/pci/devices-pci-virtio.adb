@@ -15,9 +15,12 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Alignment;
+with Arch.Clocks;
+with Arch.Snippets;
 with Interfaces.C; use Interfaces.C;
 with Memory.Physical;
 with Panic;
+with Time;
 
 package body Devices.PCI.Virtio with SPARK_Mode => Off is
    package A is new Alignment (Unsigned_64);
@@ -97,6 +100,25 @@ package body Devices.PCI.Virtio with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Ack_Device_Feature;
+
+   procedure Reset_Device (Dev : Pci_Common_Config_Acc; Done : out Boolean) is
+      use type Time.Timestamp;
+      Limit      : constant Time.Timestamp := (Seconds => 1, Nanoseconds => 0);
+      Start, Now : Time.Timestamp;
+   begin
+      Dev.Device_Status := 0;
+      Arch.Clocks.Get_Monotonic_Time (Start);
+      loop
+         Done := Dev.Device_Status = 0;
+         exit when Done;
+         Arch.Clocks.Get_Monotonic_Time (Now);
+         exit when Now - Start >= Limit;
+         Arch.Snippets.Pause;
+      end loop;
+   exception
+      when Constraint_Error =>
+         Done := False;
+   end Reset_Device;
 
    function Setup_Queue
       (Dev : Pci_Common_Config_Acc;
