@@ -47,7 +47,11 @@ syscall_entry:
     xor %rbp, %rbp
     mov %rsp, %rdi
     cld
+    # Keep (%rsp + 8) 16-byte aligned at the handler's entry, as the x86-64
+    # psABI 1.0 wants.
+    sub $8, %rsp
     call syscall_handler
+    add $8, %rsp
 
     # Pop back state.
     pop %rax

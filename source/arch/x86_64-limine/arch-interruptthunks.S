@@ -55,7 +55,11 @@ interrupt_thunk_\num:
     add %rax, %rbx
     mov %rsp, %rsi
     xor %rbp, %rbp
+    # Keep (%rsp + 8) 16-byte aligned at the handler's entry, as the x86-64
+    # psABI 1.0 wants.
+    sub $8, %rsp
     call *(%rbx)
+    add $8, %rsp
 
     # Pop back state.
     pop %rax
