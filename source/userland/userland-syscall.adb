@@ -2866,12 +2866,12 @@ package body Userland.Syscall is
       end if;
 
       --  Check the address is at least not kernel space.
+      Get_Common_Map (Proc, Map);
       Check_Userland_Mappability (Map, To_Integer (Addr), Length, Succ);
       if not Succ then
          goto Invalid_Value_Return;
       end if;
 
-      Get_Common_Map (Proc, Map);
       Remap_Range (Map, Addr, Storage_Count (Length), Flags, Succ);
       if not Succ then
          goto Invalid_Value_Return;
