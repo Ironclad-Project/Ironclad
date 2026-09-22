@@ -4477,7 +4477,8 @@ int sigaltstack(const stack_t *ss, stack_t *old_ss);
 
 This syscall allows a thread to define an alternative stack to use for signal
 handling. The alternative stack will be only used if @code{sa_sigaction}
-requested it by using @code{SA_ONSTACK}.
+requested it by using @code{SA_ONSTACK}. If the alternative stack is not
+writable memory of the process, a signal that would use it is not taken.
 
 If @code{old_ss} is not @code{NULL}, the old alternative stack being replaced
 is returned there.

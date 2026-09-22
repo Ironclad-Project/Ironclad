@@ -26,6 +26,7 @@ with Arch.Clocks;
 with Arch.Snippets;
 with Arch.MMU;
 with Cryptography.Random;
+with Memory.Userland_Transfer;
 
 package body Scheduler with SPARK_Mode => Off is
    Fast_Reschedule_Micros : constant := 10_000;
@@ -735,16 +736,6 @@ package body Scheduler with SPARK_Mode => Off is
          Thread_Pool (Th).User_Stack_Used := True;
          Stack_Top  := Unsigned_64 (To_Integer (Thread_Pool (Th).User_Stack));
          Stack_Size := Thread_Pool (Th).User_Stack_Size;
-
-         Memory.MMU.Remap_Range
-            (Map           => Map,
-             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
-             Length        => Storage_Offset (Stack_Size),
-             Permissions   => Tmp_Stack_Permissions,
-             Success       => Success);
-         if not Success then
-            return;
-         end if;
       else
          Userland.Process.Bump_Alloc_Base (Proc, Stack_Size, Stack_Top);
          Memory.MMU.Map_Allocated_Range
@@ -796,9 +787,11 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 : Natural := Cont_Idx;
          Info : Siginfo with Import, Address => Stk_64 (Info_Idx)'Address;
          Cont : UContext with Import, Address => Stk_64 (Cont_Idx)'Address;
+         Info_Val : Siginfo;
+         Cont_Val : UContext;
       begin
          --  Load siginfo and context info.
-         Info :=
+         Info_Val :=
             (Signal_Number => Unsigned_32 (Signal_Number),
              Signal_Code   => 0,
              Signal_Errno  => 0,
@@ -807,7 +800,7 @@ package body Scheduler with SPARK_Mode => Off is
              Signal_Addr   => 0,
              Signal_Status => 0,
              Sival_Pointer => 0);
-         Cont :=
+         Cont_Val :=
             (Link    => 0,
              Stack   => 0,
              Context =>
@@ -826,23 +819,61 @@ package body Scheduler with SPARK_Mode => Off is
                 FP       => 0),
              Sigmask => 0);
 
-         --  x86 requires the return address in the stack.
-         #if ArchName = """x86_64-limine""" then
-            Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
-            Index_64 := Index_64 - 1;
-         #end if;
+         if Use_Altsk then
+            --  The alternate stack is the process's own memory, taken as it
+            --  is: the frame goes on it as any copy to userland does, and a
+            --  stack that such a copy cannot write to takes no signal.
+            declare
+               package Info_Trans is new Memory.Userland_Transfer (Siginfo);
+               package Cont_Trans is new Memory.Userland_Transfer (UContext);
+               #if ArchName = """x86_64-limine""" then
+                  package Word_Trans is new Memory.Userland_Transfer
+                     (Unsigned_64);
+               #end if;
+            begin
+               Info_Trans.Paste_Into_Userland
+                  (Map, Info_Val, Stk_64 (Info_Idx)'Address, Success);
+               if Success then
+                  Cont_Trans.Paste_Into_Userland
+                     (Map, Cont_Val, Stk_64 (Cont_Idx)'Address, Success);
+               end if;
+
+               --  x86 requires the return address in the stack.
+               #if ArchName = """x86_64-limine""" then
+                  if Success then
+                     Word_Trans.Paste_Into_Userland
+                        (Map, Unsigned_64 (To_Integer (Restorer)),
+                         Stk_64 (Index_64)'Address, Success);
+                  end if;
+                  Index_64 := Index_64 - 1;
+               #end if;
+            end;
+            if not Success then
+               Thread_Pool (Th).User_Stack_Used := False;
+               return;
+            end if;
+         else
+            Info := Info_Val;
+            Cont := Cont_Val;
+
+            --  x86 requires the return address in the stack.
+            #if ArchName = """x86_64-limine""" then
+               Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
+               Index_64 := Index_64 - 1;
+            #end if;
+
+            Memory.MMU.Remap_Range
+               (Map           => Map,
+                Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+                Length        => Storage_Offset (Stack_Size),
+                Permissions   => Stack_Permissions,
+                Success       => Success);
+            if not Success then
+               return;
+            end if;
+         end if;
 
          Index_64 := Index_64 * 8;
-
-         Memory.MMU.Remap_Range
-            (Map           => Map,
-             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
-             Length        => Storage_Offset (Stack_Size),
-             Permissions   => Stack_Permissions,
-             Success       => Success);
-         if not Success then
-            return;
-         end if;
 
          --  Initialize context information.
          --  TODO: Provide siginfo_t* and ucontext_t* on the 2nd and 3rd arg.
