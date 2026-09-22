@@ -618,6 +618,12 @@ private
        Cursor     : in out Map_Cursor;
        Success    : out Boolean);
 
+   --  Give back a block taken for an inode that could not be put to use.
+   procedure Give_Back_Block
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Block      : Unsigned_32);
+
    procedure Zero_Out_Block
       (FS_Data : EXT_Data_Acc;
        Block   : Unsigned_32;

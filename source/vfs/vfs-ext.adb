@@ -2923,8 +2923,15 @@ package body VFS.EXT with SPARK_Mode => Off is
             Wire_Inode_Blocks
                (FS_Data, Inode_Data, Unsigned_32 (Logical), Phys, Cursor, Ok);
             if not Ok then
+               --  Out of room for a block of pointers, nothing points at the
+               --  new block yet and it goes back. A device error may have
+               --  written the pointer, so the block is left taken instead:
+               --  one lost to the filesystem is better than one used twice.
                Success := False;
                Stop    := Allocation_Error (FS_Data);
+               if Stop = FS_Full then
+                  Give_Back_Block (FS_Data, Inode_Data, Phys);
+               end if;
                exit;
             end if;
             if In_Blk /= 0 or else
@@ -3226,6 +3233,25 @@ package body VFS.EXT with SPARK_Mode => Off is
          Success := False;
    end Unwire_Block;
 
+   procedure Give_Back_Block
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Block      : Unsigned_32)
+   is
+      Per_Sector : Unsigned_32;
+      Ok         : Boolean;
+   begin
+      Per_Sector := FS_Data.Block_Size / Sector_Unit;
+      Free_Block (FS_Data, Block, Ok);
+      if Ok then
+         Inode_Data.Sectors := Inode_Data.Sectors -
+            Unsigned_32'Min (Inode_Data.Sectors, Per_Sector);
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while giving back an EXT block");
+   end Give_Back_Block;
+
    procedure Grow_Inode
       (FS_Data     : EXT_Data_Acc;
        Inode_Data  : in out Inode;
@@ -3276,6 +3302,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       Per_Sector : Unsigned_32;
       Cursor     : Map_Cursor := Empty_Cursor;
       Index, Need, Got, First, Blk : Unsigned_32;
+      Keep       : Unsigned_32;
+      Given_Back : Boolean;
    begin
       Goal := (if Inode_Num > 0
                then (Inode_Num - 1) / FS_Data.Super.Inodes_Per_Group
@@ -3318,7 +3346,24 @@ package body VFS.EXT with SPARK_Mode => Off is
                Wire_Inode_Blocks
                   (FS_Data, Inode_Data, Start_Blk + Index + J, First + J,
                    Cursor, Success);
-               exit when not Success;
+               if not Success then
+                  --  What of the run was not wired in goes back, or it would
+                  --  stay taken with nothing pointing at it. The block that
+                  --  failed goes back only when room ran out, as a device
+                  --  error may have written its pointer.
+                  Keep := (if Allocation_Error (FS_Data) = FS_Full then 0
+                           else 1);
+                  if Got - J > Keep then
+                     Free_Blocks
+                        (FS_Data, First + J + Keep, Got - J - Keep,
+                         Given_Back);
+                     if Given_Back then
+                        Inode_Data.Sectors := Inode_Data.Sectors -
+                           (Got - J - Keep) * Per_Sector;
+                     end if;
+                  end if;
+                  exit;
+               end if;
             end loop;
             exit when not Success;
 
@@ -3363,9 +3408,11 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       --  A block of pointers has to read as all zeroes to start with, else
-      --  whatever the block used to hold would pass for block numbers.
+      --  whatever the block used to hold would pass for block numbers. One
+      --  that cannot be goes back, or it would stay taken for nothing.
       Zero_Out_Block (FS_Data, Blk, Success);
       if not Success then
+         Give_Back_Block (FS_Data, Inode_Data, Blk);
          return;
       end if;
 
@@ -3399,6 +3446,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
       Zero_Out_Block (FS_Data, Child, Success);
       if not Success then
+         Give_Back_Block (FS_Data, Inode_Data, Child);
          return;
       end if;
       Drop_Cursor_Block (Cursor, Child);
