@@ -2365,7 +2365,13 @@ On failure, the syscall returns @code{-1}. The returned @code{errno} are:
 
 @itemize @bullet
 @item
-@code{EINVAL}: The passed @code{cmd} is not implemented by the kernel.
+@code{EINVAL}: The passed @code{cmd} is not implemented by the kernel, or the
+@code{arg} of @code{F_DUPFD} is 1024 or more, past the last descriptor a process
+can have.
+
+@item
+@code{EMFILE}: No descriptor at or above the @code{arg} of @code{F_DUPFD} is
+free.
 
 @item
 @code{EBADF}: The passed @code{fd} is not open.

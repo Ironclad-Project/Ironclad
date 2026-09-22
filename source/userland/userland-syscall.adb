@@ -2812,7 +2812,14 @@ package body Userland.Syscall is
 
       case Command is
          when F_DUPFD | F_DUPFD_CLOEXEC | F_DUPFD_CLOFORK =>
+            if Argument >= Unsigned_64 (Max_File_Count) then
+               goto Invalid_Return;
+            end if;
             Duplicate (File, New_File);
+            if New_File = null then
+               Errno := Error_Too_Many_Files;
+               goto Error_Return;
+            end if;
             Add_File (Proc, New_File, Result_FD, Temp, Natural (Argument));
             if Temp then
                Returned := Unsigned_64 (Result_FD);
@@ -2820,6 +2827,7 @@ package body Userland.Syscall is
                   (Proc, Unsigned_64 (Result_FD),
                    Command = F_DUPFD_CLOEXEC, Command = F_DUPFD_CLOFORK);
             else
+               Close (New_File);
                Errno := Error_Too_Many_Files;
                goto Error_Return;
             end if;
