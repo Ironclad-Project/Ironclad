@@ -264,8 +264,12 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
    is
       Status : Unsigned_16;
    begin
+      --  Acknowledge what was pending of the two sources IMR enables, ROK
+      --  (bit 0) and TOK (bit 2): "Writing a 1 to any bit will reset that
+      --  bit, but writing a 0 has no effect" (RTL8139C(L)+ datasheet rev
+      --  1.6, 6.7).
       Status := Get_IO_16 (CD, REG_ISR);
-      Put_IO_16 (CD, REG_ISR, 16#05#);
+      Put_IO_16 (CD, REG_ISR, Status and 16#05#);
 
       --  We acknowledge the interrupt here to prevent it from firing twice.
       Arch.APIC.LAPIC_EOI;
@@ -278,12 +282,9 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
       --  it runs out of space in the ring buffer.
       --  We should (to a limit) read out packets here, and store them, as the
       --  ring buffer the NIC has is quite small.
-      Messages.Put_Line ("RTL8139 Handle Interrupt, status=" &
-         Unsigned_16'Image (Status));
-   exception
-      when Constraint_Error =>
-         Messages.Put_Line ("Constraint_Error in Handle_Interrupt!");
-         return;
+      --
+      --  Nothing is printed here, as the console is far too slow to be
+      --  written to once per packet.
    end Handle_Interrupt;
 
    procedure Read
