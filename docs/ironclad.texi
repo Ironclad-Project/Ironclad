@@ -2596,7 +2596,7 @@ ssize_t getdents(int fd, struct dirent *buffer, size_t size);
 
 This syscall reads the contents of the passed directory, and advances the
 file position for the directory by the amount of read directory entries.
-Partial reads are supported.
+Partial reads are supported, and at most 32 entries are read per call.
 
 The syscalls return the read length in bytes on success, or @code{0} if no
 contents or @code{-1} on failure, with the following errno:

@@ -3298,6 +3298,7 @@ package body Userland.Syscall is
       Buff_Len   : Unsigned_64;
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       File       : File_Description_Acc;
+      Max_Dirents_Per_Call : constant := 32;
       Tmp_Buffer : VFS.Directory_Entities_Acc;
       Read_Len   : Natural;
       Success    : VFS.FS_Status;
@@ -3312,7 +3313,12 @@ package body Userland.Syscall is
          Errno    := Error_Bad_File;
       else
          Userland.Process.Get_Effective_UID (Proc, User);
+         --  The entries go through the kernel stack, so a call reads a
+         --  bounded number of them.
          Buff_Len   := Buffer_Len / (Dirent'Size / 8);
+         if Buff_Len > Max_Dirents_Per_Call then
+            Buff_Len := Max_Dirents_Per_Call;
+         end if;
          Tmp_Buffer := new VFS.Directory_Entities'[1 .. Natural (Buff_Len) =>
             (Inode_Number => 0,
              Name_Buffer  => [others => ' '],
@@ -3330,7 +3336,7 @@ package body Userland.Syscall is
             File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Read_Len);
 
             declare
-               Len : constant Unsigned_64 := Buff_Len;
+               Len : constant Unsigned_64 := Unsigned_64 (Read_Len);
                subtype Dirents_Arr is Dirents (1 .. Len);
                package Trans is new Memory.Userland_Transfer (Dirents_Arr);
                Buffer : Dirents_Arr;
@@ -3373,6 +3379,7 @@ package body Userland.Syscall is
    exception
       when others =>
          Messages.Put_Line ("Exception while executing GetDEnts");
+         Free (Tmp_Buffer);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end GetDEnts;
