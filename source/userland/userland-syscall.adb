@@ -6836,7 +6836,12 @@ package body Userland.Syscall is
       Map : Page_Table_Acc;
       Success : Boolean;
    begin
-      Truncated := Unsigned_32 (ID and 16#FFFFFFFF#);
+      if ID = Unsigned_64 (IPC.SHM.Error_ID) or
+         ID > Unsigned_64 (IPC.SHM.Segment_ID'Last)
+      then
+         goto Invalid_Error;
+      end if;
+      Truncated := Unsigned_32 (ID);
 
       if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
          Get_Effective_UID (Proc, EUID);
@@ -6934,7 +6939,12 @@ package body Userland.Syscall is
       Map : Page_Table_Acc;
       IDs : SHMID_DS;
    begin
-      Trunc_ID := Unsigned_32 (ID and 16#FFFFFFFF#);
+      if ID = Unsigned_64 (IPC.SHM.Error_ID) or
+         ID > Unsigned_64 (IPC.SHM.Segment_ID'Last)
+      then
+         goto Invalid_Error;
+      end if;
+      Trunc_ID := Unsigned_32 (ID);
 
       if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
          Get_Effective_UID (Proc, EUID);

@@ -4236,10 +4236,8 @@ following errno:
 
 @table @code
 @item EINVAL
-@code{size} is less than needed and/or @code{fd} is not a TTY.
-
-@item EBADF
-@code{fd} is not opened to anything.
+@code{shmid} is not a shared memory identifier, or @code{cmd} is not one of
+the commands above.
 
 @item EFAULT
 @code{buffer} points to invalid memory.
