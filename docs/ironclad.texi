@@ -4400,6 +4400,11 @@ If @code{key} is equal to @code{IPC_PRIVATE}, a segment will be created with
 no associated key, and will need to be accessed by other processes only by
 the returned @code{shmid}.
 
+Otherwise, a segment that already exists for @code{key} has its identifier
+returned, and @code{IPC_CREAT} (0o1000) is what asks for one to be made when
+none does. @code{IPC_EXCL} (0o2000) beside @code{IPC_CREAT} makes an existing
+key an error instead.
+
 The syscall returns a valid ID on success or @code{-1} on failure, with the
 following errno:
 
@@ -4407,8 +4412,9 @@ following errno:
 @item EACCES
 MAC did not allow this.
 
-@item EEXISTS
-An attempt to create a public segment with an already registered key happened.
+@item EINVAL
+@code{IPC_CREAT} and @code{IPC_EXCL} were both asked for and a segment already
+exists for @code{key}.
 
 @item ENOENT
 The fetched segment is not present.

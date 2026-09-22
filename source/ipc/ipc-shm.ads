@@ -25,14 +25,22 @@ package IPC.SHM is
    subtype Segment_ID is Unsigned_32 range 0 .. 20;
    Error_ID : constant Segment_ID := 0;
 
-   --  Create a segment with a unique key.
+   --  How making a segment went.
+   type Creation_Status is
+      (Creation_Success,   --  Made.
+       Creation_Exists,    --  The key already names one, which is returned.
+       Creation_No_Space,  --  No identifier left.
+       Creation_No_Memory);
+
+   --  Create a segment with a unique key, or find the one the key names.
    procedure Create_Segment
       (Wanted_Key  : Unsigned_32;
        Wanted_Size : Unsigned_64;
        Creator_UID : Unsigned_32;
        Creator_GID : Unsigned_32;
        Mode        : Unsigned_64;
-       Segment     : out Segment_ID)
+       Segment     : out Segment_ID;
+       Status      : out Creation_Status)
       with Pre => Wanted_Key /= 0;
 
    --  Create a segment without a unique key.

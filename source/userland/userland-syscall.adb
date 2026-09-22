@@ -7333,6 +7333,7 @@ package body Userland.Syscall is
       AlSz : constant Unsigned_64 :=
          Align.Align_Up (Size, Memory.MMU.Page_Size);
       Created_Key : IPC.SHM.Segment_ID;
+      Status      : IPC.SHM.Creation_Status;
       EUID, EGID, Truncated : Unsigned_32;
    begin
       Get_Effective_UID (Proc, EUID);
@@ -7344,7 +7345,18 @@ package body Userland.Syscall is
          IPC.SHM.Create_Unkeyed_Segment (AlSz, EUID, EGID, Mode, Created_Key);
       elsif (Flags and IPC_CREAT) /= 0 then
          IPC.SHM.Create_Segment (Truncated, AlSz, EUID, EGID, Mode,
-            Created_Key);
+            Created_Key, Status);
+
+         --  A key that names a segment already gives it back, unless a new
+         --  one is what the caller asked for.
+         case Status is
+            when IPC.SHM.Creation_Exists =>
+               if (Flags and IPC_EXCL) /= 0 then
+                  Created_Key := IPC.SHM.Error_ID;
+               end if;
+            when others =>
+               null;
+         end case;
       else
          IPC.SHM.Get_Segment (Truncated, Created_Key);
       end if;

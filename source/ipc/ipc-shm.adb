@@ -48,33 +48,41 @@ package body IPC.SHM is
        Creator_UID : Unsigned_32;
        Creator_GID : Unsigned_32;
        Mode        : Unsigned_64;
-       Segment     : out Segment_ID)
+       Segment     : out Segment_ID;
+       Status      : out Creation_Status)
    is
       Addr    : Integer_Address;
       Success : Boolean;
+      Free_ID : Segment_ID := Error_ID;
    begin
       Segment := Error_ID;
+      Status  := Creation_No_Space;
 
       Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
+         --  A key that already names a segment gives that segment back.
          if Registry (I).Is_Present and Registry (I).Key = Wanted_Key then
+            Segment := I;
+            Status  := Creation_Exists;
             goto Cleanup;
          end if;
-         if not Registry (I).Is_Present and Segment = Error_ID then
-            Segment := I;
+         if not Registry (I).Is_Present and Free_ID = Error_ID then
+            Free_ID := I;
          end if;
       end loop;
 
-      if Segment = Error_ID then
+      if Free_ID = Error_ID then
          goto Cleanup;
       end if;
 
       Memory.Physical.User_Alloc (Addr, Wanted_Size, Success);
       if not Success then
-         Segment := Error_ID;
+         Status := Creation_No_Memory;
          goto Cleanup;
       end if;
 
+      Segment := Free_ID;
+      Status  := Creation_Success;
       Registry (Segment) :=
          (Is_Present       => True,
           Key              => Wanted_Key,
