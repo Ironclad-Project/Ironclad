@@ -805,7 +805,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Src_P, Tgt_P                             : Inode_Acc;
       Source_Kind, Target_Kind                 : File_Type;
       Deleted, Stamp                           : Unsigned_32;
-      Empty                                    : Boolean;
+      Empty, Is_Descendant                     : Boolean;
       Success1, Success2, Parent_O1, Parent_O2 : Boolean;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
@@ -866,6 +866,25 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       Source_Kind := Get_Inode_Type (Source_Inode.Permissions);
+
+      --  A directory cannot be moved under itself: it would leave the tree
+      --  and end up its own ancestor. Nothing moves meanwhile, the lock is
+      --  held as a writer.
+      if Source_Kind = File_Directory and not Same_Parent then
+         Is_Under
+            (FS_Data  => Data,
+             Dir      => Unsigned_32 (Target_Parent),
+             Ancestor => Source_Index,
+             Result   => Is_Descendant,
+             Success  => Success1);
+         if not Success1 then
+            Status := FS_IO_Failure;
+            goto Cleanup;
+         elsif Is_Descendant then
+            Status := FS_Invalid_Value;
+            goto Cleanup;
+         end if;
+      end if;
 
       --  When there is something in the way it has to be compatible with
       --  what is being moved onto it, and an occupied directory never is.
@@ -4082,6 +4101,66 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free_Inode_Number (FS_Data, Inode_Num, Kind = File_Directory, Ok);
       Success := Success and Ok;
    end Delete_Inode;
+
+   procedure Is_Under
+      (FS_Data  : EXT_Data_Acc;
+       Dir      : Unsigned_32;
+       Ancestor : Unsigned_32;
+       Result   : out Boolean;
+       Success  : out Boolean)
+   is
+      Current      : Unsigned_32 := Dir;
+      Parent_Index : Unsigned_32;
+      Steps        : Unsigned_32 := 0;
+      Parent_Inode, Current_Inode : Inode_Acc := new Inode;
+      Found, Is_Dir               : Boolean;
+   begin
+      Result  := False;
+      Success := True;
+
+      --  Every step goes up a directory, so a walk longer than there are
+      --  inodes means the '..' entries loop.
+      loop
+         if Current = Ancestor then
+            Result := True;
+            exit;
+         elsif Current = Root_Inode then
+            exit;
+         elsif Steps > FS_Data.Super.Inode_Count then
+            Success := False;
+            exit;
+         end if;
+
+         Inner_Open_Inode
+            (Data         => FS_Data,
+             Parent_Index => Current,
+             Name         => "..",
+             Target_Index => Parent_Index,
+             Target_Inode => Parent_Inode.all,
+             Parent_Inode => Current_Inode.all,
+             Success      => Found,
+             Parent_Open  => Is_Dir);
+         if not Found or not Is_Dir then
+            Success := False;
+            exit;
+         elsif Parent_Index = Current then
+            exit;
+         end if;
+
+         Current := Parent_Index;
+         Steps   := Steps + 1;
+      end loop;
+
+      Free (Parent_Inode);
+      Free (Current_Inode);
+   exception
+      when Constraint_Error =>
+         Free (Parent_Inode);
+         Free (Current_Inode);
+         Messages.Put_Line ("Exception while walking up an EXT directory");
+         Result  := False;
+         Success := False;
+   end Is_Under;
 
    procedure Get_Dir_Entry
       (Buffer   : Operation_Data;

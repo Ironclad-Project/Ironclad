@@ -708,6 +708,15 @@ private
        Inode_Data : in out Inode;
        Success    : out Boolean);
 
+   --  Whether a directory is the one named by Ancestor or lies under it,
+   --  going up through the '..' entries.
+   procedure Is_Under
+      (FS_Data  : EXT_Data_Acc;
+       Dir      : Unsigned_32;
+       Ancestor : Unsigned_32;
+       Result   : out Boolean;
+       Success  : out Boolean);
+
    procedure Get_Dir_Entry
       (Buffer   : Operation_Data;
        Offset   : Natural;

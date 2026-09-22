@@ -2139,6 +2139,10 @@ codes set on failure are:
 @code{ENAMETOOLONG}: The passed path is too long.
 
 @item
+@code{EINVAL}: A directory would be moved inside itself, or either name is
+@code{.} or @code{..}.
+
+@item
 @code{EIO}: The operation could not be done out of an internal error.
 @end itemize
 
