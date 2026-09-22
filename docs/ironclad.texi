@@ -2681,7 +2681,8 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @item
 @code{EBADF}: The file pointed by @code{fd} is not valid for truncation.
 @item
-@code{EINVAL}: @code{new_size} could not be set.
+@code{EINVAL}: @code{new_size} could not be set, or @code{fd} is not open for
+writing.
 @end itemize
 
 @node bind

@@ -3639,6 +3639,12 @@ package body Userland.Syscall is
       Userland.Process.Get_Effective_UID (Proc, User);
       case File.Description is
          when Description_Inode =>
+            --  Only a descriptor open for writing changes the file.
+            if not File.Inner_Ino_Write then
+               Errno := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
             VFS.Truncate
                (File.Inner_Ino_FS, File.Inner_Ino, New_Size, Success);
             Translate_Status (Success, 0, Returned, Errno);
