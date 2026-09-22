@@ -893,6 +893,11 @@ package body IPC.Socket is
       UID := 0;
       Success := Is_Bad_Type;
 
+      --  Only a stream socket has a peer whose credentials it keeps.
+      if Sock.Dom /= UNIX or else Sock.Kind /= Stream then
+         return;
+      end if;
+
       Synchronization.Seize (Sock.Mutex);
       if Sock.Pending_Accept /= null then
          Synchronization.Seize (Sock.Pending_Accept.Mutex);
@@ -910,16 +915,22 @@ package body IPC.Socket is
    procedure Get_Credential_Reporting (Sock : Socket_Acc; Enable : out Boolean)
    is
    begin
-      Synchronization.Seize (Sock.Mutex);
-      Enable := Sock.Do_Credential_Reporting;
-      Synchronization.Release (Sock.Mutex);
+      if Sock.Dom = UNIX then
+         Synchronization.Seize (Sock.Mutex);
+         Enable := Sock.Do_Credential_Reporting;
+         Synchronization.Release (Sock.Mutex);
+      else
+         Enable := False;
+      end if;
    end Get_Credential_Reporting;
 
    procedure Set_Credential_Reporting (Sock : Socket_Acc; Enable : Boolean) is
    begin
-      Synchronization.Seize (Sock.Mutex);
-      Sock.Do_Credential_Reporting := Enable;
-      Synchronization.Release (Sock.Mutex);
+      if Sock.Dom = UNIX then
+         Synchronization.Seize (Sock.Mutex);
+         Sock.Do_Credential_Reporting := Enable;
+         Synchronization.Release (Sock.Mutex);
+      end if;
    end Set_Credential_Reporting;
 
    procedure Set_Recv_Timeout
