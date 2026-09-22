@@ -84,6 +84,12 @@ package body Arch.Context with SPARK_Mode => Off is
       Ctx := (others => 0);
    end Init_FP_Context;
 
+   procedure Clone_FP_Context (Ctx : out FP_Context) is
+   begin
+      Ctx := (others => 0);
+      Save_FP_Context (Ctx);
+   end Clone_FP_Context;
+
    procedure Save_FP_Context (Ctx : in out FP_Context) is
    begin
       System.Machine_Code.Asm

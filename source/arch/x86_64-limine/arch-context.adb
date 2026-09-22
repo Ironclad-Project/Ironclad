@@ -99,6 +99,22 @@ package body Arch.Context with SPARK_Mode => Off is
       Save_FP_Context (Ctx);
    end Init_FP_Context;
 
+   procedure Clone_FP_Context (Ctx : out FP_Context) is
+      Result : Memory.Virtual_Address;
+   begin
+      Memory.Physical.Alloc (Interfaces.C.size_t (FPU_Area_Size), Result);
+      Ctx := To_Address (Result);
+
+      declare
+         Arr : array (1 .. FPU_Area_Size) of Unsigned_8
+            with Import, Address => Ctx;
+      begin
+         Arr := [others => 0];
+      end;
+
+      Save_FP_Context (Ctx);
+   end Clone_FP_Context;
+
    procedure Save_FP_Context (Ctx : in out FP_Context) is
    begin
       Save_Access (Ctx);

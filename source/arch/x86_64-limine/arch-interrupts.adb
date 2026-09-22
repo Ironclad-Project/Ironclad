@@ -135,7 +135,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Exec (State.RDI, State.RSI, State.RDX,
                   State.R12, State.R8, State.R9, Returned, Errno);
          when 12 =>
-            Context.Init_FP_Context (FP_State);
+            Context.Clone_FP_Context (FP_State);
             Fork (State.all, FP_State, State.RDI, Returned, Errno);
             if Errno /= Error_No_Error then
                Context.Destroy_FP_Context (FP_State);
