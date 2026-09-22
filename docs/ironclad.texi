@@ -3011,6 +3011,10 @@ a new connected socket with the flags in @code{flags} (@code{SOCK_NONBLOCK} and
 connection request. @code{addrlen} must be the length of the available buffer,
 and it will be written to be the actual length copied.
 
+The call waits for a connection request unless @code{sockfd} is non-blocking.
+@code{SOCK_NONBLOCK} makes the new socket non-blocking and changes nothing
+about the wait.
+
 The syscall returns the added FD on success or @code{-1} on failure, with the
 following errno:
 
@@ -3024,6 +3028,9 @@ following errno:
 @item
 @code{EFAULT}: @code{addr} or @code{addrlen} cannot be written, and the
 connection taken is closed.
+@item
+@code{EAGAIN}: @code{sockfd} is non-blocking and no connection request is
+pending.
 @end itemize
 
 @node rlimit

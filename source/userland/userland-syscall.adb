@@ -4341,8 +4341,11 @@ package body Userland.Syscall is
       Get_UID (Proc, UID);
       Get_GID (Proc, GID);
 
+      --  Whether to wait is the listening socket's own mode, while the
+      --  flags only decide the mode of the accepted one.
       if A_IAddr = 0 or AL_IAddr = 0 then
-         Accept_Connection (File.Inner_Socket, not Block, PI, UID, GID, Sock);
+         Accept_Connection
+            (File.Inner_Socket, File.Is_Blocking, PI, UID, GID, Sock);
       else
          case Get_Domain (File.Inner_Socket) is
             when IPC.Socket.IPv4 =>
@@ -4352,7 +4355,7 @@ package body Userland.Syscall is
                begin
                   Accept_Connection
                      (Sock         => File.Inner_Socket,
-                      Is_Blocking  => not Block,
+                      Is_Blocking  => File.Is_Blocking,
                       Peer_Address => Addr.Sin_Addr,
                       Peer_Port    => Tmp_Port,
                       Result       => Sock);
@@ -4371,7 +4374,7 @@ package body Userland.Syscall is
                begin
                   Accept_Connection
                      (Sock                => File.Inner_Socket,
-                      Is_Blocking         => not Block,
+                      Is_Blocking         => File.Is_Blocking,
                       Peer_Address        => Addr.Sun_Path,
                       Peer_Address_Length => Len,
                       PID                 => PI,
