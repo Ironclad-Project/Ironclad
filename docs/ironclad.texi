@@ -3399,7 +3399,9 @@ The passed PID is not valid.
 int getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
 @end example
 
-This syscall fetches the address of an already bound socket.
+This syscall fetches the address of an already bound socket. @code{addrlen}
+holds the length of the buffer at @code{addr}, and is written to be the length
+of the address, which is truncated to fit the buffer.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -3419,7 +3421,9 @@ The passed file is valid but it was not a physical file in a filesystem.
 int getpeername(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
 @end example
 
-This syscall fetches the address of a socket's peer.
+This syscall fetches the address of a socket's peer. @code{addrlen} holds the
+length of the buffer at @code{addr}, and is written to be the length of the
+address, which is truncated to fit the buffer.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:

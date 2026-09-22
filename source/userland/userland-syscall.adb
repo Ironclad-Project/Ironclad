@@ -43,6 +43,92 @@ with Memory.Userland_Transfer;
 with Userland.MAC;
 
 package body Userland.Syscall is
+   --  Copies of a value that stop at the length the caller gives, as socket
+   --  addresses are copied: done on the value's bytes.
+   generic
+      type T is private;
+   package Truncated_Transfer is
+      --  Copy a value out into room for Room bytes, truncated to fit.
+      procedure Paste
+         (Map     : Page_Table_Acc;
+          Item    : T;
+          Room    : Unsigned_32;
+          User    : System.Address;
+          Success : out Boolean);
+
+      --  Hand a socket address back the way POSIX asks: at most as many
+      --  bytes as the caller's length says its buffer holds, and the
+      --  address's real length stored in place of it, so a short buffer is
+      --  truncated rather than overrun (POSIX.1-2024, accept).
+      procedure Paste_Sized
+         (Map      : Page_Table_Acc;
+          Item     : T;
+          Length   : Natural;
+          User     : System.Address;
+          Len_Addr : System.Address;
+          Success  : out Boolean);
+   end Truncated_Transfer;
+
+   package body Truncated_Transfer is
+      procedure Paste
+         (Map     : Page_Table_Acc;
+          Item    : T;
+          Room    : Unsigned_32;
+          User    : System.Address;
+          Success : out Boolean)
+      is
+         Count : Natural;
+      begin
+         Count := T'Object_Size / 8;
+         if Room < Unsigned_32 (Count) then
+            Count := Natural (Room);
+         end if;
+         if Count = 0 then
+            Success := True;
+            return;
+         end if;
+
+         declare
+            Full : constant Natural := T'Object_Size / 8;
+            Len  : constant Natural := Count;
+            subtype Raw  is Operation_Data (1 .. Full);
+            subtype Part is Operation_Data (1 .. Len);
+            function To_Raw is new Ada.Unchecked_Conversion (T, Raw);
+            package Trans is new Memory.Userland_Transfer (Part);
+            Data : constant Raw := To_Raw (Item);
+         begin
+            Trans.Paste_Into_Userland (Map, Data (1 .. Len), User, Success);
+         end;
+      exception
+         when Constraint_Error =>
+            Success := False;
+      end Paste;
+
+      procedure Paste_Sized
+         (Map      : Page_Table_Acc;
+          Item     : T;
+          Length   : Natural;
+          User     : System.Address;
+          Len_Addr : System.Address;
+          Success  : out Boolean)
+      is
+         package Trans_Len is new Memory.Userland_Transfer (Unsigned_32);
+         Room : Unsigned_32;
+      begin
+         Trans_Len.Take_From_Userland (Map, Room, Len_Addr, Success);
+         if Success then
+            Paste (Map, Item, Room, User, Success);
+         end if;
+         if Success then
+            Trans_Len.Paste_Into_Userland
+               (Map, Unsigned_32 (Length), Len_Addr, Success);
+         end if;
+      end Paste_Sized;
+   end Truncated_Transfer;
+
+   package UNIX_Transfer is new Truncated_Transfer (SockAddr_UNIX);
+   package IPv4_Transfer is new Truncated_Transfer (SockAddr_In);
+
    procedure Sys_Exit
       (Code     : Unsigned_64;
        Returned : out Unsigned_64;
@@ -4196,6 +4282,7 @@ package body Userland.Syscall is
       A_IAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
       A_SAddr    : constant  System.Address := To_Address (A_IAddr);
       AL_IAddr   : constant Integer_Address := Integer_Address (Addr_Len);
+      AL_SAddr   : constant  System.Address := To_Address (AL_IAddr);
       File, Desc : File_Description_Acc;
       Sock       : Socket_Acc;
       Ret        : Natural;
@@ -4225,7 +4312,6 @@ package body Userland.Syscall is
          case Get_Domain (File.Inner_Socket) is
             when IPC.Socket.IPv4 =>
                declare
-                  package Trans is new Memory.Userland_Transfer (SockAddr_In);
                   Addr     : SockAddr_In;
                   Tmp_Port : Networking.IPv4_Port;
                begin
@@ -4237,15 +4323,14 @@ package body Userland.Syscall is
                       Result       => Sock);
                   Addr.Sin_Port := Ntohs (Unsigned_16 (Tmp_Port));
 
-                  Trans.Paste_Into_Userland (Map, Addr, A_SAddr, Succ);
+                  IPv4_Transfer.Paste_Sized
+                     (Map, Addr, Addr'Size / 8, A_SAddr, AL_SAddr, Succ);
                   if not Succ then
                      goto Would_Fault_Error;
                   end if;
                end;
             when IPC.Socket.UNIX =>
                declare
-                  package Trans is new Memory.Userland_Transfer
-                     (SockAddr_UNIX);
                   Addr : SockAddr_UNIX;
                   Len  : Natural;
                begin
@@ -4263,7 +4348,8 @@ package body Userland.Syscall is
                      Addr.Sun_Path (Len + 1) := Ada.Characters.Latin_1.NUL;
                   end if;
 
-                  Trans.Paste_Into_Userland (Map, Addr, A_SAddr, Succ);
+                  UNIX_Transfer.Paste_Sized
+                     (Map, Addr, 4 + Len, A_SAddr, AL_SAddr, Succ);
                   if not Succ then
                      goto Would_Fault_Error;
                   end if;
@@ -5183,7 +5269,6 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      package Trans_1 is new Memory.Userland_Transfer (Natural);
       Proc   : constant             PID := Arch.Local.Get_Current_Process;
       AIAddr : constant Integer_Address := Integer_Address (Addr_Addr);
       ASAddr : constant  System.Address := To_Address (AIAddr);
@@ -5206,7 +5291,6 @@ package body Userland.Syscall is
       case Get_Domain (File.Inner_Socket) is
          when IPC.Socket.IPv4 =>
             declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_In);
                Addr     : SockAddr_In;
                Tmp_Port : Networking.IPv4_Port;
             begin
@@ -5215,14 +5299,14 @@ package body Userland.Syscall is
                Get_Bound (File.Inner_Socket, Addr.Sin_Addr, Tmp_Port, BSucc);
                Addr.Sin_Port := Ntohs (Unsigned_16 (Tmp_Port));
 
-               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               IPv4_Transfer.Paste_Sized
+                  (Map, Addr, Length, ASAddr, LSAddr, Succ);
                if not Succ then
                   goto Would_Fault_Error;
                end if;
             end;
          when IPC.Socket.UNIX =>
             declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_UNIX);
                Addr : SockAddr_UNIX;
                Len  : Natural;
             begin
@@ -5234,17 +5318,13 @@ package body Userland.Syscall is
                end if;
                Length := 4 + Len;
 
-               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               UNIX_Transfer.Paste_Sized
+                  (Map, Addr, Length, ASAddr, LSAddr, Succ);
                if not Succ then
                   goto Would_Fault_Error;
                end if;
             end;
       end case;
-
-      Trans_1.Paste_Into_Userland (Map, Length, LSAddr, Succ);
-      if not Succ then
-         goto Would_Fault_Error;
-      end if;
 
       if BSucc then
          Errno := Error_No_Error;
@@ -5272,7 +5352,6 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      package Trans_1 is new Memory.Userland_Transfer (Natural);
       Proc   : constant             PID := Arch.Local.Get_Current_Process;
       AIAddr : constant Integer_Address := Integer_Address (Addr_Addr);
       ASAddr : constant  System.Address := To_Address (AIAddr);
@@ -5295,7 +5374,6 @@ package body Userland.Syscall is
       case Get_Domain (File.Inner_Socket) is
          when IPC.Socket.IPv4 =>
             declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_In);
                Addr     : SockAddr_In;
                Tmp_Port : Networking.IPv4_Port;
             begin
@@ -5304,14 +5382,14 @@ package body Userland.Syscall is
                Get_Peer (File.Inner_Socket, Addr.Sin_Addr, Tmp_Port, BSucc);
                Addr.Sin_Port := Ntohs (Unsigned_16 (Tmp_Port));
 
-               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               IPv4_Transfer.Paste_Sized
+                  (Map, Addr, Length, ASAddr, LSAddr, Succ);
                if not Succ then
                   goto Would_Fault_Error;
                end if;
             end;
          when IPC.Socket.UNIX =>
             declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_UNIX);
                Addr : SockAddr_UNIX;
                Len  : Natural;
             begin
@@ -5323,17 +5401,13 @@ package body Userland.Syscall is
                end if;
                Length := 4 + Len;
 
-               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               UNIX_Transfer.Paste_Sized
+                  (Map, Addr, Length, ASAddr, LSAddr, Succ);
                if not Succ then
                   goto Would_Fault_Error;
                end if;
             end;
       end case;
-
-      Trans_1.Paste_Into_Userland (Map, Length, LSAddr, Succ);
-      if not Succ then
-         goto Would_Fault_Error;
-      end if;
 
       if BSucc then
          Errno := Error_No_Error;
@@ -5666,11 +5740,12 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Addr_Len);
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       AIAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
       ASAddr    : constant  System.Address := To_Address (AIAddr);
+      LIAddr    : constant Integer_Address := Integer_Address (Addr_Len);
+      LSAddr    : constant  System.Address := To_Address (LIAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
       Is_Block  : Boolean;
       File      : File_Description_Acc;
@@ -5707,7 +5782,6 @@ package body Userland.Syscall is
             case Get_Domain (File.Inner_Socket) is
                when IPC.Socket.IPv4 =>
                   declare
-                     package T is new Memory.Userland_Transfer (SockAddr_In);
                      Addr : SockAddr_In;
                      Src_Addr : Networking.IPv4_Address;
                      Src_Port : Networking.IPv4_Port;
@@ -5722,12 +5796,14 @@ package body Userland.Syscall is
                          Success     => Success);
 
                      --  Write source address back to userspace.
-                     if Success = IPC.Socket.Plain_Success and AIAddr /= 0 then
+                     if Success = IPC.Socket.Plain_Success and LIAddr /= 0 then
                         Addr.Sin_Family := AF_INET;
                         Addr.Sin_Port := Ntohs (Unsigned_16 (Src_Port));
                         Addr.Sin_Addr := Src_Addr;
                         Addr.Padding := 0;
-                        T.Paste_Into_Userland (Map, Addr, ASAddr, Success2);
+                        IPv4_Transfer.Paste_Sized
+                           (Map, Addr, Addr'Size / 8, ASAddr, LSAddr,
+                            Success2);
                         --  Ignore write failure, data was still received.
                      end if;
                   end;
