@@ -704,10 +704,13 @@ package VFS is
    --  @return The resulting mode.
    function Apply_Umask (Mode, Umask : File_Mode) return File_Mode;
 
-   --  Check whether a file can be executed.
+   --  Check whether a file can be accessed. A privileged process may search
+   --  any directory but executes only a file somebody may execute
+   --  (POSIX.1-2024, XBD 4.7).
    --  @param User       User requesting.
    --  @param File_Owner Owner of the file.
    --  @param Mode       Mode to use.
+   --  @param Kind       Kind of file, a directory being searched, not run.
    --  @param Want_Read  True if read access is to be checked.
    --  @param Want_Write True if write access is to be checked.
    --  @param Want_Exec  True if exec access is to be checked.
@@ -716,6 +719,7 @@ package VFS is
       (User       : Unsigned_32;
        File_Owner : Unsigned_32;
        Mode       : File_Mode;
+       Kind       : File_Type;
        Want_Read  : Boolean;
        Want_Write : Boolean;
        Want_Exec  : Boolean) return Boolean;

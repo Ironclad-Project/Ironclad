@@ -646,6 +646,7 @@ package body VFS is
                   (User       => User,
                    File_Owner => Entry_Stat.UID,
                    Mode       => Entry_Stat.Mode,
+                   Kind       => Entry_Stat.Type_Of_File,
                    Want_Read  => True,
                    Want_Write => False,
                    Want_Exec  => False)
@@ -700,6 +701,7 @@ package body VFS is
          (User       => User,
           File_Owner => Entry_Stat.UID,
           Mode       => Entry_Stat.Mode,
+          Kind       => Entry_Stat.Type_Of_File,
           Want_Read  => Want_Read,
           Want_Write => Want_Write,
           Want_Exec  => False)
@@ -1340,6 +1342,7 @@ package body VFS is
          (User       => Real_UID,
           File_Owner => Ino_Stat.UID,
           Mode       => Ino_Stat.Mode,
+          Kind       => Ino_Stat.Type_Of_File,
           Want_Read  => Can_Read,
           Want_Write => Can_Write,
           Want_Exec  => Can_Exec)
@@ -1472,13 +1475,15 @@ package body VFS is
       (User       : Unsigned_32;
        File_Owner : Unsigned_32;
        Mode       : File_Mode;
+       Kind       : File_Type;
        Want_Read  : Boolean;
        Want_Write : Boolean;
        Want_Exec  : Boolean) return Boolean
    is
    begin
       if User = 0 then
-         return True;
+         return not Want_Exec or Kind = File_Directory or
+                (Mode and 8#111#) /= 0;
       end if;
 
       if File_Owner = User then

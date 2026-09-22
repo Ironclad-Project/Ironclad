@@ -421,6 +421,7 @@ package body Userland.Loader is
          (User       => User,
           File_Owner => File_St.UID,
           Mode       => File_St.Mode,
+          Kind       => File_St.Type_Of_File,
           Want_Read  => True,
           Want_Write => False,
           Want_Exec  => True);

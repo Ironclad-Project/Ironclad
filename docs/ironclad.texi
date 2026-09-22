@@ -1713,7 +1713,9 @@ readable memory.
 @code{ENOENT}: The file passed in path doesnt exist, or path is empty.
 
 @item
-@code{EACCES}: The file couldn't be launched out of a permission error.
+@code{EACCES}: The file couldn't be launched out of a permission error. A
+process with an effective user ID of 0 may only execute a file somebody may
+execute.
 @end itemize
 
 @node fork
