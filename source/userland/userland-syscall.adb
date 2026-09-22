@@ -4400,6 +4400,10 @@ package body Userland.Syscall is
       return;
 
    <<Would_Fault_Error>>
+      --  A connection taken but not handed over is closed.
+      if Sock /= null then
+         Close (Sock);
+      end if;
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    exception

@@ -2988,6 +2988,9 @@ following errno:
 @code{EBADF}: The passed FD is not a socket and listening.
 @item
 @code{ENOTSUPP}: The passed FD is a socket, but it is not a stream socket.
+@item
+@code{EFAULT}: @code{addr} or @code{addrlen} cannot be written, and the
+connection taken is closed.
 @end itemize
 
 @node rlimit
