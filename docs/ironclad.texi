@@ -4978,6 +4978,15 @@ This syscall fetches details about the NVMM implementation that the kernel
 exposes to userland. @code{version} is always 2 for Ironclad, but should be
 checked as to future proof/portability.
 
+Every field is a figure the rest of the interface will honour, so a program
+may size itself from them. @code{state_size} is the size of the state structure
+@ref{nvmm_vcpu_getstate} and @ref{nvmm_vcpu_setstate} work on, so a buffer
+smaller than it is never large enough. @code{max_machines} and
+@code{max_vcpus} bound @ref{nvmm_machine_create} and @ref{nvmm_vcpu_create}.
+@code{max_ram} is the most guest memory one machine may be given, and it is
+what @ref{nvmm_gpa_map} accepts: a mapping reaching past it is refused, however
+much memory the host has.
+
 This syscall returns @code{0} on success or @code{-1} on failure, with the
 errno:
 

@@ -18,10 +18,16 @@ with Interfaces; use Interfaces;
 
 package Arch.Virtualization with SPARK_Mode => Off is
    --  Capabilities of this implementation.
-   State_Size           : constant := 0; --  TODO.
+   --  One VCPU's state, as struct nvmm_x64_state lays it out: 10 segments
+   --  of 16 bytes at 0, 18 general registers at 160, 6 control registers at
+   --  304, 6 debug registers at 352, 11 MSRs at 400, the interrupt state at
+   --  488 and a 512-byte FXSAVE image at 496.
+   State_Size           : constant := 1008;
    Max_Virtual_Machines : constant := 128;
    Max_CPUs_Per_VM      : constant := 4;
-   Max_RAM_Per_VM       : constant := Unsigned_64'Last;
+   --  The most guest memory a machine can be given, which is what GPA_Map
+   --  takes: the nested tables hold one page table, for the first 2 MiB.
+   Max_RAM_Per_VM       : constant := 16#20_0000#;
 
    --  Machine ID type (0 = invalid)
    subtype Machine_ID is Unsigned_32 range 0 .. Max_Virtual_Machines;

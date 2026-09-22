@@ -2589,7 +2589,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       type U64_Array is array (Natural range <>) of Unsigned_64;
       NPT_Addr : Integer_Address;
       Page_4KB : constant Unsigned_64 := 16#1000#;
-      Page_2MB : constant Unsigned_64 := 16#20_0000#;
+      Limit    : constant Unsigned_64 := Max_RAM_Per_VM;
    begin
       if not Has_Initialized or Mach = Invalid_Machine then
          return False;
@@ -2600,8 +2600,8 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       --  can raise.
       if (GPA and (Page_4KB - 1)) /= 0 or
          (Size and (Page_4KB - 1)) /= 0 or
-         GPA > Page_2MB or
-         Size > Page_2MB - GPA
+         GPA > Limit or
+         Size > Limit - GPA
       then
          return False;
       end if;
