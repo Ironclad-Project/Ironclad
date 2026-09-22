@@ -60,13 +60,13 @@ package IPC.FileLock is
        Is_Blocking  : Boolean;
        Success      : out Boolean);
 
-   --  Release a lock.
+   --  Release the acquirer's locks on an inode that lie within a range.
    --  @param Acquired_FS  FS containing the inode to release.
    --  @param Acquired_Ino Inode to release.
    --  @param Start        Start to unlock.
    --  @param Length       Length to unlock.
    --  @param Acquirer     Acquirer of the lock.
-   --  @param Success      True if the lock could be unlocked.
+   --  @param Success      True if a lock was unlocked.
    procedure Release_Lock
       (Acquired_FS  : VFS.FS_Handle;
        Acquired_Ino : VFS.File_Inode_Number;
@@ -75,14 +75,19 @@ package IPC.FileLock is
        Acquirer     : Userland.Process.PID;
        Success      : out Boolean);
 
-   --  Release all locks regardless of range and owner.
-   --  @param Acquired_FS  FS containing the inode to release.
+   --  Release every lock a process holds on an inode, which is what closing
+   --  any descriptor for it does.
+   --  @param Acquirer     Process whose locks to release.
+   --  @param Acquired_FS  FS containing the inode.
    --  @param Acquired_Ino Inode to release.
-   --  @param Success      True if the lock could be unlocked.
-   procedure Release_Lock
-      (Acquired_FS  : VFS.FS_Handle;
-       Acquired_Ino : VFS.File_Inode_Number;
-       Success      : out Boolean);
+   procedure Release_Process_Locks
+      (Acquirer     : Userland.Process.PID;
+       Acquired_FS  : VFS.FS_Handle;
+       Acquired_Ino : VFS.File_Inode_Number);
+
+   --  Release every lock a process holds, which is what its exit does.
+   --  @param Acquirer Process whose locks to release.
+   procedure Release_Process_Locks (Acquirer : Userland.Process.PID);
 
    --  Information of a file lock for debugging.
    type Lock_Info is record

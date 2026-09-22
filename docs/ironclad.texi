@@ -2331,9 +2331,10 @@ bytes or the operation would cause data loss.
 in @code{arg} will be taken as a pointer to a @code{flock} struct, and the
 possibility to add the advisory lock described there will be checked.
 
-POSIX advisory locks are advisory file description-bound marks that may be
+POSIX advisory locks are marks held by the process that took them that may be
 used as a filesystem semaphore. They require processes to check them, and are
-not automatic nor mandatory, thus, advisory.
+not automatic nor mandatory, thus, advisory. A process's locks on a file go
+when it closes any descriptor for that file, and all of them when it exits.
 
 If the lock could be placed, the passed struct's @code{l_type} will become
 @code{F_UNLCK}, else, the call will fail and the fields used to write the
@@ -2347,7 +2348,9 @@ make sure only one instance of the same daemon is running.
 @code{F_SETLK}: The same as @code{F_GETLK}, but actually sets the passed lock.
 If it cannot be set, it will return failure with @code{EAGAIN}. If an
 overlapping lock already exists acquired by the same process, this call will
-instead just update permissions and return success.
+instead just update permissions and return success. With @code{F_UNLCK}, the
+caller's locks that lie within the range are removed, and having none there is
+no error.
 
 @item
 @code{F_SETLKW}: The same as @code{F_SETLK}, but instead of being non-blocking,

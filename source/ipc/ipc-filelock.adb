@@ -101,33 +101,54 @@ package body IPC.FileLock is
        Acquirer     : Userland.Process.PID;
        Success      : out Boolean)
    is
-      pragma Unreferenced (Start);
-      pragma Unreferenced (Length);
-      pragma Unreferenced (Acquirer);
-   begin
-      Release_Lock (Acquired_FS, Acquired_Ino, Success);
-   end Release_Lock;
-
-   procedure Release_Lock
-      (Acquired_FS  : VFS.FS_Handle;
-       Acquired_Ino : VFS.File_Inode_Number;
-       Success      : out Boolean)
-   is
    begin
       Synchronization.Seize (Registry_Mutex);
       Success := False;
       for L of Registry loop
-         if L.Acquirer /= Error_PID and then
-            L.FS = Acquired_FS      and then
-            L.Ino = Acquired_Ino
+         if L.Acquirer /= Error_PID     and then
+            L.Acquirer = Acquirer       and then
+            L.FS = Acquired_FS          and then
+            L.Ino = Acquired_Ino        and then
+            L.Start >= Start            and then
+            L.Start - Start <= Length   and then
+            L.Length <= Length - (L.Start - Start)
          then
             L.Acquirer := Error_PID;
             Success := True;
-            exit;
          end if;
       end loop;
       Synchronization.Release (Registry_Mutex);
    end Release_Lock;
+
+   procedure Release_Process_Locks
+      (Acquirer     : Userland.Process.PID;
+       Acquired_FS  : VFS.FS_Handle;
+       Acquired_Ino : VFS.File_Inode_Number)
+   is
+   begin
+      Synchronization.Seize (Registry_Mutex);
+      for L of Registry loop
+         if L.Acquirer /= Error_PID and then
+            L.Acquirer = Acquirer   and then
+            L.FS = Acquired_FS      and then
+            L.Ino = Acquired_Ino
+         then
+            L.Acquirer := Error_PID;
+         end if;
+      end loop;
+      Synchronization.Release (Registry_Mutex);
+   end Release_Process_Locks;
+
+   procedure Release_Process_Locks (Acquirer : Userland.Process.PID) is
+   begin
+      Synchronization.Seize (Registry_Mutex);
+      for L of Registry loop
+         if L.Acquirer /= Error_PID and then L.Acquirer = Acquirer then
+            L.Acquirer := Error_PID;
+         end if;
+      end loop;
+      Synchronization.Release (Registry_Mutex);
+   end Release_Process_Locks;
 
    procedure List_All (Buffer : out Lock_Arr; Length : out Natural) is
       Curr_Index : Natural := 0;

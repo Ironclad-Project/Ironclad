@@ -746,7 +746,6 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);
-      T       : Boolean;
       Is_Last : Boolean;
    begin
       if F = null then
@@ -769,12 +768,9 @@ package body Userland.Process with SPARK_Mode => Off is
             when Description_Primary_PTY => Close (F.Inner_Primary_PTY);
             when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
             when Description_Inode =>
-               if F.Inner_Is_Locked then
-                  IPC.FileLock.Release_Lock (F.Inner_Ino_FS, F.Inner_Ino, T);
-                  if not T then
-                     Messages.Put_Line ("Missing file lock on closure!");
-                  end if;
-               end if;
+               --  Locks belong to processes, and go when they close a
+               --  descriptor for the file or exit, see Remove_File.
+               null;
             when Description_Socket => Close (F.Inner_Socket);
          end case;
          Free (F);
@@ -847,10 +843,23 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Set_FD_Flags;
 
+   procedure Release_Locks (Process : PID; F : File_Description_Acc) is
+   begin
+      if F /= null and then F.Description = Description_Inode then
+         IPC.FileLock.Release_Process_Locks
+            (Process, F.Inner_Ino_FS, F.Inner_Ino);
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Release_Locks;
+
    procedure Remove_File (Process : PID; FD : Natural) is
    begin
       Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= File_Arr'Last then
+         Release_Locks
+            (Process, Registry (Process).File_Table (FD).Description);
          Close (Registry (Process).File_Table (FD).Description);
          Registry (Process).File_Table (FD).Close_On_Exec := False;
          Registry (Process).File_Table (FD).Close_On_Fork := False;
@@ -871,6 +880,7 @@ package body Userland.Process with SPARK_Mode => Off is
          F.Close_On_Exec := False;
          F.Close_On_Fork := False;
       end loop;
+      IPC.FileLock.Release_Process_Locks (Process);
       Synchronization.Release (Registry (Process).Data_Mutex);
    exception
       when Constraint_Error =>
@@ -882,6 +892,7 @@ package body Userland.Process with SPARK_Mode => Off is
       Synchronization.Seize (Registry (Process).Data_Mutex);
       for F of Registry (Process).File_Table.all loop
          if F.Description /= null and then F.Close_On_Exec then
+            Release_Locks (Process, F.Description);
             Close (F.Description);
             F.Close_On_Exec := False;
             F.Close_On_Fork := False;

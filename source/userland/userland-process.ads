@@ -76,7 +76,6 @@ package Userland.Process is
          when Description_Secondary_PTY =>
             Inner_Secondary_PTY : IPC.PTY.Inner_Acc;
          when Description_Inode =>
-            Inner_Is_Locked : Boolean;
             Inner_Ino_Read  : Boolean;
             Inner_Ino_Write : Boolean;
             Inner_Ino_Pos   : Unsigned_64;
@@ -886,6 +885,10 @@ private
 
    --  The process whose map a process runs on.
    function Map_Owner (Process : PID) return PID;
+
+   --  Release the locks a process holds on the file of a description, as a
+   --  descriptor for it is closed.
+   procedure Release_Locks (Process : PID; F : File_Description_Acc);
 
    type Process_Data is record
       Data_Mutex      : aliased Synchronization.Mutex;

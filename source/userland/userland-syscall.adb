@@ -290,7 +290,6 @@ package body Userland.Syscall is
          (Children_Count    => 0,
           Is_Blocking       => Do_Block,
           Description       => Description_Inode,
-          Inner_Is_Locked   => False,
           Inner_Ino_Read    => Do_Read,
           Inner_Ino_Write   => Do_Write,
           Inner_Ino_FS      => CWD_FS,
@@ -2922,6 +2921,7 @@ package body Userland.Syscall is
                   end if;
                else
                   if Lock.Lock_Type = F_UNLCK then
+                     --  Having nothing to unlock is no error.
                      IPC.FileLock.Release_Lock
                         (Acquired_FS  => File.Inner_Ino_FS,
                          Acquired_Ino => File.Inner_Ino,
@@ -2929,7 +2929,7 @@ package body Userland.Syscall is
                          Length       => Lock.Length,
                          Acquirer     => Proc,
                          Success      => Temp);
-                     File.Inner_Is_Locked := not Temp;
+                     Temp := True;
                   else
                      IPC.FileLock.Acquire_Lock
                         (Acquired_FS  => File.Inner_Ino_FS,
@@ -2940,7 +2940,6 @@ package body Userland.Syscall is
                          Is_Write     => IW,
                          Is_Blocking  => Command = F_SETLKW,
                          Success      => Temp);
-                     File.Inner_Is_Locked := Temp;
                   end if;
 
                   if not Temp then
