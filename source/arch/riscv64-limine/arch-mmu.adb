@@ -172,7 +172,8 @@ package body Arch.MMU is
       pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
    begin
       --  Without Svvptc an entry becoming present needs a fence as well as one
-      --  that changed.
+      --  that changed. Threads only run on the boot hart, as the others are
+      --  parked, so there is no other hart to reach.
       System.Machine_Code.Asm
          ("sfence.vma",
           Clobber  => "memory",

@@ -17,6 +17,7 @@
 with System; use System;
 with Panic;
 with System.Machine_Code;
+with Arch.Snippets;
 
 package body Arch.CPU with SPARK_Mode => Off is
    SMP_Request : Limine.SMP_Request :=
@@ -80,9 +81,14 @@ package body Arch.CPU with SPARK_Mode => Off is
    procedure Core_Bootstrap (Info : access Limine.RISCV64_SMP_CPU_Info) is
    begin
       Init_Common (Natural (Info.Extra_Arg), Info.Hart_ID);
+
+      --  Threads are only run by the boot hart, as the others take no part in
+      --  scheduling or TLB shootdowns yet, so they wait here. Limine hands
+      --  them over with a return address of 0, which must not be returned to.
+      Snippets.HCF;
    exception
       when Constraint_Error =>
-         null;
+         Snippets.HCF;
    end Core_Bootstrap;
 
    procedure Init_Common (Core_Number : Positive; Hart_ID : Unsigned_64) is
