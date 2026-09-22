@@ -1715,9 +1715,9 @@ the values that can be passed are:
 @itemize @bullet
 @item
 @code{FORK_VFORK}: Instead of cloning the address space of the parent process.
-The child will use the same address space until an @code{exec} is done. During
-that time between @code{fork} and @code{exec}, the parent process will be
-halted. Thus, both processes will never share the same address space.
+The child will use the same address space until an @code{exec} is done or it
+exits. During that time, the parent process will be halted. Thus, both
+processes will never share the same address space.
 
 This is provided for increased speed, as we can avoid copying memory just to
 trash it with exec.

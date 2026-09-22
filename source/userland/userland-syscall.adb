@@ -1212,9 +1212,13 @@ package body Userland.Syscall is
          end if;
       end if;
 
-      --  Now that we got the exit code, finally allow the process to die.
+      --  Now that we got the exit code, finally allow the process to die. A
+      --  vforked child that never called exec let go of its parent's table
+      --  when it exited.
       Get_Common_Map (Waited, Map);
-      Memory.MMU.Destroy_Table          (Map);
+      if Map /= null then
+         Memory.MMU.Destroy_Table (Map);
+      end if;
       Userland.Process.Delete_Process (Waited);
 
       Errno    := Error_No_Error;

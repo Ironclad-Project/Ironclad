@@ -1076,6 +1076,15 @@ package body Userland.Process with SPARK_Mode => Off is
       Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);
 
+      --  A vforked child that has not called exec runs on its parent's table,
+      --  which is not its own to give back. Letting go of it here is what
+      --  lets the parent go on.
+      Synchronization.Seize (Registry (Process).Data_Mutex);
+      if Registry (Process).VFork_Mark then
+         Registry (Process).Common_Map := null;
+      end if;
+      Synchronization.Release (Registry (Process).Data_Mutex);
+
       Registry (Process).Did_Exit     := True;
       Registry (Process).Signal_Exit  := True;
       Registry (Process).Which_Signal := Killer;
@@ -1115,6 +1124,15 @@ package body Userland.Process with SPARK_Mode => Off is
       Flush_Files   (Process);
       Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);
+
+      --  A vforked child that has not called exec runs on its parent's table,
+      --  which is not its own to give back. Letting go of it here is what
+      --  lets the parent go on.
+      Synchronization.Seize (Registry (Process).Data_Mutex);
+      if Registry (Process).VFork_Mark then
+         Registry (Process).Common_Map := null;
+      end if;
+      Synchronization.Release (Registry (Process).Data_Mutex);
       Issue_Exit (Process, Code);
 
       if Exiting_Ourselves then
