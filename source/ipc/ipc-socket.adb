@@ -291,7 +291,7 @@ package body IPC.Socket is
       Path : String (1 .. 0);
       Len  : Natural;
    begin
-      Synchronization.Seize (Sock.Mutex);
+      --  The UNIX overload locks the socket itself.
       case Sock.Dom is
          when IPv4 =>
             Result := null;
@@ -299,7 +299,6 @@ package body IPC.Socket is
             Accept_Connection
                (Sock, Is_Blocking, Path, Len, PID, UID, GID, Result);
       end case;
-      Synchronization.Release (Sock.Mutex);
    end Accept_Connection;
 
    procedure Pipe_Socket (Sock : Socket_Acc; Result : out Socket_Acc) is
