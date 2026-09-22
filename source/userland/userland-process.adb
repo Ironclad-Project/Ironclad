@@ -31,6 +31,11 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
       (File_Arr, File_Arr_Acc);
 
+   --  A description can be held by several processes, so the count of its
+   --  holders changes under one lock.
+   Description_Mutex : aliased Synchronization.Mutex :=
+      Synchronization.Unlocked_Mutex;
+
    Do_ASLR : Boolean := True;
 
    procedure Init is
@@ -610,15 +615,18 @@ package body Userland.Process with SPARK_Mode => Off is
    is
       pragma SPARK_Mode (Off);
    begin
+      Synchronization.Seize (Description_Mutex);
       if F.Children_Count /= Natural'Last then
          F.Children_Count := F.Children_Count + 1;
          Result := F;
       else
          Result := null;
       end if;
+      Synchronization.Release (Description_Mutex);
    exception
       when Constraint_Error =>
-         null;
+         Synchronization.Release (Description_Mutex);
+         Result := null;
    end Duplicate;
 
    procedure Duplicate_FD_Table (Process, Target : PID) is
@@ -738,9 +746,23 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);
-      T : Boolean;
+      T       : Boolean;
+      Is_Last : Boolean;
    begin
-      if F.Children_Count = 0 then
+      if F = null then
+         return;
+      end if;
+
+      --  Only the holder dropping the last reference closes, and it does so
+      --  outside the lock.
+      Synchronization.Seize (Description_Mutex);
+      Is_Last := F.Children_Count = 0;
+      if not Is_Last then
+         F.Children_Count := F.Children_Count - 1;
+      end if;
+      Synchronization.Release (Description_Mutex);
+
+      if Is_Last then
          case F.Description is
             when Description_Reader_FIFO => Close_Reader (F.Inner_Reader_FIFO);
             when Description_Writer_FIFO => Close_Writer (F.Inner_Writer_FIFO);
@@ -756,8 +778,6 @@ package body Userland.Process with SPARK_Mode => Off is
             when Description_Socket => Close (F.Inner_Socket);
          end case;
          Free (F);
-      else
-         F.Children_Count := F.Children_Count - 1;
       end if;
       F := null;
    exception
