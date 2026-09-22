@@ -203,7 +203,8 @@ package Userland.Process is
    --  @param Returned PID if successful, or Error_PID if not successful.
    procedure Create_Process (Parent : PID; Returned : out PID);
 
-   --  Delete a process.
+   --  Delete a process that has no threads left. Descriptors it still holds,
+   --  as a child whose fork failed half way does, are closed.
    --  @param Process Process to delete.
    procedure Delete_Process (Process : PID) with Pre => Process /= Error_PID;
 

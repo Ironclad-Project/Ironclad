@@ -1065,6 +1065,10 @@ package body Userland.Syscall is
           New_TID  => New_TID);
       Ret := Unsigned_64 (Convert (Child));
       if New_TID = Error_TID then
+         if not Do_VFORK then
+            Memory.MMU.Destroy_Table (Table);
+         end if;
+         Userland.Process.Delete_Process (Child);
          goto Block_Error;
       end if;
 

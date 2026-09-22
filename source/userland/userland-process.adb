@@ -182,6 +182,15 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Delete_Process (Process : PID) is
       Var1, Var2, Var3 : Unsigned_64;
    begin
+      --  An exited process has let its descriptors and shared memory go
+      --  already. One that never ran, such as the child of a fork that failed
+      --  half way, has not.
+      if Registry (Process).File_Table /= null then
+         Flush_Files (Process);
+         Free (Registry (Process).File_Table);
+      end if;
+      Detach_All_SHM (Process);
+
       Synchronization.Seize (Registry_Mutex);
       Synchronization.Seize (Registry (Process).Data_Mutex);
       Var1 := Registry (Process).Creation.Nanoseconds;
