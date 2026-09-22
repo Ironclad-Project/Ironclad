@@ -286,8 +286,9 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          end;
       end;
 
-      --  Allocate NPT (nested page tables) - 6 pages for 4GB identity map
-      --  PML4 (1 page) -> PDPT (1 page) -> 4x PD (4 pages, 512x2MB each = 4GB)
+      --  Allocate the nested page tables: PML4, PDPT, four PDs and PT0, the
+      --  one page table, which covers the first 2 MiB of guest physical memory
+      --  and so everything a guest can be given.
       declare
          NPT_Addr_Local : Integer_Address;
          NPT_Size : constant := 16#7000#;  --  28KB (7 pages, includes PT0)
@@ -306,67 +307,25 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          end if;
          Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr := NPT_Addr_Local;
 
-         --  Set up identity-mapped nested page tables for 4GB
-         --  Page 0: PML4
-         --  Page 1: PDPT
-         --  Pages 2-5: PD[0..3] (each covers 1GB with 512x2MB pages)
+         --  Page 0: PML4, page 1: PDPT, pages 2-5: PD0-3, page 6: PT0. Every
+         --  leaf starts empty, so a guest has what GPA_Map gave it and nothing
+         --  else, and an access to a guest physical address the VMM did not
+         --  map is a memory exit. Only the path down to PT0 is linked; PD1-3
+         --  stay in the layout, zeroed and unlinked.
          declare
             type U64_Array is array (Natural range <>) of Unsigned_64;
             NPT_PA : constant Unsigned_64 :=
                Unsigned_64 (NPT_Addr_Local - Arch.MMU.Memory_Offset);
-            PML4 : U64_Array (0 .. 511)
+            Tables : U64_Array (0 .. 7 * 512 - 1)
                with Import, Address => To_Address (NPT_Addr_Local);
-            PDPT : U64_Array (0 .. 511)
-               with Import, Address => To_Address (NPT_Addr_Local + 4096);
-            PD0 : U64_Array (0 .. 511)
-               with Import, Address => To_Address (NPT_Addr_Local + 8192);
-            PD1 : U64_Array (0 .. 511)
-               with Import, Address => To_Address (NPT_Addr_Local + 12288);
-            PD2 : U64_Array (0 .. 511)
-               with Import, Address => To_Address (NPT_Addr_Local + 16384);
-            PD3 : U64_Array (0 .. 511)
-               with Import, Address => To_Address (NPT_Addr_Local + 20480);
-            PT0 : U64_Array (0 .. 511)
-               with Import, Address => To_Address (NPT_Addr_Local + 24576);
          begin
-            --  Zero all pages first
-            PML4 := [others => 0];
-            PDPT := [others => 0];
-            PD0 := [others => 0];
-            PD1 := [others => 0];
-            PD2 := [others => 0];
-            PD3 := [others => 0];
+            Tables := [others => 0];
 
-            --  Initialize PT0 with identity-mapped 4KB pages for first 2MB
-            --  This allows fine-grained mappings later via GPA_Map
-            for I in 0 .. 511 loop
-               PT0 (I) := Unsigned_64 (I) * 16#1000# or 16#07#;  --  P+W+U
-            end loop;
-
-            --  PML4[0] -> PDPT (Present, Writable, User)
-            PML4 (0) := (NPT_PA + 4096) or 16#07#;
-
-            --  PDPT[0..3] -> PD[0..3] (Present, Writable, User)
-            PDPT (0) := (NPT_PA + 8192) or 16#07#;
-            PDPT (1) := (NPT_PA + 12288) or 16#07#;
-            PDPT (2) := (NPT_PA + 16384) or 16#07#;
-            PDPT (3) := (NPT_PA + 20480) or 16#07#;
-
-            --  PD0[0] -> PT0 for 4KB pages in first 2MB
-            --  Flags: Present(0), Writable(1), User(2) - NO PS bit
-            PD0 (0) := (NPT_PA + 24576) or 16#07#;
-
-            --  PD0[1..511]: identity map rest of first 1GB using 2MB pages
-            --  PD1/2/3: identity map 1-4GB using 2MB pages
-            --  Flags: Present(0), Writable(1), User(2), PS(7)=2MB page
-            for I in 1 .. 511 loop
-               PD0 (I) := Unsigned_64 (I) * 16#20_0000# or 16#87#;
-            end loop;
-            for I in 0 .. 511 loop
-               PD1 (I) := (Unsigned_64 (I) + 512) * 16#20_0000# or 16#87#;
-               PD2 (I) := (Unsigned_64 (I) + 1024) * 16#20_0000# or 16#87#;
-               PD3 (I) := (Unsigned_64 (I) + 1536) * 16#20_0000# or 16#87#;
-            end loop;
+            --  PML4[0] -> PDPT, PDPT[0] -> PD0, PD0[0] -> PT0, each Present,
+            --  Writable and User (Read, Write and Execute read as EPT bits).
+            Tables (0)        := (NPT_PA + 4096) or 16#07#;
+            Tables (512)      := (NPT_PA + 8192) or 16#07#;
+            Tables (2 * 512)  := (NPT_PA + 24576) or 16#07#;
          end;
       end;
 
@@ -502,7 +461,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          --  VMCB Clean = 0 means reload all state from VMCB on VMRUN
          VMCB_Ptr.Control.VMCB_Clean := 0;
 
-         --  Enable nested paging (NPT) - identity mapped first 1GB
+         --  Enable nested paging (NPT), through the tables set up above.
          VMCB_Ptr.Control.NP_Enable := 1;
          declare
             NPT_VA : constant Integer_Address :=
@@ -2481,11 +2440,22 @@ package body Arch.Virtualization with SPARK_Mode => Off is
        Size : Unsigned_64) return Boolean
    is
       type U64_Array is array (Natural range <>) of Unsigned_64;
-      NPT_Addr  : Integer_Address;
-      Num_Pages : Unsigned_64;
-      Page_2MB  : constant Unsigned_64 := 16#20_0000#;
+      NPT_Addr : Integer_Address;
+      Page_4KB : constant Unsigned_64 := 16#1000#;
+      Page_2MB : constant Unsigned_64 := 16#20_0000#;
    begin
       if not Has_Initialized or Mach = Invalid_Machine then
+         return False;
+      end if;
+
+      --  4 KiB pages inside PT0, which is all a guest can be given, as
+      --  GPA_Map maps them. Checked before the lock, so that nothing under it
+      --  can raise.
+      if (GPA and (Page_4KB - 1)) /= 0 or
+         (Size and (Page_4KB - 1)) /= 0 or
+         GPA > Page_2MB or
+         Size > Page_2MB - GPA
+      then
          return False;
       end if;
 
@@ -2502,48 +2472,14 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       NPT_Addr := Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr;
 
-      --  Validate alignment
-      if (GPA and (Page_2MB - 1)) /= 0 or
-         (Size and (Page_2MB - 1)) /= 0
-      then
-         Release (Machines (Positive (Mach)).Lock);
-         return False;
-      end if;
-
-      --  Validate GPA range (must fit in first 4GB)
-      if GPA + Size > 16#1_0000_0000# then
-         Release (Machines (Positive (Mach)).Lock);
-         return False;
-      end if;
-
-      --  Clear the PD entries (handle all 4 PDs for 4GB coverage)
       declare
-         PD0 : U64_Array (0 .. 511)
-            with Import, Address => To_Address (NPT_Addr + 8192);
-         PD1 : U64_Array (0 .. 511)
-            with Import, Address => To_Address (NPT_Addr + 12288);
-         PD2 : U64_Array (0 .. 511)
-            with Import, Address => To_Address (NPT_Addr + 16384);
-         PD3 : U64_Array (0 .. 511)
-            with Import, Address => To_Address (NPT_Addr + 20480);
-         PD_Num    : Natural;
-         Local_Idx : Natural;
-         Current_GPA : Unsigned_64;
+         PT0 : U64_Array (0 .. 511)
+            with Import, Address => To_Address (NPT_Addr + 24576);
+         First : constant Integer := Integer (GPA / Page_4KB);
+         Last  : constant Integer := Integer ((GPA + Size) / Page_4KB) - 1;
       begin
-         Num_Pages := Size / Page_2MB;
-
-         for I in 0 .. Natural (Num_Pages) - 1 loop
-            Current_GPA := GPA + Unsigned_64 (I) * Page_2MB;
-            PD_Num := Natural (Current_GPA / 16#4000_0000#);
-            Local_Idx := Natural ((Current_GPA mod 16#4000_0000#) / Page_2MB);
-
-            case PD_Num is
-               when 0 => PD0 (Local_Idx) := 0;
-               when 1 => PD1 (Local_Idx) := 0;
-               when 2 => PD2 (Local_Idx) := 0;
-               when 3 => PD3 (Local_Idx) := 0;
-               when others => null;
-            end case;
+         for I in First .. Last loop
+            PT0 (I) := 0;
          end loop;
       end;
 

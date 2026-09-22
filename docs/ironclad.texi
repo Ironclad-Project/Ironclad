@@ -5124,13 +5124,21 @@ virtualization, thus NVMM capability is not available.
 int nvmm_gpa_unmap(int machine_id, uint64_t hva_addr, uint64_t gpa_addr, size_t size);
 @end example
 
-This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure, with the following errno:
+This syscall takes the @code{size} bytes at @code{gpa_addr} away from the
+machine's guest on every VCPU the machine has, after which an access to them is
+a memory exit; @code{hva_addr} is not used. The range is whole 4 KiB pages
+within the first 2 MiB of guest physical memory, and it may be any part of
+what @ref{nvmm_gpa_map} gave. The syscall returns @code{0} on success, or
+@code{-1} on failure, with the following errno:
 
 @table @code
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EINVAL
+The machine does not exist or has no VCPU, or the range is not whole pages or
+does not fit in the first 2 MiB of guest physical memory.
 @end table
 
 @node nvmm_gva_2_gpa
@@ -5300,6 +5308,10 @@ use with the Gloire distribution, but easily portable.
 Ironclad only provides the non-IOCTL interfaces, using syscalls only. No
 @code{/dev/nvmm} is provided either. To check presence, @code{nvmm_capability}
 will fail with @code{ENOTSUPP} if there is no NVMM support.
+
+A guest has the memory @ref{nvmm_gpa_map} gave it and nothing else of the host:
+any other access to guest-physical memory, a read, a write or an instruction
+fetch, ends @ref{nvmm_vcpu_run} with a memory exit naming the address.
 
 The guest sets XCR0 with XSETBV, and a value the processor would refuse, one
 naming a component the processor lacks, leaving out x87, naming AVX without
