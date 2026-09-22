@@ -23,6 +23,7 @@ with Cryptography.Random;
 with Userland.Memory_Locations;
 with IPC.FileLock;
 with Arch.MMU;
+with Virtualization;
 
 package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
@@ -852,6 +853,11 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Flush_Exec_Files;
 
+   procedure Destroy_Machines (Process : PID) is
+   begin
+      Virtualization.Destroy_Owned (Convert (Process));
+   end Destroy_Machines;
+
    procedure Set_Common_Map (Proc : PID; Map : Memory.MMU.Page_Table_Acc) is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
@@ -1070,8 +1076,9 @@ package body Userland.Process with SPARK_Mode => Off is
       Reassign_Parent_To_Init (Process);
 
       --  Remove all state but the return value and keep the zombie around
-      --  until we are waited.
+      --  until we are waited, the process's virtual machines first.
       Flush_Threads (Process);
+      Destroy_Machines (Process);
       Flush_Files   (Process);
       Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);
@@ -1119,8 +1126,9 @@ package body Userland.Process with SPARK_Mode => Off is
       Reassign_Parent_To_Init (Process);
 
       --  Remove all state but the return value and keep the zombie around
-      --  until we are waited.
+      --  until we are waited, the process's virtual machines first.
       Flush_Threads (Process);
+      Destroy_Machines (Process);
       Flush_Files   (Process);
       Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);

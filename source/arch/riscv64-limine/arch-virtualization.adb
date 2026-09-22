@@ -40,6 +40,18 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    begin
       return False;
    end Machine_Destroy;
+
+   function Owned_By_Another (Mach : Machine_ID) return Boolean is
+      pragma Unreferenced (Mach);
+   begin
+      return False;
+   end Owned_By_Another;
+
+   procedure Destroy_Owned (Owner : Natural) is
+      pragma Unreferenced (Owner);
+   begin
+      null;
+   end Destroy_Owned;
    ----------------------------------------------------------------------------
    function VCPU_Create (Mach : Machine_ID; CPU : VCPU_ID) return Boolean is
       pragma Unreferenced (Mach, CPU);

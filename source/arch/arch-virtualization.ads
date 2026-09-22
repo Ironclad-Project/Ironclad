@@ -40,14 +40,28 @@ package Arch.Virtualization with SPARK_Mode => Off is
    --  that may run a VCPU needs. A core already enabled is left alone.
    procedure Enable_For_This_Core;
    ----------------------------------------------------------------------------
-   --  Create a new virtual machine.
+   --  A machine belongs to the process that created it. Every call on one
+   --  checks, under the machine's own lock, that it comes from that process,
+   --  and the machine goes when its owner exits or execs (Destroy_Owned).
+
+   --  Create a new virtual machine, owned by the calling process.
    --  @return Machine ID on success, Invalid_Machine on failure.
    function Machine_Create return Machine_ID;
 
-   --  Destroy a virtual machine.
+   --  Destroy a virtual machine of the calling process.
    --  @param ID  The machine ID to destroy.
-   --  @return True on success, False if ID is invalid.
+   --  @return True on success, False if ID is invalid or not the caller's.
    function Machine_Destroy (ID : Machine_ID) return Boolean;
+
+   --  True if Mach exists and another process owns it, so that a caller can
+   --  say why a call on it was refused. Only a guide: the call itself makes
+   --  the check again, under the machine's lock.
+   function Owned_By_Another (Mach : Machine_ID) return Boolean;
+
+   --  Destroy every machine Owner has, for its exit or its exec, which is
+   --  why it names the owner rather than asking who is calling.
+   --  @param Owner The owner, as Userland.Process.Convert gives its PID.
+   procedure Destroy_Owned (Owner : Natural);
    ----------------------------------------------------------------------------
    --  Create a new VCPU for a machine.
    --  @param Mach  The machine ID.
@@ -360,6 +374,21 @@ package Arch.Virtualization with SPARK_Mode => Off is
 private
 
    #if ArchName = """x86_64-limine"""
+      --  The calling process as a machine records its owner, 0 for none.
+      function Caller return Natural;
+
+      --  True if Mach is active and the calling process owns it. For a caller
+      --  that holds the machine's lock.
+      function Owned_By_Caller (Mach : Machine_ID) return Boolean;
+
+      --  A machine's place in the table, which every valid Machine_ID but
+      --  Invalid_Machine names.
+      subtype Machine_Index is Positive range 1 .. Max_Virtual_Machines;
+
+      --  Destroy machine Idx. Called with the registry lock held and then the
+      --  machine's own, which is the order everything taking both keeps.
+      procedure Destroy_Machine (Idx : Machine_Index);
+
       function Allocate_ASID return Unsigned_32;
       procedure Free_ASID (ASID : Unsigned_32);
 

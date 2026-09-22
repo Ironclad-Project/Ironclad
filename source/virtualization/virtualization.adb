@@ -34,6 +34,16 @@ package body Virtualization with SPARK_Mode => Off is
    begin
       return Arch.Virtualization.Machine_Destroy (ID);
    end Machine_Destroy;
+
+   function Owned_By_Another (Mach : Machine_ID) return Boolean is
+   begin
+      return Arch.Virtualization.Owned_By_Another (Mach);
+   end Owned_By_Another;
+
+   procedure Destroy_Owned (Owner : Natural) is
+   begin
+      Arch.Virtualization.Destroy_Owned (Owner);
+   end Destroy_Owned;
    ----------------------------------------------------------------------------
    function VCPU_Create (Mach : Machine_ID; CPU : VCPU_ID) return Boolean is
    begin

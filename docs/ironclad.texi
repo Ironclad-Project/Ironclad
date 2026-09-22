@@ -4952,8 +4952,9 @@ The current configuration doesn't support NVMM.
 int nvmm_machine_create(void);
 @end example
 
-This syscall creates a virtual machine. The machine will be created with no
-assigned memory or cores.
+This syscall creates a virtual machine, owned by the calling process (see
+@ref{Differences with NetBSD}). The machine will be created with no assigned
+memory or cores.
 
 This syscall returns a machine ID, or @code{-1} on failure, with the following
 errno:
@@ -4985,6 +4986,9 @@ virtualization, thus NVMM capability is not available.
 
 @item EINVAL
 The passed machine id does not exist, or the setting is not valid.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_machine_configure
@@ -5036,6 +5040,9 @@ virtualization, thus NVMM capability is not available.
 
 @item ENOMEM
 No resources were available for creating the VCPU.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_vcpu_configure
@@ -5076,6 +5083,9 @@ with the following errno:
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_vcpu_getstate
@@ -5093,6 +5103,9 @@ with the following errno:
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_vcpu_inject
@@ -5109,6 +5122,9 @@ failure with the following errno:
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_vcpu_run
@@ -5125,6 +5141,9 @@ This syscall executes the VCPU and blocks until execution is stopped, returns
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_gpa_map
@@ -5141,6 +5160,9 @@ This syscall executes the VCPU and blocks until execution is stopped, returns
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_gpa_unmap
@@ -5165,6 +5187,9 @@ virtualization, thus NVMM capability is not available.
 @item EINVAL
 The machine does not exist or has no VCPU, or the range is not whole pages or
 does not fit in the first 2 MiB of guest physical memory.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_gva_2_gpa
@@ -5181,6 +5206,9 @@ This syscall executes the VCPU and blocks until execution is stopped, returns
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node nvmm_gpa_2_hva
@@ -5229,6 +5257,9 @@ returns @code{0} on success, or @code{-1} on failure, with the following errno:
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EPERM
+The machine belongs to another process.
 @end table
 
 @node pci_read/pci_write
@@ -5334,6 +5365,11 @@ use with the Gloire distribution, but easily portable.
 Ironclad only provides the non-IOCTL interfaces, using syscalls only. No
 @code{/dev/nvmm} is provided either. To check presence, @code{nvmm_capability}
 will fail with @code{ENOTSUPP} if there is no NVMM support.
+
+A machine belongs to the process that created it. A call naming it from any
+other process fails with @code{EPERM}, from a child that @code{fork} made as
+well, and the machine is destroyed, with everything it holds, when its owner
+exits or replaces its image with @code{exec}.
 
 A guest has the memory @ref{nvmm_gpa_map} gave it and nothing else of the host:
 any other access to guest-physical memory, a read, a write or an instruction

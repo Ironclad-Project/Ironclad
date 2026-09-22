@@ -959,6 +959,7 @@ package body Userland.Syscall is
             if Str_Errno = Error_No_Error then
                --  Create a new map for the process and reroll ASLR.
                Userland.Process.Flush_Threads (Proc);
+               Userland.Process.Destroy_Machines (Proc);
                Userland.Process.Flush_Exec_Files (Proc);
                Userland.Process.Reassign_Process_Addresses (Proc);
                Memory.MMU.Create_Table (Map);
@@ -7841,6 +7842,15 @@ package body Userland.Syscall is
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
 
+      --  A machine another process owns is EPERM, here and in every NVMM call
+      --  that names one. The call makes the check again under the machine's
+      --  own lock, so this only chooses the errno.
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       if Virtualization.Machine_Destroy (Mach_ID) then
          Errno    := Error_No_Error;
          Returned := 0;
@@ -7893,6 +7903,11 @@ package body Userland.Syscall is
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
       VCPU    := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       if Virtualization.VCPU_Create (Mach_ID, VCPU) then
          Errno    := Error_No_Error;
@@ -7933,6 +7948,11 @@ package body Userland.Syscall is
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
       VCPU    := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       if Virtualization.VCPU_Destroy (Mach_ID, VCPU) then
          Errno    := Error_No_Error;
@@ -7992,6 +8012,11 @@ package body Userland.Syscall is
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
       VCPU    := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       --  Handle GPRs using proper userland transfer
       Get_Common_Map (Proc, Map);
@@ -8121,6 +8146,11 @@ package body Userland.Syscall is
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
       VCPU    := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       --  Handle GPRs using proper userland transfer
       Get_Common_Map (Proc, Map);
@@ -8264,6 +8294,11 @@ package body Userland.Syscall is
       end if;
       Mach_ID  := Virtualization.Machine_ID (Machine);
       VCPU_Num := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       Get_Common_Map (Proc, Map);
       Event_Trans.Take_From_Userland (Map, Event, SAddr, Succ);
@@ -8354,6 +8389,11 @@ package body Userland.Syscall is
       end if;
       Mach_ID  := Virtualization.Machine_ID (Machine_ID);
       VCPU_Num := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       --  Run VCPU with enhanced exit info
       if Virtualization.VCPU_Run_Ex (Mach_ID, VCPU_Num, Exit_Info) then
@@ -8494,6 +8534,11 @@ package body Userland.Syscall is
          return;
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       --  Map each page separately since mmap'd memory isn't contiguous
       declare
@@ -8584,6 +8629,11 @@ package body Userland.Syscall is
          return;
       end if;
       Mach_ID := Virtualization.Machine_ID (Machine_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       --  Use VCPU 0 for the NPT
       if Virtualization.GPA_Unmap_All (Mach_ID, GPA, Size) then
@@ -8621,6 +8671,12 @@ package body Userland.Syscall is
    begin
       Mach_ID := Virtualization.Machine_ID (Machine);
       VCPU := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       if Virtualization.GVA_To_GPA (Mach_ID, VCPU, GVA, GPA_Out) then
          Get_Common_Map (Proc, Map);
          Trans.Paste_Into_Userland
@@ -8668,6 +8724,12 @@ package body Userland.Syscall is
    begin
       Mach_ID := Virtualization.Machine_ID (Machine);
       VCPU := Virtualization.VCPU_ID (CPU_ID);
+      if Virtualization.Owned_By_Another (Mach_ID) then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       if Virtualization.VCPU_Stop (Mach_ID, VCPU) then
          Errno    := Error_No_Error;
          Returned := 0;

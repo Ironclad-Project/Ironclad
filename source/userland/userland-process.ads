@@ -417,6 +417,11 @@ package Userland.Process is
    --  @param Process Process to operate on.
    procedure Flush_Exec_Files (Process : PID) with Pre => Process /= Error_PID;
 
+   --  Destroy every virtual machine the process owns: at its exec, before
+   --  the old image goes, as Exit_Process does at its exit.
+   --  @param Process Process to operate on.
+   procedure Destroy_Machines (Process : PID) with Pre => Process /= Error_PID;
+
    --  Set the virtual map associated with the process.
    --  @param Proc Process to operate on.
    --  @param Map  Map to assign.

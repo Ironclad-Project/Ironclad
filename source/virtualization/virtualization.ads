@@ -46,14 +46,22 @@ package Virtualization with SPARK_Mode => Off is
    --  Initialize virtualization if available, otherwise return silently.
    procedure Initialize;
    ----------------------------------------------------------------------------
-   --  Create a new virtual machine.
+   --  Create a new virtual machine, owned by the calling process; see
+   --  Arch.Virtualization for what owning one means.
    --  @return Machine ID on success, Invalid_Machine on failure.
    function Machine_Create return Machine_ID;
 
-   --  Destroy a virtual machine.
+   --  Destroy a virtual machine of the calling process.
    --  @param ID  The machine ID to destroy.
-   --  @return True on success, False if ID is invalid.
+   --  @return True on success, False if ID is invalid or not the caller's.
    function Machine_Destroy (ID : Machine_ID) return Boolean;
+
+   --  True if Mach exists and another process owns it.
+   function Owned_By_Another (Mach : Machine_ID) return Boolean;
+
+   --  Destroy every machine Owner has, for its exit or its exec.
+   --  @param Owner The owner, as Userland.Process.Convert gives its PID.
+   procedure Destroy_Owned (Owner : Natural);
    ----------------------------------------------------------------------------
    --  Create a new VCPU for a machine.
    --  @param Mach  The machine ID.

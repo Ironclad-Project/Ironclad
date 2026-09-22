@@ -19,6 +19,7 @@ with Arch.Virtualization.SVM;
 with Arch.Virtualization.VMX;
 with Arch.CPU;
 with Arch.IDT;
+with Arch.Local;
 with Arch.MMU;
 with Arch.Snippets;
 with Interfaces.C;
@@ -26,6 +27,7 @@ with Memory.Physical;
 with Memory.MMU;
 with Synchronization; use Synchronization;
 with System;
+with Userland.Process;
 
 package body Arch.Virtualization with SPARK_Mode => Off is
    --  Virtualization backend type
@@ -76,14 +78,14 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    end record;
    type VCPU_Array is array (VCPU_ID) of VCPU_State;
 
-   --  Machine state.
+   --  Machine state. Owner is the creating process (Caller).
    type Machine_State is record
       Active : Boolean;
-      Owner  : Unsigned_64;  --  Process ID of owner (future use)
+      Owner  : Natural;
       VCPUs  : VCPU_Array;
       Lock   : aliased Binary_Semaphore;
    end record;
-   type Machine_Array is array (1 .. Max_Virtual_Machines) of Machine_State;
+   type Machine_Array is array (Machine_Index) of Machine_State;
 
    --  Global state
    Has_Initialized : Boolean := False;
@@ -160,6 +162,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          --  Initialize all machines as inactive
          for I in 1 .. Max_Virtual_Machines loop
             Machines (I).Active := False;
+            Machines (I).Owner := 0;
             Machines (I).Lock := Unlocked_Semaphore;
          end loop;
 
@@ -210,20 +213,25 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    end Initialize;
    ----------------------------------------------------------------------------
    function Machine_Create return Machine_ID is
-      ID : Machine_ID := Invalid_Machine;
+      Me : constant Natural := Caller;
+      ID : Machine_ID       := Invalid_Machine;
    begin
-      if not Has_Initialized then
+      if not Has_Initialized or Me = 0 then
          return Invalid_Machine;
       end if;
 
+      --  The slot is set up under its own lock as well, and marked active
+      --  last, so that it is found either whole or not at all.
       Seize (Machines_Lock);
-      for I in 1 .. Max_Virtual_Machines loop
+      for I in Machine_Index loop
          if not Machines (I).Active then
-            Machines (I).Active := True;
-            Machines (I).Owner := 0;
+            Seize (Machines (I).Lock);
             for J in VCPU_ID loop
                Reset_VCPU (Machine_ID (I), J);
             end loop;
+            Machines (I).Owner  := Me;
+            Machines (I).Active := True;
+            Release (Machines (I).Lock);
             ID := Machine_ID (I);
             exit;
          end if;
@@ -234,31 +242,99 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    end Machine_Create;
 
    function Machine_Destroy (ID : Machine_ID) return Boolean is
+      Me  : constant Natural := Caller;
+      Idx : Machine_Index    := 1;
    begin
       if not Has_Initialized or ID = Invalid_Machine then
          return False;
       end if;
 
+      --  The one check this routine takes is here, ahead of every lock, so
+      --  that nothing under one can raise and the handler needs to give
+      --  nothing back: Idx then indexes both arrays statically.
+      Idx := Machine_Index (ID);
+
       Seize (Machines_Lock);
-      if not Machines (Positive (ID)).Active then
+      if not Machines (Idx).Active or else Machines (Idx).Owner /= Me then
          Release (Machines_Lock);
          return False;
       end if;
-
-      --  Destroy all VCPUs first
-      for J in VCPU_ID loop
-         if Machines (Positive (ID)).VCPUs (J).Active then
-            Teardown_VCPU (ID, J);
-         end if;
-      end loop;
-
-      Machines (Positive (ID)).Active := False;
+      Seize (Machines (Idx).Lock);
+      Destroy_Machine (Idx);
+      Release (Machines (Idx).Lock);
       Release (Machines_Lock);
       return True;
    exception
       when Constraint_Error =>
          return False;
    end Machine_Destroy;
+
+   function Owned_By_Another (Mach : Machine_ID) return Boolean is
+      Me : constant Natural := Caller;
+   begin
+      if not Has_Initialized or Mach = Invalid_Machine then
+         return False;
+      end if;
+      return Machines (Positive (Mach)).Active and then
+             Machines (Positive (Mach)).Owner /= Me;
+   exception
+      when Constraint_Error =>
+         return False;
+   end Owned_By_Another;
+
+   procedure Destroy_Owned (Owner : Natural) is
+   begin
+      if not Has_Initialized or Owner = 0 then
+         return;
+      end if;
+
+      Seize (Machines_Lock);
+      for I in Machine_Index loop
+         if Machines (I).Active and then Machines (I).Owner = Owner then
+            Seize (Machines (I).Lock);
+            Destroy_Machine (I);
+            Release (Machines (I).Lock);
+         end if;
+      end loop;
+      Release (Machines_Lock);
+   end Destroy_Owned;
+
+   function Caller return Natural is
+      use type Userland.Process.PID;
+      Proc : constant Userland.Process.PID := Arch.Local.Get_Current_Process;
+   begin
+      if Proc = Userland.Process.Error_PID then
+         return 0;
+      else
+         return Userland.Process.Convert (Proc);
+      end if;
+   end Caller;
+
+   function Owned_By_Caller (Mach : Machine_ID) return Boolean is
+   begin
+      return Machines (Positive (Mach)).Active and then
+             Machines (Positive (Mach)).Owner = Caller;
+   exception
+      when Constraint_Error =>
+         return False;
+   end Owned_By_Caller;
+
+   procedure Destroy_Machine (Idx : Machine_Index) is
+   begin
+      --  A VCPU is the machine's own state, so it is torn down under the
+      --  machine's own lock, which is the one every VCPU_* call takes; the
+      --  registry lock keeps Machine_Create out of the slot meanwhile.
+      for J in VCPU_ID loop
+         if Machines (Idx).VCPUs (J).Active then
+            Teardown_VCPU (Machine_ID (Idx), J);
+         end if;
+      end loop;
+      Machines (Idx).Active := False;
+      Machines (Idx).Owner  := 0;
+   exception
+      when Constraint_Error =>
+         null;
+   end Destroy_Machine;
    ----------------------------------------------------------------------------
    function VCPU_Create (Mach : Machine_ID; CPU : VCPU_ID) return Boolean is
       CS_Addr  : Integer_Address;  --  Control Structure (VMCB or VMCS)
@@ -270,7 +346,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -710,7 +786,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -742,7 +818,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -853,7 +929,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -961,7 +1037,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1002,7 +1078,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1044,7 +1120,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1223,7 +1299,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1466,7 +1542,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1540,7 +1616,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1616,7 +1692,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1711,7 +1787,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1825,7 +1901,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -1871,7 +1947,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -2335,19 +2411,26 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       (Mach : Machine_ID;
        CPU  : VCPU_ID) return Boolean
    is
+      Idx  : Machine_Index := 1;
+      Done : Boolean;
    begin
       if not Has_Initialized or Mach = Invalid_Machine then
          return False;
       end if;
-      if not Machines (Positive (Mach)).Active then
-         return False;
-      end if;
-      if not Machines (Positive (Mach)).VCPUs (CPU).Active then
-         return False;
-      end if;
 
-      Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := True;
-      return True;
+      --  Not the machine's own lock, which a running VCPU holds for as long
+      --  as it runs, and stopping one is the whole point; the registry lock,
+      --  which a machine's creation and destruction hold, is enough to know
+      --  whose it is while the request is made.
+      Idx := Machine_Index (Mach);
+      Seize (Machines_Lock);
+      Done := Owned_By_Caller (Mach) and then
+              Machines (Idx).VCPUs (CPU).Active;
+      if Done then
+         Machines (Idx).VCPUs (CPU).Stop_Requested := True;
+      end if;
+      Release (Machines_Lock);
+      return Done;
    exception
       when Constraint_Error =>
          return False;
@@ -2379,7 +2462,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -2517,7 +2600,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       Seize (Machines (Positive (Mach)).Lock);
 
-      if not Machines (Positive (Mach)).Active then
+      if not Owned_By_Caller (Mach) then
          Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
@@ -2719,7 +2802,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       --  under VMX it makes the VMCS current, which must never happen on two
       --  cores at once.
       Seize (Machines (Positive (Mach)).Lock);
-      if not Machines (Positive (Mach)).Active or else
+      if not Owned_By_Caller (Mach) or else
          not Machines (Positive (Mach)).VCPUs (CPU).Active
       then
          Release (Machines (Positive (Mach)).Lock);
