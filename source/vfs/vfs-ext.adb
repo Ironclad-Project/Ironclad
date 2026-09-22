@@ -938,9 +938,36 @@ package body VFS.EXT with SPARK_Mode => Off is
                 else Target_Parent_Inode);
       Stamp := Current_Epoch;
 
-      --  Take the old name out first, then whatever is in the way, then put
-      --  the new name in. Doing it in this order never leaves two names
-      --  pointing at one directory.
+      --  The new name goes in first, or the name in the way is pointed at
+      --  what moves, and only then does the old name go, so that a new name
+      --  that finds no room changes nothing. Two names point at the file
+      --  meanwhile, which nothing sees under the lock.
+      if Success2 then
+         Set_Entry_Inode
+            (FS_Data     => Data,
+             Inode_Data  => Tgt_P.all,
+             Inode_Size  => Get_Size (Tgt_P.all, Data.Has_64bit_Filesizes),
+             Inode_Index => Unsigned_32 (Target_Parent),
+             Name        => Target_Name,
+             New_Ino     => Source_Index,
+             Dir_Type    => Get_Dir_Type (Source_Kind),
+             Success     => Success1);
+      else
+         Add_Directory_Entry
+            (FS_Data     => Data,
+             Inode_Data  => Tgt_P.all,
+             Inode_Size  => Get_Size (Tgt_P.all, Data.Has_64bit_Filesizes),
+             Inode_Index => Unsigned_32 (Target_Parent),
+             Added_Index => Source_Index,
+             Dir_Type    => Get_Dir_Type (Source_Kind),
+             Name        => Target_Name,
+             Success     => Success1);
+      end if;
+      if not Success1 then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
       Delete_Directory_Entry
          (FS_Data     => Data,
           Inode_Data  => Src_P.all,
@@ -955,19 +982,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       if Success2 then
-         Delete_Directory_Entry
-            (FS_Data     => Data,
-             Inode_Data  => Tgt_P.all,
-             Inode_Size  => Get_Size (Tgt_P.all, Data.Has_64bit_Filesizes),
-             Inode_Index => Unsigned_32 (Target_Parent),
-             Name        => Target_Name,
-             Deleted_Ino => Deleted,
-             Success     => Success1);
-         if not Success1 then
-            Status := FS_IO_Failure;
-            goto Cleanup;
-         end if;
-
          --  Drop the link the replaced name held, and reap the inode when
          --  that was the last one. Without this every overwrite would leak
          --  an inode and all of its blocks.
@@ -989,20 +1003,6 @@ package body VFS.EXT with SPARK_Mode => Off is
             Status := FS_IO_Failure;
             goto Cleanup;
          end if;
-      end if;
-
-      Add_Directory_Entry
-         (FS_Data     => Data,
-          Inode_Data  => Tgt_P.all,
-          Inode_Size  => Get_Size (Tgt_P.all, Data.Has_64bit_Filesizes),
-          Inode_Index => Unsigned_32 (Target_Parent),
-          Added_Index => Source_Index,
-          Dir_Type    => Get_Dir_Type (Source_Kind),
-          Name        => Target_Name,
-          Success     => Success1);
-      if not Success1 then
-         Status := FS_IO_Failure;
-         goto Cleanup;
       end if;
 
       --  A directory that changed parent points at the wrong one through its
@@ -4648,6 +4648,105 @@ package body VFS.EXT with SPARK_Mode => Off is
          Messages.Put_Line ("Exception while repointing an EXT directory");
          Success := False;
    end Set_Parent_Entry;
+
+   procedure Set_Entry_Inode
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Size  : Unsigned_64;
+       Inode_Index : Unsigned_32;
+       Name        : String;
+       New_Ino     : Unsigned_32;
+       Dir_Type    : Unsigned_8;
+       Success     : out Boolean)
+   is
+      Block_Sz  : Unsigned_64;
+      Buffer    : Operation_Data_Acc := null;
+      Block_Off : Unsigned_64 := 0;
+      Offset, Ret_Count : Natural;
+      Rec_Len, Name_Len : Natural;
+      Ino_Num   : Unsigned_32;
+      Kind_Byte : Unsigned_8;
+      Ok        : Boolean;
+      Matches   : Boolean;
+   begin
+      Block_Sz := Unsigned_64 (FS_Data.Block_Size);
+      Success  := False;
+      Buffer   := new Operation_Data (1 .. Natural (Block_Sz));
+
+      --  A directory record never straddles a block, so each block is looked
+      --  at whole and the one holding the name is written back whole.
+      while Block_Off + Block_Sz <= Inode_Size loop
+         Read_From_Inode
+            (FS_Data    => FS_Data,
+             Inode_Data => Inode_Data,
+             Inode_Size => Inode_Size,
+             Offset     => Block_Off,
+             Data       => Buffer.all,
+             Ret_Count  => Ret_Count,
+             Success    => Ok);
+         if not Ok or else Ret_Count /= Buffer'Length then
+            goto Cleanup;
+         end if;
+
+         Offset := 0;
+         while Offset + Dir_Entry_Header <= Natural (Block_Sz) loop
+            Get_Dir_Entry
+               (Buffer   => Buffer.all,
+                Offset   => Offset,
+                Has_Type => FS_Data.Has_Directory_Types,
+                Ino      => Ino_Num,
+                Rec_Len  => Rec_Len,
+                Name_Len => Name_Len,
+                Kind     => Kind_Byte);
+            exit when Rec_Len < Dir_Entry_Header or else
+                      (Rec_Len mod 4) /= 0       or else
+                      Offset + Rec_Len > Natural (Block_Sz);
+
+            Matches := Ino_Num /= 0 and then Name_Len = Name'Length and then
+                       Dir_Entry_Header + Name_Len <= Rec_Len;
+            if Matches then
+               for I in 1 .. Name_Len loop
+                  if Buffer (Buffer'First + Offset + Dir_Entry_Header + I - 1)
+                     /= Character'Pos (Name (Name'First + I - 1))
+                  then
+                     Matches := False;
+                     exit;
+                  end if;
+               end loop;
+            end if;
+
+            if Matches then
+               Set_Dir_Inode (Buffer.all, Offset, New_Ino);
+               if FS_Data.Has_Directory_Types then
+                  Buffer (Buffer'First + Offset + 7) := Dir_Type;
+               end if;
+               Write_To_Inode
+                  (FS_Data    => FS_Data,
+                   Inode_Data => Inode_Data,
+                   Inode_Num  => Inode_Index,
+                   Inode_Size => Inode_Size,
+                   Offset     => Block_Off,
+                   Data       => Buffer.all,
+                   Ret_Count  => Ret_Count,
+                   Success    => Ok);
+               Success := Ok and then Ret_Count = Buffer'Length;
+               goto Cleanup;
+            end if;
+
+            Offset := Offset + Rec_Len;
+         end loop;
+
+         Block_Off := Block_Off + Block_Sz;
+      end loop;
+
+   <<Cleanup>>
+      Free (Buffer);
+   exception
+      when Constraint_Error =>
+         Free (Buffer);
+         Messages.Put_Line ("Exception while repointing an EXT entry");
+         Success := False;
+   end Set_Entry_Inode;
 
    procedure Invalidate_Memo (FS_Data : EXT_Data_Acc) is
    begin

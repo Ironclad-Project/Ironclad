@@ -783,6 +783,18 @@ private
        New_Parent  : Unsigned_32;
        Success     : out Boolean);
 
+   --  Point the entry of a directory holding Name at another inode, in
+   --  place, which needs no room: what rename() does to a name in the way.
+   procedure Set_Entry_Inode
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Size  : Unsigned_64;
+       Inode_Index : Unsigned_32;
+       Name        : String;
+       New_Ino     : Unsigned_32;
+       Dir_Type    : Unsigned_8;
+       Success     : out Boolean);
+
    procedure Invalidate_Memo (FS_Data : EXT_Data_Acc);
 
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type;

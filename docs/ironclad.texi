@@ -2129,7 +2129,9 @@ int rename(int sourcedirfd, const char *sourcepath, size_t sourcelen,
 This syscalls renames a file in an atomic operation, it is only available in
 between files in the same mountpoint. If @code{targetpath} exists, it will be
 replaced, @code{RENAME_NOREPLACE} may be passed in @code{flags} for making the
-call fail in said case instead of replacing silently.
+call fail in said case instead of replacing silently. The new name is put in
+place before the old one goes, so that when the new name cannot be added, as in
+a directory that cannot grow, nothing is changed.
 
 The syscall return the new fd on success and @code{-1} on failure. The errno
 codes set on failure are:
