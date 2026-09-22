@@ -67,15 +67,15 @@ package body Userland.Corefile is
       declare
          File_Path : constant String := "/tmp/" & PID_Val'Image & ".core";
       begin
-         VFS.Create_Node (File_Path, VFS.File_Regular, Core_Perms, Success, 0);
+         --  The core goes to the very file made, and not to whatever the
+         --  name leads to by the time it is looked up again: anybody able to
+         --  write to the directory could have put a link to any file there
+         --  meanwhile, for the kernel to write to.
+         VFS.Create_Node
+            (File_Path, VFS.File_Regular, Core_Perms, Success, 0, Core_FS,
+             Core_Ino);
          if Success /= VFS.FS_Success then
             Messages.Put_Line ("Could not create core file " & File_Path);
-            return;
-         end if;
-
-         VFS.Open (File_Path, Core_FS, Core_Ino, Success, 0, True, True);
-         if Success /= VFS.FS_Success then
-            Messages.Put_Line ("Could not open core file " & File_Path);
             return;
          end if;
 

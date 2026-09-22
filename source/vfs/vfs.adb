@@ -758,12 +758,16 @@ package body VFS is
        Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
-       Status   : out FS_Status)
+       Status   : out FS_Status;
+       Made_Key : out FS_Handle;
+       Made_Ino : out File_Inode_Number)
    is
       Final_Key : FS_Handle;
       Final_Ino : File_Inode_Number;
       Child_End, Parent_Idx : Natural := 0;
    begin
+      Made_Key := Error_Handle;
+      Made_Ino := 0;
       Open_Parent
          (Key        => Key,
           Relative   => Relative,
@@ -783,10 +787,15 @@ package body VFS is
             EXT.Create_Node
                (Mounts (Final_Key).FS_Data, Final_Ino,
                 Path (Path'Last - Parent_Idx + 1 .. Child_End), Kind, Mode,
-                User, Status);
+                User, Status, Made_Ino);
          when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
+      if Status = FS_Success then
+         Made_Key := Final_Key;
+      else
+         Made_Ino := 0;
+      end if;
    end Create_Node;
 
    procedure Create_Symbolic_Link
@@ -1410,13 +1419,17 @@ package body VFS is
    end Synchronize;
 
    procedure Create_Node
-      (Path    : String;
-       Kind    : File_Type;
-       Mode    : File_Mode;
-       Success : out FS_Status;
-       User    : Unsigned_32)
+      (Path     : String;
+       Kind     : File_Type;
+       Mode     : File_Mode;
+       Success  : out FS_Status;
+       User     : Unsigned_32;
+       Made_Key : out FS_Handle;
+       Made_Ino : out File_Inode_Number)
    is
    begin
+      Made_Key := Error_Handle;
+      Made_Ino := 0;
       if Root_Idx = Error_Handle then
          Success := FS_Invalid_Value;
          return;
@@ -1429,7 +1442,9 @@ package body VFS is
           Kind     => Kind,
           Mode     => Mode,
           User     => User,
-          Status   => Success);
+          Status   => Success,
+          Made_Key => Made_Key,
+          Made_Ino => Made_Ino);
    end Create_Node;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is

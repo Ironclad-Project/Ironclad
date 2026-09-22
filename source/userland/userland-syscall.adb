@@ -3503,6 +3503,8 @@ package body Userland.Syscall is
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
       CWD_FS     : VFS.FS_Handle;
       CWD_Ino    : VFS.File_Inode_Number;
+      Discard_FS : VFS.FS_Handle;
+      Discard    : VFS.File_Inode_Number;
       Node_Type  : File_Type;
       Status     : VFS.FS_Status;
       Umask      : VFS.File_Mode;
@@ -3562,7 +3564,9 @@ package body Userland.Syscall is
              Kind     => Node_Type,
              Mode     => VFS.Apply_Umask (File_Mode (Mode and 8#777#), Umask),
              User     => User,
-             Status   => Status);
+             Status   => Status,
+             Made_Key => Discard_FS,
+             Made_Ino => Discard);
          Translate_Status (Status, 0, Returned, Errno);
       end;
    exception

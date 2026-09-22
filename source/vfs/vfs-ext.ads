@@ -60,7 +60,8 @@ package VFS.EXT is
        Kind       : File_Type;
        Mode       : File_Mode;
        User       : Unsigned_32;
-       Status     : out FS_Status);
+       Status     : out FS_Status;
+       Made_Ino   : out File_Inode_Number);
 
    procedure Create_Symbolic_Link
       (FS         : System.Address;

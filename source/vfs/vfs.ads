@@ -307,6 +307,8 @@ package VFS is
    --  @param Mode     Mode to use for the created file.
    --  @param User     UID to check against, 0 for root/bypass checks.
    --  @param Status   Status for the operation.
+   --  @param Made_Key FS Handle of the mount the inode was created in.
+   --  @param Made_Ino The inode created, which the path may no longer name.
    procedure Create_Node
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
@@ -314,7 +316,9 @@ package VFS is
        Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
-       Status   : out FS_Status)
+       Status   : out FS_Status;
+       Made_Key : out FS_Handle;
+       Made_Ino : out File_Inode_Number)
       with Pre => Is_Initialized and Key /= Error_Handle and Is_Valid (Path);
 
    --  Create a symlink with a target inside a mount.
@@ -667,17 +671,21 @@ package VFS is
       with Pre => Is_Initialized;
 
    --  Create several kinds of files.
-   --  @param Path    System-wide absolute path.
-   --  @param Kind    File type to create.
-   --  @param Mode    Mode to set for the created inode.
-   --  @param Success Status of the operation.
-   --  @param User    UID to check against, 0 for root/bypass checks.
+   --  @param Path     System-wide absolute path.
+   --  @param Kind     File type to create.
+   --  @param Mode     Mode to set for the created inode.
+   --  @param Success  Status of the operation.
+   --  @param User     UID to check against, 0 for root/bypass checks.
+   --  @param Made_Key FS Handle of the mount the inode was created in.
+   --  @param Made_Ino The inode created.
    procedure Create_Node
-      (Path    : String;
-       Kind    : File_Type;
-       Mode    : File_Mode;
-       Success : out FS_Status;
-       User    : Unsigned_32)
+      (Path     : String;
+       Kind     : File_Type;
+       Mode     : File_Mode;
+       Success  : out FS_Status;
+       User     : Unsigned_32;
+       Made_Key : out FS_Handle;
+       Made_Ino : out File_Inode_Number)
       with Pre => Is_Initialized and Is_Valid (Path);
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.

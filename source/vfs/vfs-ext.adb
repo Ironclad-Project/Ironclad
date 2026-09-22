@@ -317,7 +317,8 @@ package body VFS.EXT with SPARK_Mode => Off is
        Kind       : File_Type;
        Mode       : File_Mode;
        User       : Unsigned_32;
-       Status     : out FS_Status)
+       Status     : out FS_Status;
+       Made_Ino   : out File_Inode_Number)
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Perms    : constant  Unsigned_16 := Get_Permissions (Kind);
@@ -331,6 +332,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Discard                    : Boolean;
       Stamp                      : Unsigned_32;
    begin
+      Made_Ino := 0;
       Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
@@ -471,6 +473,9 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success         => Success);
 
       Status := (if Success then FS_Success else FS_IO_Failure);
+      if Success then
+         Made_Ino := File_Inode_Number (Target_Index);
+      end if;
       goto Cleanup;
 
    <<Undo_Inode>>
