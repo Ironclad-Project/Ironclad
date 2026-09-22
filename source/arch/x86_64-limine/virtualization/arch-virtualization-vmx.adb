@@ -88,6 +88,34 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
          Snippets.Write_MSR (IA32_FEATURE_CONTROL_MSR, Value);
       end if;
 
+      --  VMCS_Setup asks for EPT through Adjust_Controls, which leaves out a
+      --  control the processor does not allow, so the secondary controls must
+      --  exist (IA32_VMX_PROCBASED_CTLS bit 63) and offer EPT
+      --  (IA32_VMX_PROCBASED_CTLS2 bit 33) (Intel SDM 325462-092US, Vol. 3D
+      --  A.3.3). Only then does IA32_VMX_EPT_VPID_CAP exist, and it must offer
+      --  the 4-level walk (bit 6) and write-back structures (bit 14) of the
+      --  EPT pointer VMCS_Setup writes (Vol. 3D A.10).
+      declare
+         One  : constant Unsigned_64 := 1;
+         Caps : Unsigned_64;
+      begin
+         if (Snippets.Read_MSR (IA32_VMX_PROCBASED_CTLS) and
+             Shift_Left (One, 63)) = 0 or else
+            (Snippets.Read_MSR (IA32_VMX_PROCBASED_CTLS2) and
+             Shift_Left (One, 33)) = 0
+         then
+            Success := False;
+            return;
+         end if;
+         Caps := Snippets.Read_MSR (IA32_VMX_EPT_VPID_CAP);
+         if (Caps and Shift_Left (One, 6)) = 0 or
+            (Caps and Shift_Left (One, 14)) = 0
+         then
+            Success := False;
+            return;
+         end if;
+      end;
+
       --  Read CR0/CR4 fixed bits MSRs
       CR0_Fixed0 := Snippets.Read_MSR (IA32_VMX_CR0_FIXED0);
       CR0_Fixed1 := Snippets.Read_MSR (IA32_VMX_CR0_FIXED1);
