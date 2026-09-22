@@ -228,11 +228,10 @@ package body VFS.FAT is
             exit;
          end if;
 
+         --  Every entry counts towards the position, those before it too.
          --  TODO: Handle LFN.
-         if Total >= Offset and
-            (Ent.Attributes and Directory_LFN) /= Directory_LFN
-         then
-            if Ret_Count < Entities'Length then
+         if (Ent.Attributes and Directory_LFN) /= Directory_LFN then
+            if Total >= Offset and Ret_Count < Entities'Length then
                Compose_Path (Ent, Composed, Composed_Len);
                Temp := Entities'First + Ret_Count;
                Entities (Temp).Inode_Number := Disk_Off;
