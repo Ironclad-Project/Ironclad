@@ -63,9 +63,18 @@ package body Devices.Loopback is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Offset, Is_Blocking);
+      pragma Unreferenced (Offset);
       Dev : Loopback_Data with Import, Address => Key;
    begin
+      --  A caller that asked not to wait is answered with nothing rather
+      --  than waited out, which is what the cards do and what a descriptor
+      --  with O_NONBLOCK means.
+      if Dev.Len = 0 and not Is_Blocking then
+         Ret_Count := 0;
+         Success   := Dev_Success;
+         return;
+      end if;
+
       while Dev.Len = 0 loop
          Scheduler.Yield_If_Able;
       end loop;
@@ -92,9 +101,15 @@ package body Devices.Loopback is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Offset, Is_Blocking);
+      pragma Unreferenced (Offset);
       Dev : Loopback_Data with Import, Address => Key;
    begin
+      if Dev.Len /= 0 and not Is_Blocking then
+         Ret_Count := 0;
+         Success   := Dev_Full;
+         return;
+      end if;
+
       while Dev.Len /= 0 loop
          Scheduler.Yield_If_Able;
       end loop;
