@@ -5311,7 +5311,10 @@ will fail with @code{ENOTSUPP} if there is no NVMM support.
 
 A guest has the memory @ref{nvmm_gpa_map} gave it and nothing else of the host:
 any other access to guest-physical memory, a read, a write or an instruction
-fetch, ends @ref{nvmm_vcpu_run} with a memory exit naming the address.
+fetch, ends @ref{nvmm_vcpu_run} with a memory exit naming the address. The
+instruction bytes a memory exit reports are read from the guest's own memory at
+its instruction pointer, and are fewer than a whole instruction where that runs
+off the end of what the guest was given.
 
 The guest sets XCR0 with XSETBV, and a value the processor would refuse, one
 naming a component the processor lacks, leaving out x87, naming AVX without

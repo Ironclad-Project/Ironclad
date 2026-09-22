@@ -385,6 +385,31 @@ private
           GPA  : Unsigned_64;
           HVA  : out Unsigned_64) return Boolean;
 
+      --  The guest page walk GVA_To_GPA does, for a caller that holds the
+      --  machine and has the guest's paging registers already.
+      function Walk_Guest
+         (Mach : Machine_ID;
+          CPU  : VCPU_ID;
+          CR0  : Unsigned_64;
+          CR3  : Unsigned_64;
+          CR4  : Unsigned_64;
+          EFER : Unsigned_64;
+          GVA  : Unsigned_64;
+          GPA  : out Unsigned_64) return Boolean;
+
+      --  Fill a memory exit's instruction bytes from the guest's memory at
+      --  Linear (wrapped to 32 bits outside 64-bit mode).
+      procedure Fetch_Instruction
+         (Mach    : Machine_ID;
+          CPU     : VCPU_ID;
+          CR0     : Unsigned_64;
+          CR3     : Unsigned_64;
+          CR4     : Unsigned_64;
+          EFER    : Unsigned_64;
+          Linear  : Unsigned_64;
+          Wrap_32 : Boolean;
+          Info    : in out Exit_Memory_Info);
+
       --  True if a guest may have Value in XCR0: the kernel loads it with
       --  XSETBV on the guest's behalf, so no value may be one that XSETBV
       --  refuses with #GP.

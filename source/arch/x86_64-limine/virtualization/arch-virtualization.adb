@@ -2100,50 +2100,27 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                end if;
                Exit_Info.U.Memory.Prot := Prot_Val;
             end;
-            --  Fetch instruction bytes from guest memory at RIP
-            --  Guest has no paging (CR0.PG=0), so GVA=GPA.
-            --  NPT uses PT0 (4KB pages) for first 2MB, 2MB pages elsewhere.
-            --  Must look up PT0 to get actual HPA for addresses < 2MB.
+            --  The bytes of the instruction that faulted, read as the guest
+            --  reads them: see Fetch_Instruction.  EFER.LMA with CS.L (bit 9
+            --  of a VMCB attribute) is 64-bit mode, where CS's base is 0.
             declare
-               Guest_RIP   : constant Unsigned_64 := VMCB_Ptr.State_Save.RIP;
-               Page_4KB    : constant Unsigned_64 := 16#1000#;
-               Page_2MB    : constant Unsigned_64 := 16#20_0000#;
-               NPT_Addr    : constant Integer_Address :=
-                  Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr;
-               type U64_Array is array (Natural range <>) of Unsigned_64;
-               type Byte_Array is array (0 .. 14) of Unsigned_8;
-               HPA         : Unsigned_64;
-               Page_Off    : Unsigned_64;
-               Inst_Addr   : Integer_Address;
+               Long_64 : constant Boolean :=
+                  (VMCB_Ptr.State_Save.EFER and 16#400#) /= 0 and
+                  (VMCB_Ptr.State_Save.CS.Attrib and 16#200#) /= 0;
             begin
-               if Guest_RIP < Page_2MB then
-                  --  Look up in PT0 (page 6 of NPT allocation)
-                  declare
-                     PT0 : U64_Array (0 .. 511)
-                        with Import, Address => To_Address (NPT_Addr + 24576);
-                     PT_Idx : constant Natural :=
-                        Natural (Guest_RIP / Page_4KB);
-                  begin
-                     HPA := PT0 (PT_Idx) and 16#FFFF_FFFF_FFFF_F000#;
-                     Page_Off := Guest_RIP and (Page_4KB - 1);
-                     Inst_Addr := Integer_Address (HPA + Page_Off) +
-                        Arch.MMU.Memory_Offset;
-                  end;
-               else
-                  --  Identity mapped, GPA = HPA
-                  Inst_Addr := Integer_Address (Guest_RIP) +
-                     Arch.MMU.Memory_Offset;
-               end if;
-
-               declare
-                  Inst_Mem : Byte_Array
-                     with Import, Address => To_Address (Inst_Addr);
-               begin
-                  Exit_Info.U.Memory.Inst_Len := 15;  --  Max, userspace decode
-                  for I in 0 .. 14 loop
-                     Exit_Info.U.Memory.Inst_Bytes (I) := Inst_Mem (I);
-                  end loop;
-               end;
+               Fetch_Instruction
+                  (Mach    => Mach,
+                   CPU     => CPU,
+                   CR0     => VMCB_Ptr.State_Save.CR0,
+                   CR3     => VMCB_Ptr.State_Save.CR3,
+                   CR4     => VMCB_Ptr.State_Save.CR4,
+                   EFER    => VMCB_Ptr.State_Save.EFER,
+                   Linear  =>
+                      (if Long_64 then VMCB_Ptr.State_Save.RIP
+                       else VMCB_Ptr.State_Save.CS.Base +
+                            VMCB_Ptr.State_Save.RIP),
+                   Wrap_32 => not Long_64,
+                   Info    => Exit_Info.U.Memory);
             end;
 
          when Arch.Virtualization.SVM.VMEXIT_VINTR =>
@@ -2645,16 +2622,23 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       CR3       : Unsigned_64;
       CR4       : Unsigned_64;
       EFER      : Unsigned_64;
+      Result    : Boolean;
    begin
       GPA := 0;
 
       if not Has_Initialized or Mach = Invalid_Machine then
          return False;
       end if;
-      if not Machines (Positive (Mach)).Active then
-         return False;
-      end if;
-      if not Machines (Positive (Mach)).VCPUs (CPU).Active then
+
+      --  The walk holds the machine: it reads the guest's tables through the
+      --  nested ones, which GPA_Map and GPA_Unmap change under this lock, and
+      --  under VMX it makes the VMCS current, which must never happen on two
+      --  cores at once.
+      Seize (Machines (Positive (Mach)).Lock);
+      if not Machines (Positive (Mach)).Active or else
+         not Machines (Positive (Mach)).VCPUs (CPU).Active
+      then
+         Release (Machines (Positive (Mach)).Lock);
          return False;
       end if;
 
@@ -2667,6 +2651,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          begin
             Arch.Virtualization.VMX.VMPTRLD (VMCS_Phys, Load_OK);
             if not Load_OK then
+               Release (Machines (Positive (Mach)).Lock);
                return False;
             end if;
 
@@ -2694,6 +2679,27 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          CR4  := VMCB_Ptr.State_Save.CR4;
          EFER := VMCB_Ptr.State_Save.EFER;
       end if;
+
+      Result := Walk_Guest (Mach, CPU, CR0, CR3, CR4, EFER, GVA, GPA);
+      Release (Machines (Positive (Mach)).Lock);
+      return Result;
+   exception
+      when Constraint_Error =>
+         return False;
+   end GVA_To_GPA;
+
+   function Walk_Guest
+      (Mach : Machine_ID;
+       CPU  : VCPU_ID;
+       CR0  : Unsigned_64;
+       CR3  : Unsigned_64;
+       CR4  : Unsigned_64;
+       EFER : Unsigned_64;
+       GVA  : Unsigned_64;
+       GPA  : out Unsigned_64) return Boolean
+   is
+   begin
+      GPA := 0;
 
       --  Check if paging is enabled (CR0.PG bit 31)
       if (CR0 and 16#8000_0000#) = 0 then
@@ -3019,10 +3025,57 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             return True;
          end;
       end if;
+   end Walk_Guest;
+
+   --  Fill a memory exit's instruction bytes as the guest reads them: each
+   --  page is translated through the guest's own page tables (Walk_Guest)
+   --  and then the nested ones (GPA_To_HVA), and the fetch stops at the first
+   --  page the guest does not have, Inst_Len saying how many bytes were read.
+   --  Called with the machine held and, under VMX, its VMCS current.
+   procedure Fetch_Instruction
+      (Mach    : Machine_ID;
+       CPU     : VCPU_ID;
+       CR0     : Unsigned_64;
+       CR3     : Unsigned_64;
+       CR4     : Unsigned_64;
+       EFER    : Unsigned_64;
+       Linear  : Unsigned_64;
+       Wrap_32 : Boolean;
+       Info    : in out Exit_Memory_Info)
+   is
+      Page_4KB : constant Unsigned_64 := 16#1000#;
+      Addr     : Unsigned_64;
+      GPA      : Unsigned_64;
+      HVA      : Unsigned_64 := 0;
+   begin
+      Info.Inst_Len   := 0;
+      Info.Inst_Bytes := [others => 0];
+      for I in 0 .. 14 loop
+         Addr := Linear + Unsigned_64 (I);
+         if Wrap_32 then
+            Addr := Addr and 16#FFFF_FFFF#;
+         end if;
+
+         if I = 0 or (Addr and (Page_4KB - 1)) = 0 then
+            exit when not Walk_Guest
+               (Mach, CPU, CR0, CR3, CR4, EFER, Addr, GPA)
+               or else not GPA_To_HVA (Mach, CPU, GPA, HVA);
+         else
+            HVA := HVA + 1;
+         end if;
+
+         declare
+            Byte : Unsigned_8
+               with Import, Address => To_Address (Integer_Address (HVA));
+         begin
+            Info.Inst_Bytes (I) := Byte;
+         end;
+         Info.Inst_Len := Unsigned_8 (I + 1);
+      end loop;
    exception
       when Constraint_Error =>
-         return False;
-   end GVA_To_GPA;
+         null;
+   end Fetch_Instruction;
 
    function Guest_XCR0_Valid (Value : Unsigned_64) return Boolean is
       SSE_AVX : constant Unsigned_64 := 16#6#;
@@ -3562,50 +3615,39 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                end if;
                Exit_Info.U.Memory.Prot := Prot_Val;
             end;
-            --  Fetch instruction bytes from guest memory at RIP
-            --  Uses same logic as SVM: PT0 for first 2MB, identity elsewhere
+            --  The bytes of the instruction that faulted, read as the guest
+            --  reads them: see Fetch_Instruction.  EFER.LMA with CS.L (bit 13
+            --  of VMX access rights) is 64-bit mode, where CS's base is 0.
             declare
-               Guest_RIP   : constant Unsigned_64 :=
+               EFER    : constant Unsigned_64 :=
+                  Arch.Virtualization.VMX.VMX_Read
+                     (Arch.Virtualization.VMX.VMCS_GUEST_IA32_EFER);
+               CS_AR   : constant Unsigned_64 :=
+                  Arch.Virtualization.VMX.VMX_Read
+                     (Arch.Virtualization.VMX.VMCS_GUEST_CS_AR);
+               RIP     : constant Unsigned_64 :=
                   Arch.Virtualization.VMX.VMX_Read
                      (Arch.Virtualization.VMX.VMCS_GUEST_RIP);
-               Page_4KB    : constant Unsigned_64 := 16#1000#;
-               Page_2MB    : constant Unsigned_64 := 16#20_0000#;
-               NPT_Addr    : constant Integer_Address :=
-                  Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr;
-               type U64_Array is array (Natural range <>) of Unsigned_64;
-               type Byte_Array is array (0 .. 14) of Unsigned_8;
-               HPA         : Unsigned_64;
-               Page_Off    : Unsigned_64;
-               Inst_Addr   : Integer_Address;
+               Long_64 : constant Boolean :=
+                  (EFER and 16#400#) /= 0 and (CS_AR and 16#2000#) /= 0;
             begin
-               if Guest_RIP < Page_2MB then
-                  --  Look up in PT0 (page 6 of EPT allocation)
-                  declare
-                     PT0 : U64_Array (0 .. 511)
-                        with Import, Address => To_Address (NPT_Addr + 24576);
-                     PT_Idx : constant Natural :=
-                        Natural (Guest_RIP / Page_4KB);
-                  begin
-                     HPA := PT0 (PT_Idx) and 16#FFFF_FFFF_FFFF_F000#;
-                     Page_Off := Guest_RIP and (Page_4KB - 1);
-                     Inst_Addr := Integer_Address (HPA + Page_Off) +
-                        Arch.MMU.Memory_Offset;
-                  end;
-               else
-                  --  Identity mapped, GPA = HPA
-                  Inst_Addr := Integer_Address (Guest_RIP) +
-                     Arch.MMU.Memory_Offset;
-               end if;
-
-               declare
-                  Inst_Mem : Byte_Array
-                     with Import, Address => To_Address (Inst_Addr);
-               begin
-                  Exit_Info.U.Memory.Inst_Len := 15;  --  Max, userspace decode
-                  for I in 0 .. 14 loop
-                     Exit_Info.U.Memory.Inst_Bytes (I) := Inst_Mem (I);
-                  end loop;
-               end;
+               Fetch_Instruction
+                  (Mach    => Mach,
+                   CPU     => CPU,
+                   CR0     => Arch.Virtualization.VMX.VMX_Read
+                                 (Arch.Virtualization.VMX.VMCS_GUEST_CR0),
+                   CR3     => Arch.Virtualization.VMX.VMX_Read
+                                 (Arch.Virtualization.VMX.VMCS_GUEST_CR3),
+                   CR4     => Arch.Virtualization.VMX.VMX_Read
+                                 (Arch.Virtualization.VMX.VMCS_GUEST_CR4),
+                   EFER    => EFER,
+                   Linear  =>
+                      (if Long_64 then RIP
+                       else Arch.Virtualization.VMX.VMX_Read
+                               (Arch.Virtualization.VMX.VMCS_GUEST_CS_BASE) +
+                            RIP),
+                   Wrap_32 => not Long_64,
+                   Info    => Exit_Info.U.Memory);
             end;
 
          when Arch.Virtualization.VMX.EXIT_REASON_XSETBV =>
