@@ -46,12 +46,14 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
 
       Notify_Off_Multiplier : Unsigned_32 := 0;
       Feature : Boolean := False;
+      Reset_Done : Boolean;
 
       Device_Idx : Natural := 0;
    begin
       Success := True;
 
       for Idx in 1 .. Devices.PCI.Enumerate_Devices (16#1AF4#, 16#1041#) loop
+         Reset_Done := False;
          Devices.PCI.Search_Device (16#1AF4#, 16#1041#, Idx, PCI_Dev, Success);
          if not Success then
             Success := True;
@@ -85,7 +87,8 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
                   if Success then
                      Common_Config := Pci_Common_Config_Acc (C1.To_Pointer
                         (To_Address (Mem_Addr)));
-                     Common_Config.Device_Status := 0;
+                     Devices.PCI.Virtio.Reset_Device
+                        (Common_Config, Reset_Done);
                   end if;
                elsif Cap_Type = 2 then
                   Devices.PCI.Read32 (PCI_Dev, Unsigned_16 (Cap_Offset + 16),
@@ -112,6 +115,12 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
                end if;
             end if;
          end loop;
+
+         if not Reset_Done then
+            Success := False;
+            Messages.Put_Line ("virtio-net did not finish its reset");
+            return;
+         end if;
 
          Common_Config.Device_Status := 1;
          Common_Config.Device_Status := 3;

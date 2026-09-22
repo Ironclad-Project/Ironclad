@@ -44,12 +44,14 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
       Notify_Off_Multiplier : Unsigned_32 := 0;
 
       End_Features : Boolean := False;
+      Reset_Done : Boolean;
 
       Drive_Idx : Natural := 1;
    begin
       Success := True;
 
       for Idx in 1 .. Devices.PCI.Enumerate_Devices (16#1AF4#, 16#1042#) loop
+         Reset_Done := False;
          Devices.PCI.Search_Device (16#1AF4#, 16#1042#, Idx, PCI_Dev, Success);
          if not Success then
             Success := True;
@@ -81,7 +83,8 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
                   if Success then
                      Common_Config := Pci_Common_Config_Acc (C1.To_Pointer
                         (To_Address (Mem_Addr)));
-                     Common_Config.Device_Status := 0;
+                     Devices.PCI.Virtio.Reset_Device
+                        (Common_Config, Reset_Done);
                   end if;
                elsif Cap_Type = 2 then
                   Devices.PCI.Read32 (PCI_Dev, Unsigned_16 (Cap_Offset + 16),
@@ -109,6 +112,12 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
                end if;
             end if;
          end loop;
+
+         if not Reset_Done then
+            Success := False;
+            Messages.Put_Line ("virtio-blk did not finish its reset");
+            return;
+         end if;
 
          Devices.PCI.Enable_Bus_Mastering (PCI_Dev);
 
