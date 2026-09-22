@@ -2805,6 +2805,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Done         : Natural := 0;
       Dev_Count    : Natural;
       Count        : Natural;
+      Max_Sz       : Unsigned_64;
       Pos, In_Blk, Chunk, Run, Want : Unsigned_64;
       Logical      : Unsigned_64;
       Head_Blk, Tail_Blk, Head_Off, Tail_Off : Unsigned_64;
@@ -2812,6 +2813,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Head_New     : Boolean := False;
       Tail_New     : Boolean := False;
       Fresh        : Boolean;
+      Stop         : FS_Status := FS_Success;
       Phys, Next_P : Unsigned_32;
    begin
       Block_Sz  := Unsigned_64 (FS_Data.Block_Size);
@@ -2821,6 +2823,15 @@ package body VFS.EXT with SPARK_Mode => Off is
       Ret_Count := 0;
       Success   := True;
       if Data'Length = 0 then
+         return;
+      end if;
+
+      --  Nothing is written past the largest the file can be.
+      Max_Sz := Max_File_Size (FS_Data, Inode_Data);
+      if Offset >= Max_Sz or else
+         Unsigned_64 (Data'Length) > Max_Sz - Offset
+      then
+         Success := False;
          return;
       end if;
 
@@ -2868,6 +2879,7 @@ package body VFS.EXT with SPARK_Mode => Off is
              Success    => Ok);
          if not Ok then
             Success := False;
+            Stop    := Allocation_Error (FS_Data);
             goto Finish;
          end if;
       end if;
@@ -2916,12 +2928,14 @@ package body VFS.EXT with SPARK_Mode => Off is
             Allocate_Block_For_Inode (FS_Data, Inode_Data, Goal, Phys, Ok);
             if not Ok then
                Success := False;
+               Stop    := Allocation_Error (FS_Data);
                exit;
             end if;
             Wire_Inode_Blocks
                (FS_Data, Inode_Data, Unsigned_32 (Logical), Phys, Cursor, Ok);
             if not Ok then
                Success := False;
+               Stop    := Allocation_Error (FS_Data);
                exit;
             end if;
             if In_Blk /= 0 or else
@@ -2998,6 +3012,9 @@ package body VFS.EXT with SPARK_Mode => Off is
              Inode_Data => Inode_Data,
              From_Block => (Inode_Size + Block_Sz - 1) / Block_Sz,
              Success    => Ok);
+         if not Ok then
+            Stop := FS_IO_Failure;
+         end if;
       end if;
 
       Inode_Data.Modified_Time_Epoch := Current_Epoch;
@@ -3009,8 +3026,13 @@ package body VFS.EXT with SPARK_Mode => Off is
           Write_Operation => True,
           Success         => Ok);
 
+      --  Running out of room, or a file reaching the largest it can be, is
+      --  nothing wrong with the filesystem; the error policy is for errors of
+      --  the device and of the structures on it.
       if not Success or not Ok then
-         Act_On_Policy (FS_Data, "error while writing to an inode");
+         if Stop /= FS_Full or not Ok then
+            Act_On_Policy (FS_Data, "error while writing to an inode");
+         end if;
          Success   := False;
          Ret_Count := 0;
       else
@@ -3136,6 +3158,51 @@ package body VFS.EXT with SPARK_Mode => Off is
          Free (Buffer);
          Success := False;
    end Zero_Inode_Part;
+
+   function Max_File_Size
+      (FS_Data : EXT_Data_Acc;
+       Ino     : Inode) return Unsigned_64
+   is
+      Block_Sz, Per_Blk          : Unsigned_64;
+      Reached, Pointers, Counted : Unsigned_64;
+   begin
+      Block_Sz := Unsigned_64 (FS_Data.Block_Size);
+      Per_Blk  := Unsigned_64 (FS_Data.Pointers_Per_Block);
+
+      --  Blocks the direct pointers and the three trees reach, and the most
+      --  that i_blocks, 32 bits of 512-byte units, can count once the
+      --  pointer blocks a file that big needs are counted with them. The
+      --  logical index of a block is 32 bits too.
+      Reached  := 12 + Per_Blk + Per_Blk * Per_Blk +
+                  Per_Blk * Per_Blk * Per_Blk;
+      Pointers := 3 + 2 * Per_Blk + Per_Blk * Per_Blk;
+      Counted  := 16#FFFF_FFFF# / (Block_Sz / Sector_Unit);
+      Counted  := (if Counted > Pointers then Counted - Pointers else 0);
+      Reached  := Unsigned_64'Min
+         (Unsigned_64'Min (Reached, Counted), 16#1_0000_0000#);
+
+      --  Only a regular file has the upper half of a size, and only with
+      --  large_file.
+      if FS_Data.Has_64bit_Filesizes and then
+         Get_Inode_Type (Ino.Permissions) = File_Regular
+      then
+         return Reached * Block_Sz;
+      else
+         return Unsigned_64'Min (Reached * Block_Sz, 16#FFFF_FFFF#);
+      end if;
+   exception
+      when Constraint_Error =>
+         return 0;
+   end Max_File_Size;
+
+   function Allocation_Error (FS_Data : EXT_Data_Acc) return FS_Status is
+   begin
+      return (if FS_Data.Super.Unallocated_Block_Count = 0
+              then FS_Full else FS_IO_Failure);
+   exception
+      when Constraint_Error =>
+         return FS_IO_Failure;
+   end Allocation_Error;
 
    procedure Unwire_Block
       (FS_Data    : EXT_Data_Acc;
@@ -3575,6 +3642,10 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       <<Next_Group>>
       end loop;
+
+      --  Every group was looked at and none had a block to give, so none is
+      --  left whatever the count said, and the count says so from now on.
+      FS_Data.Super.Unallocated_Block_Count := 0;
 
    <<Cleanup>>
       Free (Bitmap);

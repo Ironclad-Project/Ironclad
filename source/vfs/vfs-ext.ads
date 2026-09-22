@@ -597,6 +597,18 @@ private
        Ret_Count   : out Natural;
        Success     : out Boolean);
 
+   --  The largest a file can be here: what its block pointers reach, no more
+   --  than i_blocks can count with the pointer blocks included (Linux's
+   --  ext2_max_size), and 4 GiB less a byte for anything but a regular file
+   --  or without large_file.
+   function Max_File_Size
+      (FS_Data : EXT_Data_Acc;
+       Ino     : Inode) return Unsigned_64;
+
+   --  Why the allocator gave no block: FS_Full when none is left, which it
+   --  records by the free count, FS_IO_Failure otherwise.
+   function Allocation_Error (FS_Data : EXT_Data_Acc) return FS_Status;
+
    --  Give back the block at a logical index of an inode, leaving a hole.
    procedure Unwire_Block
       (FS_Data    : EXT_Data_Acc;

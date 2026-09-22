@@ -5396,6 +5396,11 @@ EXT features a error policy on EXT internal errors that dictates for the kernel
 to panic when triggered. While other operating systems honor the policy as-is,
 Ironclad deliberately acts on it was a "Remount read only" policy. This is done
 to avoid denial of service attacks by mounting deliberately faulty flesystems.
+The policy is acted on for errors of the device and of the structures on it;
+running out of room is not one, and neither is a file reaching the largest size
+it can have, which EXT puts at what its block pointers reach and its block
+count can count: 16 GiB with 1 KiB blocks, 2 TiB with 4 KiB ones, and 4 GiB
+less a byte without @code{large_file}.
 
 Ironclad reads the directory hash index that @code{dir_index} introduces, but
 does not keep it up to date. A directory that Ironclad adds a name to or takes
