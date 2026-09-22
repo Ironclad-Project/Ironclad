@@ -1542,7 +1542,9 @@ package body Userland.Process with SPARK_Mode => Off is
        Bypass_UID : Boolean;
        Group      : Unsigned_32)
    is
+      Curr : constant PID := Arch.Local.Get_Current_Process;
       Tgt_Group, EUID, UID : Unsigned_32;
+      Take_Ourselves : Boolean := False;
    begin
       for I in Registry'Range loop
          if Registry (I) /= null then
@@ -1555,10 +1557,20 @@ package body Userland.Process with SPARK_Mode => Off is
             if Tgt_Group = Group and
                (Bypass_UID or (EUID = Sender_UID or UID = Sender_UID))
             then
-               Raise_Signal (I, Sig);
+               --  Taking ourselves down never returns, so the rest of the
+               --  group would be left unsignalled.
+               if I = Curr then
+                  Take_Ourselves := True;
+               else
+                  Raise_Signal (I, Sig);
+               end if;
             end if;
          end if;
       end loop;
+
+      if Take_Ourselves then
+         Raise_Signal (Curr, Sig);
+      end if;
    exception
       when Constraint_Error =>
          null;

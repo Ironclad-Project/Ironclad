@@ -3960,6 +3960,9 @@ signaled. The @code{MAC_CAP_SIGNALALL} capability overrides this check.
 If @code{signal} is @code{0}, instead of a signal being sent, only the
 permissions to send one are checked.
 
+When a signal to a group ends the caller as well, the rest of the group is
+signalled first.
+
 It returns @code{0} on success and @code{-1} on failure, with the following
 errno:
 
