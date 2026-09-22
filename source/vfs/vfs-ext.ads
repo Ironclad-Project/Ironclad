@@ -597,6 +597,14 @@ private
        Ret_Count   : out Natural;
        Success     : out Boolean);
 
+   --  Give back the block at a logical index of an inode, leaving a hole.
+   procedure Unwire_Block
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Logical    : Unsigned_32;
+       Cursor     : in out Map_Cursor;
+       Success    : out Boolean);
+
    procedure Zero_Out_Block
       (FS_Data : EXT_Data_Acc;
        Block   : Unsigned_32;

@@ -2808,8 +2808,10 @@ package body VFS.EXT with SPARK_Mode => Off is
       Pos, In_Blk, Chunk, Run, Want : Unsigned_64;
       Logical      : Unsigned_64;
       Head_Blk, Tail_Blk, Head_Off, Tail_Off : Unsigned_64;
+      Grow_From    : Unsigned_64;
       Head_New     : Boolean := False;
       Tail_New     : Boolean := False;
+      Fresh        : Boolean;
       Phys, Next_P : Unsigned_32;
    begin
       Block_Sz  := Unsigned_64 (FS_Data.Block_Size);
@@ -2825,20 +2827,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Anything a directory holds may have moved, so the shortcut that
       --  remembers where a scan stopped cannot be trusted any more.
       Invalidate_Memo (FS_Data);
-
-      --  Move the end of the file first, so that a failure halfway through
-      --  leaves a size that the blocks below it can back.
-      if Offset + Unsigned_64 (Data'Length) > Inode_Size then
-         Set_Size
-            (Ino        => Inode_Data,
-             New_Size   => Offset + Unsigned_64 (Data'Length),
-             Is_64_Bits => FS_Data.Has_64bit_Filesizes,
-             Success    => Ok);
-         if not Ok then
-            Success := False;
-            goto Finish;
-         end if;
-      end if;
 
       --  A block the allocator hands out still holds whatever the file that
       --  owned it last left in it. Whatever this write does not cover in a
@@ -2862,21 +2850,26 @@ package body VFS.EXT with SPARK_Mode => Off is
          Tail_New := Ok and then Phys = 0;
       end if;
 
-      --  Ask for every block the write needs at once. Doing it one block at
-      --  a time reads and rewrites a whole bitmap per block, and hands out
-      --  blocks that need not be next to each other; in one go the bitmap is
-      --  touched once and the file comes out laid contiguously, which is
-      --  what lets reads of it afterwards be merged.
-      Grow_Inode
-         (FS_Data    => FS_Data,
-          Inode_Data => Inode_Data,
-          Inode_Num  => Inode_Num,
-          Start      => Offset,
-          Count      => Unsigned_64 (Data'Length),
-          Success    => Ok);
-      if not Ok then
-         Success := False;
-         goto Finish;
+      --  Past the end of the file, ask for every block the write needs at
+      --  once. Doing it one block at a time reads and rewrites a whole bitmap
+      --  per block, and hands out blocks that need not be next to each other;
+      --  in one go the bitmap is touched once and the file comes out laid
+      --  contiguously, which is what lets reads of it afterwards be merged.
+      --  A hole inside the file is filled below, a block at a time.
+      Grow_From := Unsigned_64'Max
+         (Offset, ((Inode_Size + Block_Sz - 1) / Block_Sz) * Block_Sz);
+      if Grow_From < Offset + Unsigned_64 (Data'Length) then
+         Grow_Inode
+            (FS_Data    => FS_Data,
+             Inode_Data => Inode_Data,
+             Inode_Num  => Inode_Num,
+             Start      => Grow_From,
+             Count      => Offset + Unsigned_64 (Data'Length) - Grow_From,
+             Success    => Ok);
+         if not Ok then
+            Success := False;
+            goto Finish;
+         end if;
       end if;
       Cursor.L1_Block := 0;
       Cursor.L2_Block := 0;
@@ -2916,8 +2909,10 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          --  Blocks are given out here rather than up front, which is what
          --  makes writing into the middle of a hole work at all instead of
-         --  landing on block zero.
-         if Phys = 0 then
+         --  landing on block zero. One the write does not cover whole is
+         --  wiped first, for the reason the edge blocks above are.
+         Fresh := Phys = 0;
+         if Fresh then
             Allocate_Block_For_Inode (FS_Data, Inode_Data, Goal, Phys, Ok);
             if not Ok then
                Success := False;
@@ -2928,6 +2923,17 @@ package body VFS.EXT with SPARK_Mode => Off is
             if not Ok then
                Success := False;
                exit;
+            end if;
+            if In_Blk /= 0 or else
+               Unsigned_64 (Data'Length - Done) < Block_Sz
+            then
+               Zero_Out_Block (FS_Data, Phys, Ok);
+               if not Ok then
+                  Success := False;
+                  Unwire_Block
+                     (FS_Data, Inode_Data, Unsigned_32 (Logical), Cursor, Ok);
+                  exit;
+               end if;
             end if;
          end if;
 
@@ -2959,7 +2965,13 @@ package body VFS.EXT with SPARK_Mode => Off is
              Ret_Count => Dev_Count,
              Success   => Succ);
          if Succ /= Devices.Dev_Success or else Dev_Count /= Count then
+            --  A block given out for this very piece holds nothing written
+            --  for certain, so it goes back to being a hole.
             Success := False;
+            if Fresh then
+               Unwire_Block
+                  (FS_Data, Inode_Data, Unsigned_32 (Logical), Cursor, Ok);
+            end if;
             exit;
          end if;
 
@@ -2967,6 +2979,27 @@ package body VFS.EXT with SPARK_Mode => Off is
       end loop;
 
    <<Finish>>
+      --  The file ends where the write does only once all of it is written.
+      --  A write that fails leaves the file the size it was and gives back
+      --  whatever it was given past that, so no block of it can be read but
+      --  those holding what it wrote: every block it was given below that
+      --  size is written, wiped or given back above.
+      if Success and then Offset + Unsigned_64 (Data'Length) > Inode_Size then
+         Set_Size
+            (Ino        => Inode_Data,
+             New_Size   => Offset + Unsigned_64 (Data'Length),
+             Is_64_Bits => FS_Data.Has_64bit_Filesizes,
+             Success    => Ok);
+         Success := Ok;
+      end if;
+      if not Success then
+         Free_Blocks_From
+            (FS_Data    => FS_Data,
+             Inode_Data => Inode_Data,
+             From_Block => (Inode_Size + Block_Sz - 1) / Block_Sz,
+             Success    => Ok);
+      end if;
+
       Inode_Data.Modified_Time_Epoch := Current_Epoch;
       Inode_Data.Creation_Time_Epoch := Inode_Data.Modified_Time_Epoch;
       RW_Inode
@@ -3103,6 +3136,39 @@ package body VFS.EXT with SPARK_Mode => Off is
          Free (Buffer);
          Success := False;
    end Zero_Inode_Part;
+
+   procedure Unwire_Block
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Logical    : Unsigned_32;
+       Cursor     : in out Map_Cursor;
+       Success    : out Boolean)
+   is
+      Per_Sector : Unsigned_32;
+      Phys       : Unsigned_32;
+   begin
+      Per_Sector := FS_Data.Block_Size / Sector_Unit;
+      Get_Block_Index (FS_Data, Inode_Data, Logical, Cursor, Phys, Success);
+      if not Success or else Phys = 0 then
+         return;
+      end if;
+
+      --  The pointer blocks on the way are there, the block being wired, so
+      --  pointing its entry at nothing takes no block.
+      Wire_Inode_Blocks (FS_Data, Inode_Data, Logical, 0, Cursor, Success);
+      if not Success then
+         return;
+      end if;
+      Free_Block (FS_Data, Phys, Success);
+      if Success then
+         Inode_Data.Sectors := Inode_Data.Sectors -
+            Unsigned_32'Min (Inode_Data.Sectors, Per_Sector);
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while unwiring an EXT block");
+         Success := False;
+   end Unwire_Block;
 
    procedure Grow_Inode
       (FS_Data     : EXT_Data_Acc;

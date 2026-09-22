@@ -1518,6 +1518,9 @@ offset in file as normal, if 1, it will not update the offset, and instead of
 using the local offset, will start the operation from @code{offset}, to do an
 operation similar to POSIX-standard @code{pread} and @code{pwrite}.
 
+A write to a regular file that fails leaves the file the size it was, and no
+block it was given is left holding anything it did not write.
+
 These syscalls returns the number of bytes operated on, or @code{-1} on
 failure. errno is to be set to:
 
