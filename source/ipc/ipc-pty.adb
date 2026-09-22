@@ -510,67 +510,70 @@ package body IPC.PTY is
        Is_To_Primary : Boolean;
        Ret_Count     : out Natural)
    is
-      procedure Free is new Ada.Unchecked_Deallocation
-         (Devices.Operation_Data, Devices.Operation_Data_Acc);
-
       Final : Natural;
    begin
       if Is_To_Primary                         and then
          (Termios.Output_Modes and OPOST) /= 0 and then
          (Termios.Output_Modes and ONLCR) /= 0
       then
-         --  Check whether there are new lines, and if they are, make a
-         --  substring, replace there the newlines, and use that.
-         Final := 0;
-         for C of Data loop
-            if C = Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.LF)) then
-               Final := Final + 1;
-            end if;
-            Final := Final + 1;
-         end loop;
+         --  Turn every newline into a carriage return and a newline, a piece
+         --  at a time so the expansion never needs more than a piece's room.
+         --  What is returned counts the bytes of Data the output written
+         --  stands for.
+         declare
+            Piece_Size : constant := 256;
+            LF         : constant Unsigned_8 :=
+               Character'Pos (Ada.Characters.Latin_1.LF);
+            CR         : constant Unsigned_8 :=
+               Character'Pos (Ada.Characters.Latin_1.CR);
+            Plain      : Devices.TermIOs.Main_Data := Termios;
+            Expanded   : Devices.Operation_Data (1 .. Piece_Size * 2);
+            Exp_Len    : Natural;
+            Written    : Natural;
+            Taken      : Natural;
+            First      : Natural := Data'First;
+            Last       : Natural;
+         begin
+            Plain.Output_Modes := 0;
+            Ret_Count := 0;
+            while First <= Data'Last loop
+               Last :=
+                  (if Data'Last - First >= Piece_Size
+                   then First + Piece_Size - 1 else Data'Last);
 
-         if Final /= Data'Length then
-            declare
-               Tmp      : Devices.TermIOs.Main_Data := Termios;
-               New_Data : Devices.Operation_Data_Acc :=
-                  new Devices.Operation_Data'[1 .. Final => 0];
-            begin
-               Final := 1;
-               for C of Data loop
-                  if C = Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.LF))
-                  then
-                     New_Data (Final) :=
-                        Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.CR));
-                     Final := Final + 1;
+               Exp_Len := 0;
+               for C of Data (First .. Last) loop
+                  if C = LF then
+                     Exp_Len := Exp_Len + 1;
+                     Expanded (Exp_Len) := CR;
                   end if;
-                  New_Data (Final) := C;
-                  Final := Final + 1;
+                  Exp_Len := Exp_Len + 1;
+                  Expanded (Exp_Len) := C;
                end loop;
 
-               Tmp.Output_Modes := 0;
                Write_To_End
                   (End_Mutex     => End_Mutex,
                    Inner_Len     => Inner_Len,
                    Inner_Data    => Inner_Data,
                    Is_Blocking   => Is_Blocking,
                    Is_Able_To    => Is_Able_To,
-                   Data          => New_Data.all,
-                   Termios       => Tmp,
+                   Data          => Expanded (1 .. Exp_Len),
+                   Termios       => Plain,
                    Is_To_Primary => Is_To_Primary,
-                   Ret_Count     => Ret_Count);
+                   Ret_Count     => Written);
 
-               Final := Ret_Count;
-               for C of New_Data (1 .. Final) loop
-                  if C = Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.CR))
-                  then
-                     Ret_Count := Ret_Count - 1;
-                  end if;
+               Taken := 0;
+               for C of Data (First .. Last) loop
+                  Taken := Taken + (if C = LF then 2 else 1);
+                  exit when Taken > Written;
+                  Ret_Count := Ret_Count + 1;
                end loop;
 
-               Free (New_Data);
-               return;
-            end;
-         end if;
+               exit when Written /= Exp_Len or Last = Data'Last;
+               First := Last + 1;
+            end loop;
+         end;
+         return;
       end if;
 
       if not Is_Able_To then
