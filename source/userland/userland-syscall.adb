@@ -2169,7 +2169,7 @@ package body Userland.Syscall is
       if ID = 0 then
          Proc := Arch.Local.Get_Current_Process;
       else
-         Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
+         Proc := Userland.Process.Convert (Natural (ID));
          if Proc = Error_PID then
             Errno    := Error_Bad_Search;
             Returned := Unsigned_64'Last;
@@ -4469,8 +4469,12 @@ package body Userland.Syscall is
    begin
       if ID = 0 then
          Proc := Curr;
+      elsif ID > Unsigned_64 (Natural'Last) then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
       else
-         Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
+         Proc := Userland.Process.Convert (Natural (ID));
          if Proc = Error_PID then
             Errno    := Error_Bad_Search;
             Returned := Unsigned_64'Last;
@@ -5187,8 +5191,12 @@ package body Userland.Syscall is
    begin
       if ID = 0 then
          Proc := Arch.Local.Get_Current_Process;
+      elsif ID > Unsigned_64 (Natural'Last) then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
       else
-         Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
+         Proc := Userland.Process.Convert (Natural (ID));
          if Proc = Error_PID then
             Errno    := Error_Bad_Search;
             Returned := Unsigned_64'Last;
@@ -5217,8 +5225,10 @@ package body Userland.Syscall is
    begin
       if ID = 0 then
          Proc := Arch.Local.Get_Current_Process;
+      elsif ID > Unsigned_64 (Natural'Last) then
+         goto Bad_Search_Error;
       else
-         Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
+         Proc := Userland.Process.Convert (Natural (ID));
          if Proc = Error_PID then
             goto Bad_Search_Error;
          end if;
@@ -6622,10 +6632,14 @@ package body Userland.Syscall is
          return;
       end if;
 
+      if Who > Unsigned_64 (Natural'Last) then
+         goto Invalid_Value_Return;
+      end if;
+
       case Which is
          when PRIO_PROCESS =>
             if Who /= 0 then
-               Proc := Convert (Natural (Who and 16#FFFFFFFF#));
+               Proc := Convert (Natural (Who));
                if Proc = Error_PID then
                   goto Invalid_Value_Return;
                end if;
@@ -6639,7 +6653,7 @@ package body Userland.Syscall is
             if Who = 0 then
                Th := Arch.Local.Get_Current_Thread;
             else
-               Th := Convert (Natural (Who and 16#FFFFFFFF#));
+               Th := Convert (Natural (Who));
                if Th = Error_TID then
                   goto Invalid_Value_Return;
                end if;
@@ -6696,10 +6710,14 @@ package body Userland.Syscall is
          goto Invalid_Value_Return;
       end if;
 
+      if Who > Unsigned_64 (Natural'Last) then
+         goto Invalid_Value_Return;
+      end if;
+
       case Which is
          when PRIO_PROCESS =>
             if Who /= 0 then
-               Proc := Convert (Natural (Who and 16#FFFFFFFF#));
+               Proc := Convert (Natural (Who));
                if Proc = Error_PID then
                   goto Invalid_Value_Return;
                end if;
@@ -6713,7 +6731,7 @@ package body Userland.Syscall is
             if Who = 0 then
                Th := Arch.Local.Get_Current_Thread;
             else
-               Th := Convert (Natural (Who and 16#FFFFFFFF#));
+               Th := Convert (Natural (Who));
                if Th = Error_TID then
                   goto Invalid_Value_Return;
                end if;
