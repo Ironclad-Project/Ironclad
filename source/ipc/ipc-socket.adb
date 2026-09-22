@@ -471,15 +471,17 @@ package body IPC.Socket is
             end if;
             Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
+            --  A read that failed or holds less than a header gives nothing.
             Devices.Read (Dev, 0, Data, Ret_Count, Succ);
+            if Succ /= Devices.Dev_Success or Ret_Count < Hdr_Size / 8 then
+               Ret_Count := 0;
+               Success   := Would_Block;
+               return;
+            end if;
             Data (Data'First .. Data'Last - (Hdr_Size / 8)) :=
                Data (Data'First + (Hdr_Size / 8) .. Data'Last);
             Ret_Count := Ret_Count - (Hdr_Size / 8);
-            if Succ = Devices.Dev_Success then
-               Success := Plain_Success;
-            else
-               Success := Would_Block;
-            end if;
+            Success := Plain_Success;
          when Stream =>
             --  TCP socket read.
             declare
@@ -567,6 +569,16 @@ package body IPC.Socket is
    begin
       case Sock.Kind is
          when Raw =>
+            --  The data goes out as one packet, whose length must fit the 16
+            --  bits of its header.
+            if Data'Length >
+               Natural (Unsigned_16'Last) - Networking.IPv4.Header_Size
+            then
+               Ret_Count := 0;
+               Success   := Is_Too_Big;
+               return;
+            end if;
+
             Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
                Ret_Count := 0;

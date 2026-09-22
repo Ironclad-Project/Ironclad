@@ -1325,6 +1325,9 @@ Too many files were opened by the process.
 @item EMLINK (1032)
 A file would get more links than the filesystem allows.
 
+@item EMSGSIZE (1034)
+A message is too big to be sent whole.
+
 @item ENAMETOOLONG (1036)
 The passed value is too big for the syscall.
 
@@ -1863,6 +1866,9 @@ Connection, accepting, and listening will be necessary for a proper handshake.
 these, no TCP or UDP will be done whatsoever, and the user will be free to
 implement their own protocol on top, or none at all and just use the domain
 datagram transport. Not supported for some protocols, like UNIX domain sockets.
+An INET raw socket sends each write as one packet, so a write longer than the
+65515 bytes the length of an IPv4 packet leaves for data fails with
+@code{EMSGSIZE}.
 @item
 @code{SOCK_SEQPACKET}: Sequenced-packet socket that is connection-oriented,
 preserves message boundaries, and delivers messages in the order that they were

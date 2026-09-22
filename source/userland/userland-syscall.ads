@@ -55,6 +55,7 @@ package Userland.Syscall is
        Error_File_Loop,       --  ELOOP
        Error_Too_Many_Files,  --  EMFILE
        Error_Too_Many_Links,  --  EMLINK
+       Error_Message_Too_Long, --  EMSGSIZE
        Error_String_Too_Long, --  ENAMETOOLONG
        Error_No_Entity,       --  ENOENT
        Error_No_Memory,       --  ENOMEM
@@ -91,6 +92,7 @@ package Userland.Syscall is
        Error_File_Loop       => 1030,
        Error_Too_Many_Files  => 1031,
        Error_Too_Many_Links  => 1032,
+       Error_Message_Too_Long => 1034,
        Error_String_Too_Long => 1036,
        Error_No_Entity       => 1043,
        Error_No_Memory       => 1047,
