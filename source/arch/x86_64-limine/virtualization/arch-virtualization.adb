@@ -173,31 +173,8 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          if not Machines (I).Active then
             Machines (I).Active := True;
             Machines (I).Owner := 0;
-            --  Initialize VCPUs as inactive
             for J in VCPU_ID loop
-               Machines (I).VCPUs (J).Active := False;
-               --  SVM-specific fields
-               Machines (I).VCPUs (J).VMCB_Addr := 0;
-               Machines (I).VCPUs (J).VMCB_Phys := 0;
-               --  VMX-specific fields
-               Machines (I).VCPUs (J).VMCS_Addr := 0;
-               Machines (I).VCPUs (J).VMCS_Phys := 0;
-               Machines (I).VCPUs (J).VMX_Launched := False;
-               --  Common fields
-               Machines (I).VCPUs (J).IOPM_Addr := 0;
-               Machines (I).VCPUs (J).MSRPM_Addr := 0;
-               Machines (I).VCPUs (J).NPT_Addr := 0;
-               Machines (I).VCPUs (J).Stop_Requested := False;
-               Machines (I).VCPUs (J).DRs_0_3 := [others => 0];
-               Machines (I).VCPUs (J).Assigned_ASID := 0;
-               Machines (I).VCPUs (J).TSC_Offset_Val := 0;
-               Machines (I).VCPUs (J).V_TPR := 0;
-               Machines (I).VCPUs (J).V_IRQ := False;
-               Machines (I).VCPUs (J).V_Intr_Prio := 0;
-               Machines (I).VCPUs (J).V_Intr_Vector := 0;
-               Machines (I).VCPUs (J).V_Intr_Masking := False;
-               --  XCR0 defaults to 1 (x87 FPU only)
-               Machines (I).VCPUs (J).XCR0_Value := 1;
+               Reset_VCPU (Machine_ID (I), J);
             end loop;
             ID := Machine_ID (I);
             exit;
@@ -223,31 +200,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       --  Destroy all VCPUs first
       for J in VCPU_ID loop
          if Machines (Positive (ID)).VCPUs (J).Active then
-            if Machines (Positive (ID)).VCPUs (J).VMCB_Addr /= 0 then
-               Memory.Physical.Free
-                  (Interfaces.C.size_t
-                     (Machines (Positive (ID)).VCPUs (J).VMCB_Addr));
-            end if;
-            if Machines (Positive (ID)).VCPUs (J).IOPM_Addr /= 0 then
-               Memory.Physical.Free
-                  (Interfaces.C.size_t
-                     (Machines (Positive (ID)).VCPUs (J).IOPM_Addr));
-            end if;
-            if Machines (Positive (ID)).VCPUs (J).MSRPM_Addr /= 0 then
-               Memory.Physical.Free
-                  (Interfaces.C.size_t
-                     (Machines (Positive (ID)).VCPUs (J).MSRPM_Addr));
-            end if;
-            if Machines (Positive (ID)).VCPUs (J).NPT_Addr /= 0 then
-               Memory.Physical.Free
-                  (Interfaces.C.size_t
-                     (Machines (Positive (ID)).VCPUs (J).NPT_Addr));
-            end if;
-            Machines (Positive (ID)).VCPUs (J).Active := False;
-            Machines (Positive (ID)).VCPUs (J).VMCB_Addr := 0;
-            Machines (Positive (ID)).VCPUs (J).IOPM_Addr := 0;
-            Machines (Positive (ID)).VCPUs (J).MSRPM_Addr := 0;
-            Machines (Positive (ID)).VCPUs (J).NPT_Addr := 0;
+            Teardown_VCPU (ID, J);
          end if;
       end loop;
 
@@ -772,59 +725,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          return False;
       end if;
 
-      --  Free VMCB (SVM)
-      if Machines (Positive (Mach)).VCPUs (CPU).VMCB_Addr /= 0 then
-         Memory.Physical.Free
-            (Interfaces.C.size_t
-               (Machines (Positive (Mach)).VCPUs (CPU).VMCB_Addr));
-      end if;
-      --  Free VMCS (VMX)
-      if Machines (Positive (Mach)).VCPUs (CPU).VMCS_Addr /= 0 then
-         Memory.Physical.Free
-            (Interfaces.C.size_t
-               (Machines (Positive (Mach)).VCPUs (CPU).VMCS_Addr));
-      end if;
-      --  Free IOPM
-      if Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr /= 0 then
-         Memory.Physical.Free
-            (Interfaces.C.size_t
-               (Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr));
-      end if;
-      --  Free MSRPM
-      if Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr /= 0 then
-         Memory.Physical.Free
-            (Interfaces.C.size_t
-               (Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr));
-      end if;
-      --  Free NPT
-      if Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr /= 0 then
-         Memory.Physical.Free
-            (Interfaces.C.size_t
-               (Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr));
-      end if;
-      --  Free FPU buffer
-      if Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr /= 0 then
-         Memory.Physical.Free
-            (Interfaces.C.size_t
-               (Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr));
-      end if;
-
-      --  Free ASID
-      if Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID /= 0 then
-         Free_ASID (Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID);
-      end if;
-
-      Machines (Positive (Mach)).VCPUs (CPU).Active := False;
-      Machines (Positive (Mach)).VCPUs (CPU).VMCB_Addr := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).VMCB_Phys := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).VMCS_Addr := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := False;
-      Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr := 0;
-      Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
+      Teardown_VCPU (Mach, CPU);
 
       Release (Machines (Positive (Mach)).Lock);
       return True;
@@ -3320,6 +3221,93 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       when Constraint_Error =>
          return 0;
    end Allocate_ASID;
+
+   procedure Reset_VCPU (Mach : Machine_ID; CPU : VCPU_ID) is
+   begin
+      Machines (Positive (Mach)).VCPUs (CPU).Active := False;
+      --  SVM-specific fields
+      Machines (Positive (Mach)).VCPUs (CPU).VMCB_Addr := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).VMCB_Phys := 0;
+      --  VMX-specific fields
+      Machines (Positive (Mach)).VCPUs (CPU).VMCS_Addr := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := False;
+      --  The guest's syscall MSRs, which VCPU_Create leaves as they are.
+      Machines (Positive (Mach)).VCPUs (CPU).VMX_MSRs :=
+         (STAR   => 0, LSTAR          => 0, CSTAR => 0,
+          SFMASK => 0, Kernel_GS_Base => 0);
+      --  Common fields
+      Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).Event_Pending := False;
+      Machines (Positive (Mach)).VCPUs (CPU).Pending_Event :=
+         (Event_Type => 0, Vector => 0, Has_Error => False, Error_Code => 0);
+      Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
+      Machines (Positive (Mach)).VCPUs (CPU).DRs_0_3 := [others => 0];
+      Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).TSC_Offset_Val := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).V_TPR := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).V_IRQ := False;
+      Machines (Positive (Mach)).VCPUs (CPU).V_Intr_Prio := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).V_Intr_Vector := 0;
+      Machines (Positive (Mach)).VCPUs (CPU).V_Intr_Masking := False;
+      --  XCR0 defaults to 1 (x87 FPU only)
+      Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value := 1;
+   exception
+      when Constraint_Error =>
+         null;
+   end Reset_VCPU;
+
+   procedure Teardown_VCPU (Mach : Machine_ID; CPU : VCPU_ID) is
+   begin
+      --  Free VMCB (SVM)
+      if Machines (Positive (Mach)).VCPUs (CPU).VMCB_Addr /= 0 then
+         Memory.Physical.Free
+            (Interfaces.C.size_t
+               (Machines (Positive (Mach)).VCPUs (CPU).VMCB_Addr));
+      end if;
+      --  Free VMCS (VMX)
+      if Machines (Positive (Mach)).VCPUs (CPU).VMCS_Addr /= 0 then
+         Memory.Physical.Free
+            (Interfaces.C.size_t
+               (Machines (Positive (Mach)).VCPUs (CPU).VMCS_Addr));
+      end if;
+      --  Free IOPM
+      if Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr /= 0 then
+         Memory.Physical.Free
+            (Interfaces.C.size_t
+               (Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr));
+      end if;
+      --  Free MSRPM
+      if Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr /= 0 then
+         Memory.Physical.Free
+            (Interfaces.C.size_t
+               (Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr));
+      end if;
+      --  Free NPT
+      if Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr /= 0 then
+         Memory.Physical.Free
+            (Interfaces.C.size_t
+               (Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr));
+      end if;
+      --  Free FPU buffer
+      if Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr /= 0 then
+         Memory.Physical.Free
+            (Interfaces.C.size_t
+               (Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr));
+      end if;
+      --  Free ASID
+      if Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID /= 0 then
+         Free_ASID (Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID);
+      end if;
+
+      Reset_VCPU (Mach, CPU);
+   exception
+      when Constraint_Error =>
+         null;
+   end Teardown_VCPU;
 
    procedure Free_ASID (ASID : Unsigned_32) is
    begin

@@ -363,6 +363,13 @@ private
       function Allocate_ASID return Unsigned_32;
       procedure Free_ASID (ASID : Unsigned_32);
 
+      --  Put a VCPU's bookkeeping back to what a machine starts with. Called
+      --  with the machine held, either by its lock or by not being active yet.
+      procedure Reset_VCPU (Mach : Machine_ID; CPU : VCPU_ID);
+
+      --  Give back every resource a VCPU holds and then reset it.
+      procedure Teardown_VCPU (Mach : Machine_ID; CPU : VCPU_ID);
+
       function VMCB_To_NVMM_Attrib (A : Unsigned_16) return Unsigned_16;
       function NVMM_To_VMCB_Attrib (A : Unsigned_16) return Unsigned_16;
 
