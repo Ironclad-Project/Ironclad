@@ -410,6 +410,10 @@ private
           Wrap_32 : Boolean;
           Info    : in out Exit_Memory_Info);
 
+      --  Make a VCPU's VMCS inactive at the end of a use, so that it is never
+      --  active on a core its thread may leave. VMX only.
+      procedure Unload_VMCS (Mach : Machine_ID; CPU : VCPU_ID);
+
       --  True if a guest may have Value in XCR0: the kernel loads it with
       --  XSETBV on the guest's behalf, so no value may be one that XSETBV
       --  refuses with #GP.

@@ -85,6 +85,11 @@ package Arch.Virtualization.VMX with SPARK_Mode => Off is
    --  Store current VMCS pointer
    function VMPTRST return Unsigned_64;
 
+   --  Invalidate what this core cached through the EPT that EPTP names:
+   --  single-context INVEPT, or all-context where the processor has only
+   --  that (Initialize refuses VMX with neither).
+   procedure INVEPT (EPTP : Unsigned_64; Success : out Boolean);
+
    --  Read a VMCS field
    function VMX_Read (Encoding : Unsigned_64) return Unsigned_64;
 

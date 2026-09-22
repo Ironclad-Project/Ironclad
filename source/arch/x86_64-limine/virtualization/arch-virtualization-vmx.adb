@@ -34,6 +34,10 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
    VMXON_Regions   : array (1 .. 256) of Integer_Address := [others => 0];
    VMX_Initialized : Boolean := False;
 
+   --  Whether INVEPT has its single-context type (IA32_VMX_EPT_VPID_CAP bit
+   --  25); Initialize refuses VMX unless it has that or all-context (bit 26).
+   Single_Context_INVEPT : Boolean := False;
+
    --  CR0/CR4 fixed bits (populated during initialization)
    CR0_Fixed0 : Unsigned_64 := 0;
    CR0_Fixed1 : Unsigned_64 := 16#FFFF_FFFF_FFFF_FFFF#;
@@ -94,7 +98,9 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
       --  (IA32_VMX_PROCBASED_CTLS2 bit 33) (Intel SDM 325462-092US, Vol. 3D
       --  A.3.3). Only then does IA32_VMX_EPT_VPID_CAP exist, and it must offer
       --  the 4-level walk (bit 6) and write-back structures (bit 14) of the
-      --  EPT pointer VMCS_Setup writes (Vol. 3D A.10).
+      --  EPT pointer VMCS_Setup writes, and INVEPT (bit 20) of a single-
+      --  (bit 25) or all-context (bit 26) type, which a VCPU's entries need
+      --  (Vol. 3D A.10).
       declare
          One  : constant Unsigned_64 := 1;
          Caps : Unsigned_64;
@@ -109,11 +115,14 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
          end if;
          Caps := Snippets.Read_MSR (IA32_VMX_EPT_VPID_CAP);
          if (Caps and Shift_Left (One, 6)) = 0 or
-            (Caps and Shift_Left (One, 14)) = 0
+            (Caps and Shift_Left (One, 14)) = 0 or
+            (Caps and Shift_Left (One, 20)) = 0 or
+            (Caps and (Shift_Left (One, 25) or Shift_Left (One, 26))) = 0
          then
             Success := False;
             return;
          end if;
+         Single_Context_INVEPT := (Caps and Shift_Left (One, 25)) /= 0;
       end;
 
       --  Read CR0/CR4 fixed bits MSRs
@@ -255,6 +264,32 @@ package body Arch.Virtualization.VMX with SPARK_Mode => Off is
           Volatile => True);
       return Result;
    end VMPTRST;
+
+   ---------------------------------------------------------------------------
+   --  INVEPT - Invalidate cached EPT translations (Intel SDM 325462-092US,
+   --  Vol. 3C 31.4.3.1)
+   ---------------------------------------------------------------------------
+   procedure INVEPT (EPTP : Unsigned_64; Success : out Boolean) is
+      type Descriptor is record
+         EPT_Pointer : Unsigned_64;
+         Reserved    : Unsigned_64;
+      end record with Size => 128;
+      Desc   : constant Descriptor := (EPT_Pointer => EPTP, Reserved => 0);
+      Kind   : constant Unsigned_64 :=
+         (if Single_Context_INVEPT then 1 else 2);
+      RFlags : Unsigned_64;
+   begin
+      System.Machine_Code.Asm
+         ("invept %1, %2;" &
+          "pushfq;"         &
+          "popq %0",
+          Outputs  => Unsigned_64'Asm_Output ("=r", RFlags),
+          Inputs   => [Descriptor'Asm_Input ("m", Desc),
+                       Unsigned_64'Asm_Input ("r", Kind)],
+          Clobber  => "memory,cc",
+          Volatile => True);
+      Success := (RFlags and 2#1000001#) = 0;
+   end INVEPT;
 
    ---------------------------------------------------------------------------
    --  VMX_Read - Read a VMCS field

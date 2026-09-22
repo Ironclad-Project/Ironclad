@@ -633,47 +633,29 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             --  Write VMCS revision ID before VMCLEAR
             Arch.Virtualization.VMX.Write_VMCS_Revision (CS_Addr);
 
-            --  Clear VMCS before first use
+            --  Clear the VMCS before its first use, load it, fill it, and
+            --  clear it again before the lock goes: no VMCS may be active on
+            --  more than one core, and the next call may load it on another
+            --  (Intel SDM 325462-092US, Vol. 3C 27.11.1); and a page freed
+            --  below while it is active could still be written back by the
+            --  processor.
             Arch.Virtualization.VMX.VMCLEAR (VMCS_PA, Clear_OK);
-            if not Clear_OK then
-               --  VMCLEAR failed - clean up and return
-               Memory.Physical.Free (Interfaces.C.size_t (CS_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr));
-               Release (Machines (Positive (Mach)).Lock);
-               return False;
+            if Clear_OK then
+               Arch.Virtualization.VMX.VMPTRLD (VMCS_PA, Setup_OK);
+               if Setup_OK then
+                  Arch.Virtualization.VMX.VMCS_Setup
+                     (VMCS_VA   => CS_Addr,
+                      EPT_PA    => EPT_PA,
+                      IOPM_PA   => IOPM_PA,
+                      MSRPM_PA  => MSRPM_PA,
+                      VPID_Val  => VPID_Val,
+                      Success   => Setup_OK);
+               end if;
+               Arch.Virtualization.VMX.VMCLEAR (VMCS_PA, Clear_OK);
+               Setup_OK := Setup_OK and Clear_OK;
+            else
+               Setup_OK := False;
             end if;
-
-            --  Load VMCS pointer
-            Arch.Virtualization.VMX.VMPTRLD (VMCS_PA, Setup_OK);
-            if not Setup_OK then
-               Memory.Physical.Free (Interfaces.C.size_t (CS_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).IOPM_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr));
-               Memory.Physical.Free (Interfaces.C.size_t
-                  (Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr));
-               Release (Machines (Positive (Mach)).Lock);
-               return False;
-            end if;
-
-            --  Setup VMCS fields
-            Arch.Virtualization.VMX.VMCS_Setup
-               (VMCS_VA   => CS_Addr,
-                EPT_PA    => EPT_PA,
-                IOPM_PA   => IOPM_PA,
-                MSRPM_PA  => MSRPM_PA,
-                VPID_Val  => VPID_Val,
-                Success   => Setup_OK);
 
             if not Setup_OK then
                Memory.Physical.Free (Interfaces.C.size_t (CS_Addr));
@@ -685,6 +667,10 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                   (Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr));
                Memory.Physical.Free (Interfaces.C.size_t
                   (Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr));
+               if VPID_Got /= 0 then
+                  Free_ASID (VPID_Got);
+               end if;
+               Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID := 0;
                Release (Machines (Positive (Mach)).Lock);
                return False;
             end if;
@@ -806,6 +792,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             GPRs.R15 := G.R15;
          end;
 
+         Unload_VMCS (Mach, CPU);
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
@@ -913,6 +900,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.R13 := GPRs.R13;
             Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.R14 := GPRs.R14;
             Machines (Positive (Mach)).VCPUs (CPU).VMX_GPRs.R15 := GPRs.R15;
+            Unload_VMCS (Mach, CPU);
             Release (Machines (Positive (Mach)).Lock);
             return True;
          end;
@@ -1172,6 +1160,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                   (Arch.Virtualization.VMX.VMCS_GUEST_TR_BASE));
          end;
 
+         Unload_VMCS (Mach, CPU);
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
@@ -1403,6 +1392,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                   (Arch.Virtualization.VMX.VMCS_GUEST_TR_AR,
                    To_VMX_AR (Segs.TR.Attrib, Segs.TR.Limit), Dummy_OK);
             end if;
+            Unload_VMCS (Mach, CPU);
             Release (Machines (Positive (Mach)).Lock);
             return True;
          end;
@@ -1509,6 +1499,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                (Arch.Virtualization.VMX.VMCS_GUEST_CR4);
          end;
 
+         Unload_VMCS (Mach, CPU);
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
@@ -1585,6 +1576,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Arch.Virtualization.VMX.VMX_Write
                (Arch.Virtualization.VMX.VMCS_GUEST_CR4,
                 Arch.Virtualization.VMX.Apply_CR4_Fixed (CRs.CR4), Dummy_OK);
+            Unload_VMCS (Mach, CPU);
             Release (Machines (Positive (Mach)).Lock);
             return True;
          end;
@@ -1673,6 +1665,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                Machines (Positive (Mach)).VCPUs (CPU).VMX_MSRs.Kernel_GS_Base;
          end;
 
+         Unload_VMCS (Mach, CPU);
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
@@ -1788,6 +1781,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                MSRs.KERNELGSBASE;
          end;
 
+         Unload_VMCS (Mach, CPU);
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
@@ -2753,6 +2747,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                (Arch.Virtualization.VMX.VMCS_GUEST_CR4);
             EFER := Arch.Virtualization.VMX.VMX_Read
                (Arch.Virtualization.VMX.VMCS_GUEST_IA32_EFER);
+            Unload_VMCS (Mach, CPU);
          end;
       else
          --  SVM backend - get VMCB pointer
@@ -3167,6 +3162,17 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          null;
    end Fetch_Instruction;
 
+   procedure Unload_VMCS (Mach : Machine_ID; CPU : VCPU_ID) is
+      Dummy_OK : Boolean;
+   begin
+      Arch.Virtualization.VMX.VMCLEAR
+         (Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys, Dummy_OK);
+      Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := False;
+   exception
+      when Constraint_Error =>
+         null;
+   end Unload_VMCS;
+
    function Guest_XCR0_Valid (Value : Unsigned_64) return Boolean is
       SSE_AVX : constant Unsigned_64 := 16#6#;
       MPX     : constant Unsigned_64 := 16#18#;
@@ -3465,11 +3471,14 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       VMCS_Phys  : Unsigned_64;
       Exit_Reason : Unsigned_64;
       Load_OK    : Boolean;
+      Here       : Positive;
       Host_XCR0  : Unsigned_64;
    begin
       VMCS_Phys := Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys;
 
-      --  Load the VMCS pointer
+      --  Load the VMCS pointer. From here on every way out makes it inactive
+      --  again (Unload_VMCS), so that it is never active on a core this
+      --  thread may leave, and every entry is therefore a VMLAUNCH.
       Arch.Virtualization.VMX.VMPTRLD (VMCS_Phys, Load_OK);
       if not Load_OK then
          Release (Machines (Positive (Mach)).Lock);
@@ -3482,6 +3491,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       if Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested then
          Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
          Exit_Info.Reason := NVMM_EXIT_STOPPED;
+         Unload_VMCS (Mach, CPU);
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
@@ -3498,6 +3508,37 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          (Arch.Virtualization.VMX.VMCS_HOST_GS_BASE, Arch.Snippets.Read_GS);
       Arch.Virtualization.VMX.VMCS_Write_Unchecked
          (Arch.Virtualization.VMX.VMCS_HOST_CR3, Arch.Snippets.Read_CR3);
+
+      --  Invalidate what this core may have cached through the VCPU's EPT
+      --  whenever it may be stale, as VCPU_Run_Ex does for SVM: on a core the
+      --  VCPU did not last enter on, and after its table lost or changed a
+      --  translation. Software "should use the INVEPT instruction with the
+      --  'single-context' INVEPT type after making any" change that clears a
+      --  permission or changes an address (Intel SDM 325462-092US, Vol. 3C
+      --  31.4.3.4), and cached mappings are tagged by the EPT root, which a
+      --  freed table's page can become for another VCPU. With EPT a shared
+      --  VPID needs nothing (Vol. 3C 31.4.3.3).
+      Here := Arch.CPU.Get_Local.Number;
+      if Machines (Positive (Mach)).VCPUs (CPU).Last_Host_CPU /= Here or
+         Machines (Positive (Mach)).VCPUs (CPU).Flush_Wanted
+      then
+         declare
+            EPTP : constant Unsigned_64 := Unsigned_64
+               (Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr -
+                Arch.MMU.Memory_Offset) or
+               Arch.Virtualization.VMX.EPT_POINTER_WB_4LEVEL;
+            Flushed : Boolean;
+         begin
+            Arch.Virtualization.VMX.INVEPT (EPTP, Flushed);
+            if not Flushed then
+               Unload_VMCS (Mach, CPU);
+               Release (Machines (Positive (Mach)).Lock);
+               Exit_Info.Reason := NVMM_EXIT_INVALID;
+               Exit_Info.U.Invalid.HW_Code := 16#DEAD_0002#;
+               return False;
+            end if;
+         end;
+      end if;
 
       --  The guest's FPU state goes in for the entry and comes out after
       --  it, the host's kept aside meanwhile (Enter_Guest_FPU).
@@ -3531,6 +3572,13 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := True;
          end if;
 
+         --  An entry that happened did so with what this core cached for
+         --  the VCPU invalidated, above.
+         if VM_Success then
+            Machines (Positive (Mach)).VCPUs (CPU).Last_Host_CPU := Here;
+            Machines (Positive (Mach)).VCPUs (CPU).Flush_Wanted := False;
+         end if;
+
          --  Restore host FS and GS bases
          Arch.Snippets.Write_FS (Host_FS_Base);
          Arch.Snippets.Write_GS (Host_GS_Base);
@@ -3545,6 +3593,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       if Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested then
          Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested := False;
          Exit_Info.Reason := NVMM_EXIT_STOPPED;
+         Unload_VMCS (Mach, CPU);
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
@@ -3798,6 +3847,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Exit_Info.U.Invalid.HW_Code := Exit_Reason;
       end case;
 
+      Unload_VMCS (Mach, CPU);
       Release (Machines (Positive (Mach)).Lock);
       return True;
    exception
