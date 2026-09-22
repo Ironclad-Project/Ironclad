@@ -5595,6 +5595,7 @@ packets, and reading performs a blocking receive.
 A read or write the device has not completed is given up on when its thread is
 killed. The device is then reset, which takes back the memory the call had
 handed it, and retired: every read or write after that fails with @code{EIO}.
+The same happens if the device reports as done a transfer it was never given.
 
 To launch qemu with a VirtIO Network device, use something like:
 

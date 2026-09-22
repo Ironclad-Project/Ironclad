@@ -348,11 +348,22 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
       end if;
       return;
 
-      --  A completion that names another command leaves this call's own in
-      --  the device's hands, and what it names with it.
+      --  A completion naming another chain than this call's is one no device
+      --  keeping to the protocol gives, as every chain here starts at the
+      --  first descriptor, and it leaves this call's own command in the
+      --  device's hands. It is never consumed, so every later command would
+      --  read it again: the device is retired as where a command is given up
+      --  on, reset, and what this call named freed once the reset is done.
    <<Failure_Cleanup>>
+      Device.Is_Retired := True;
+      Devices.PCI.Virtio.Reset_Device (Device.Common, Reset_Done);
+      Kept := not Reset_Done;
       Synchronization.Release (Device.Mutex);
-      Kept := True;
+      if not Kept then
+         Free_Header (Req_Header);
+      end if;
+      Messages.Put_Line
+         ("virtio-net: a completion named another command, retiring it");
       Success := False;
       Ret_Count := 0;
       return;
