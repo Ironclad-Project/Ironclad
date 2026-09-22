@@ -7334,6 +7334,7 @@ package body Userland.Syscall is
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("create_thread", Proc);
          Returned := Unsigned_64'Last;
+         return;
       end if;
 
       Get_Common_Map (Proc, Map);
