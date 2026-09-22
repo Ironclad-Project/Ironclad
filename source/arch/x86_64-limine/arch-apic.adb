@@ -21,6 +21,7 @@ with Panic;
 with Memory.MMU;
 with Messages;
 with Arch.MMU;
+with System.Machine_Code;
 
 package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR  : constant := 16#01B#;
@@ -31,6 +32,8 @@ package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_Spurious_Register           : constant := 16#0F0#;
    LAPIC_ICR0_Register               : constant := 16#300#;
    LAPIC_ICR1_Register               : constant := 16#310#;
+   ICR_Send_Pending : constant Unsigned_32 := Shift_Left (1, 12);
+   ICR_Idle_Tries   : constant := 1_000_000;
    LAPIC_Timer_Register              : constant := 16#320#;
    LAPIC_Timer_Init_Counter_Register : constant := 16#380#;
    LAPIC_Timer_Curr_Counter_Register : constant := 16#390#;
@@ -108,14 +111,42 @@ package body Arch.APIC with SPARK_Mode => Off is
    end Init_Core_LAPIC;
 
    procedure LAPIC_Send_IPI_Raw (LAPIC_ID : Unsigned_32; Code : Unsigned_32) is
+      Ints   : Boolean;
+      Status : Unsigned_32;
    begin
       if Supports_x2APIC then
+         --  A WRMSR to an x2APIC register may complete before earlier stores
+         --  are globally visible (Intel SDM 325462-092US, Vol. 3A 13.12.3;
+         --  AMD APM 40332 rev 4.10, Vol. 2 16.11.2), and the interrupted
+         --  core may read what they describe.
+         System.Machine_Code.Asm
+            ("mfence; lfence", Clobber => "memory", Volatile => True);
          x2APIC_Write
             (LAPIC_ICR0_Register,
              Shift_Left (Unsigned_64 (LAPIC_ID), 32) or Unsigned_64 (Code));
       else
+         --  The two halves of the ICR must not be interleaved with another
+         --  interrupt sent from this core.
+         Ints := Snippets.Interrupts_Enabled;
+         Snippets.Disable_Interrupts;
+
+         --  The delivery status is idle once this local APIC has completed
+         --  sending any previous interrupt (Intel SDM 325462-092US,
+         --  Vol. 3A 13.6.1). AMD delivers every interrupt written without
+         --  polling it (AMD APM 40332 rev 4.10, Vol. 2 16.5), so the wait is
+         --  bounded rather than trusted to end, which also keeps a stuck APIC
+         --  from hanging a panic.
+         for I in 1 .. ICR_Idle_Tries loop
+            LAPIC_Read (LAPIC_ICR0_Register, Status);
+            exit when (Status and ICR_Send_Pending) = 0;
+            Snippets.Pause;
+         end loop;
+
          LAPIC_Write (LAPIC_ICR1_Register, Shift_Left (LAPIC_ID, 24));
          LAPIC_Write (LAPIC_ICR0_Register, Code);
+         if Ints then
+            Snippets.Enable_Interrupts;
+         end if;
       end if;
    end LAPIC_Send_IPI_Raw;
 
