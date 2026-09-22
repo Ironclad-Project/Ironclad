@@ -84,8 +84,25 @@ package Arch.MMU is
    --  Check whether a page entry or level is present.
    function Make_Not_Present (Entry_Body : Unsigned_64) return Unsigned_64;
 
-   --  Flush the currently loaded page map's TLB.
-   procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count);
+   --  Make changes to the entries of a map on a range take effect.
+   --  @param Map     Physical address of the map's top level.
+   --  @param Addr    Start of the changed range.
+   --  @param Len     Length of the changed range in bytes.
+   --  @param Changed True if an entry that was present was changed or
+   --                 removed, which cores may have cached; False if entries
+   --                 only became present.
+   --  @param Remote  True for a user map, which other cores may be running.
+   --                 Once the call returns no core uses a translation it
+   --                 replaced, so what those pointed to may be freed. It waits
+   --                 for the other cores, which a core spinning with
+   --                 interrupts disabled cannot answer, so it must not be made
+   --                 while holding a lock that disables them. False for the
+   --                 kernel map, which is flushed on this core alone.
+   procedure Flush_TLBs
+      (Map, Addr : System.Address;
+       Len       : Storage_Count;
+       Changed   : Boolean;
+       Remote    : Boolean);
 
    --  Get current map address.
    procedure Get_Current_Table (Addr : out System.Address);

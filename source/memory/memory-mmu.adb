@@ -48,8 +48,9 @@ package body Memory.MMU with SPARK_Mode => Off is
 
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
-         (Top_Level => [others => 0],
+         (Top_Level  => [others => 0],
           Mutex      => Synchronization.Unlocked_Semaphore,
+          Space_Lock => Synchronization.Unlocked_Mutex,
           User_Size  => 0);
 
       --  Preallocate the higher half PML, so when we clone the kernel memmap,
@@ -132,8 +133,9 @@ package body Memory.MMU with SPARK_Mode => Off is
    begin
       Synchronization.Seize (Kernel_Table.Mutex);
       New_Map := new Page_Table'
-         (Top_Level => [others => 0],
+         (Top_Level  => [others => 0],
           Mutex      => Synchronization.Unlocked_Semaphore,
+          Space_Lock => Synchronization.Unlocked_Mutex,
           User_Size  => 0);
       New_Map.Top_Level (257 .. 512) := Kernel_Table.Top_Level (257 .. 512);
       Synchronization.Release (Kernel_Table.Mutex);
@@ -147,8 +149,9 @@ package body Memory.MMU with SPARK_Mode => Off is
       Starting_Level : Positive;
    begin
       Forked := new Page_Table'
-         (Top_Level => [others => 0],
+         (Top_Level  => [others => 0],
           Mutex      => Synchronization.Unlocked_Semaphore,
+          Space_Lock => Synchronization.Unlocked_Mutex,
           User_Size  => 0);
 
       Synchronization.Seize (Map.Mutex);
@@ -322,15 +325,20 @@ package body Memory.MMU with SPARK_Mode => Off is
        Success        : out Boolean;
        Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back)
    is
-      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
-      Phys  : Virtual_Address          := To_Integer (Physical_Start);
-      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr  : Virtual_Address;
-      Orig  : Integer_Address;
-      Perms : Arch.MMU.Clean_Result;
-      Fill  : constant Boolean := Permissions.Can_Read or
-                                  Permissions.Can_Write or
-                                  Permissions.Can_Execute;
+      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
+      Phys    : Virtual_Address          := To_Integer (Physical_Start);
+      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
+      First   : Virtual_Address;
+      Addr    : Virtual_Address;
+      Orig    : Integer_Address;
+      Perms   : Arch.MMU.Clean_Result;
+      Frames  : Frame_Batch;
+      Count   : Natural;
+      Changed : Boolean;
+      Locked  : Boolean := False;
+      Fill    : constant Boolean := Permissions.Can_Read or
+                                    Permissions.Can_Write or
+                                    Permissions.Can_Execute;
    begin
       --  XXX: A mapping that grants no access reserves address space, it does
       --  not ask for memory. Software like glibc tends to reserve this way
@@ -342,46 +350,59 @@ package body Memory.MMU with SPARK_Mode => Off is
          return;
       end if;
 
-      Synchronization.Seize (Map.Mutex);
+      Seize_Space (Map);
       while Virt < Final loop
-         Get_Page (Map, Virt, True, Addr);
+         First   := Virt;
+         Count   := 0;
+         Changed := False;
+         Synchronization.Seize (Map.Mutex);
+         Locked := True;
+         while Virt < Final and Count < Batch_Size loop
+            Get_Page (Map, Virt, True, Addr);
 
-         declare
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            Orig  := Arch.MMU.Clean_Entry (Entry_Body);
-            Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
-            if Perms.User_Flag and then Orig /= Phys then
-               Physical.Free (size_t (Memory.Memory_Offset + Orig));
-            end if;
-            Entry_Body := Arch.MMU.Construct_Entry
-               (To_Address (Phys), Permissions, Caching, False);
-            if Perms.Perms.Is_User_Accessible then
-               Map.User_Size := Map.User_Size - Page_Size;
-            end if;
-            if Permissions.Is_User_Accessible then
-               Map.User_Size := Map.User_Size + Page_Size;
-            end if;
-         end;
+            declare
+               Entry_Body : Unsigned_64
+                  with Address => To_Address (Addr), Import;
+            begin
+               Orig  := Arch.MMU.Clean_Entry (Entry_Body);
+               Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+               if Arch.MMU.Is_Entry_Present (Entry_Body) then
+                  Changed := True;
+                  if Perms.User_Flag and then Orig /= Phys then
+                     Count := Count + 1;
+                     Frames (Count) := Orig;
+                  end if;
+               end if;
+               Entry_Body := Arch.MMU.Construct_Entry
+                  (To_Address (Phys), Permissions, Caching, False);
+               if Perms.Perms.Is_User_Accessible then
+                  Map.User_Size := Map.User_Size - Page_Size;
+               end if;
+               if Permissions.Is_User_Accessible then
+                  Map.User_Size := Map.User_Size + Page_Size;
+               end if;
+            end;
 
-         Virt := Virt + Page_Size;
-         Phys := Phys + Page_Size;
+            Virt := Virt + Page_Size;
+            Phys := Phys + Page_Size;
+         end loop;
+         Synchronization.Release (Map.Mutex);
+         Locked := False;
+
+         Finish_Batch (Map, First, Virt - First, Changed, Frames, Count);
       end loop;
+      Release_Space (Map);
 
-      --  FIXME: Ideally we should be way more picky with invalidations, but
-      --  Map_Range can result in a less restrictive entry going to more
-      --  restrictive, so while we dont have the logic to discern when this
-      --  happens, we will just always invalidate.
-      Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
-
-      Synchronization.Release (Map.Mutex);
       Success := True;
    exception
       when Constraint_Error =>
          declare
             pragma Suppress (All_Checks);
          begin
-            Synchronization.Release (Map.Mutex);
+            if Locked then
+               Synchronization.Release (Map.Mutex);
+            end if;
+            Release_Space (Map);
          end;
          Success := False;
    end Map_Range;
@@ -394,17 +415,21 @@ package body Memory.MMU with SPARK_Mode => Off is
        Success        : out Boolean;
        Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back)
    is
-      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
-      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr  : Virtual_Address;
-      Addr1 : Virtual_Address;
-      Phys  : Virtual_Address;
-      Orig  : Virtual_Address;
-      Perms : Arch.MMU.Clean_Result;
-      Stale : Boolean := False;
-      Fill  : constant Boolean := Permissions.Can_Read or
-                                  Permissions.Can_Write or
-                                  Permissions.Can_Execute;
+      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
+      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
+      First   : Virtual_Address;
+      Addr    : Virtual_Address;
+      Addr1   : Virtual_Address;
+      Phys    : Virtual_Address;
+      Orig    : Virtual_Address;
+      Perms   : Arch.MMU.Clean_Result;
+      Frames  : Frame_Batch;
+      Count   : Natural;
+      Changed : Boolean;
+      Locked  : Boolean := False;
+      Fill    : constant Boolean := Permissions.Can_Read or
+                                    Permissions.Can_Write or
+                                    Permissions.Can_Execute;
    begin
       --  XXX: See above for Map_Range.
       if not Fill then
@@ -412,60 +437,72 @@ package body Memory.MMU with SPARK_Mode => Off is
          return;
       end if;
 
+      --  A page this replaces may still be cached by any core running the
+      --  map, so it is only freed once they have all dropped it.
+      Seize_Space (Map);
       Success := True;
-      Synchronization.Seize (Map.Mutex);
-      while Virt < Final loop
-         Get_Page (Map, Virt, True, Addr);
+      while Success and Virt < Final loop
+         First   := Virt;
+         Count   := 0;
+         Changed := False;
+         Synchronization.Seize (Map.Mutex);
+         Locked := True;
+         while Virt < Final and Count < Batch_Size loop
+            Get_Page (Map, Virt, True, Addr);
 
-         Memory.Physical.User_Alloc
-            (Addr    => Addr1,
-             Size    => Page_Size,
-             Success => Success);
-         exit when not Success;
-         Phys := Addr1 - Memory.Memory_Offset;
-         declare
-            Allocated : array (1 .. Page_Size) of Unsigned_8
-               with Import, Address => To_Address (Addr1);
-         begin
-            Allocated := [others => 0];
-         end;
+            Memory.Physical.User_Alloc
+               (Addr    => Addr1,
+                Size    => Page_Size,
+                Success => Success);
+            exit when not Success;
+            Phys := Addr1 - Memory.Memory_Offset;
+            declare
+               Allocated : array (1 .. Page_Size) of Unsigned_8
+                  with Import, Address => To_Address (Addr1);
+            begin
+               Allocated := [others => 0];
+            end;
 
-         declare
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            Orig  := Arch.MMU.Clean_Entry (Entry_Body);
-            Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
-            if Arch.MMU.Is_Entry_Present (Entry_Body) then
-               Stale := True;
-            end if;
-            if Perms.User_Flag and then Orig /= Phys then
-               Physical.Free (size_t (Memory.Memory_Offset + Orig));
-            end if;
-            Entry_Body := Arch.MMU.Construct_Entry
-               (To_Address (Phys), Permissions, Caching, True);
-            if Perms.Perms.Is_User_Accessible then
-               Map.User_Size := Map.User_Size - Page_Size;
-            end if;
-            if Permissions.Is_User_Accessible then
-               Map.User_Size := Map.User_Size + Page_Size;
-            end if;
-         end;
+            declare
+               Entry_Body : Unsigned_64
+                  with Address => To_Address (Addr), Import;
+            begin
+               Orig  := Arch.MMU.Clean_Entry (Entry_Body);
+               Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+               if Arch.MMU.Is_Entry_Present (Entry_Body) then
+                  Changed := True;
+                  if Perms.User_Flag and then Orig /= Phys then
+                     Count := Count + 1;
+                     Frames (Count) := Orig;
+                  end if;
+               end if;
+               Entry_Body := Arch.MMU.Construct_Entry
+                  (To_Address (Phys), Permissions, Caching, True);
+               if Perms.Perms.Is_User_Accessible then
+                  Map.User_Size := Map.User_Size - Page_Size;
+               end if;
+               if Permissions.Is_User_Accessible then
+                  Map.User_Size := Map.User_Size + Page_Size;
+               end if;
+            end;
 
-         Virt := Virt + Page_Size;
-         Phys := Phys + Page_Size;
+            Virt := Virt + Page_Size;
+         end loop;
+         Synchronization.Release (Map.Mutex);
+         Locked := False;
+
+         Finish_Batch (Map, First, Virt - First, Changed, Frames, Count);
       end loop;
-
-      --  A replaced entry may still be cached by any core running the map.
-      if Stale then
-         Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
-      end if;
-      Synchronization.Release (Map.Mutex);
+      Release_Space (Map);
    exception
       when Constraint_Error =>
          declare
             pragma Suppress (All_Checks);
          begin
-            Synchronization.Release (Map.Mutex);
+            if Locked then
+               Synchronization.Release (Map.Mutex);
+            end if;
+            Release_Space (Map);
          end;
          Success := False;
    end Map_Allocated_Range;
@@ -478,18 +515,23 @@ package body Memory.MMU with SPARK_Mode => Off is
        Success       : out Boolean;
        Caching       : Arch.MMU.Caching_Model := Arch.MMU.Write_Back)
    is
-      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
-      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr  : Virtual_Address;
-      Addr1 : Virtual_Address;
-      Frame : Integer_Address;
-      User  : Boolean;
-      Perms : Arch.MMU.Clean_Result;
-      Fill  : constant Boolean := Permissions.Can_Read or
-                                  Permissions.Can_Write or
-                                  Permissions.Can_Execute;
+      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
+      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr    : Virtual_Address;
+      Addr1   : Virtual_Address;
+      Frame   : Integer_Address;
+      User    : Boolean;
+      Perms   : Arch.MMU.Clean_Result;
+      Changed : Boolean := False;
+      Locked  : Boolean := False;
+      Fill    : constant Boolean := Permissions.Can_Read or
+                                    Permissions.Can_Write or
+                                    Permissions.Can_Execute;
    begin
+      Seize_Space (Map);
       Synchronization.Seize (Map.Mutex);
+      Locked := True;
+      Success := True;
       while Virt < Final loop
          Get_Page (Map, Virt, Fill, Addr);
 
@@ -500,6 +542,9 @@ package body Memory.MMU with SPARK_Mode => Off is
                Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
                Frame := Arch.MMU.Clean_Entry (Entry_Body);
                User  := Perms.User_Flag;
+               if Arch.MMU.Is_Entry_Present (Entry_Body) then
+                  Changed := True;
+               end if;
 
                --  Nothing is behind this address yet. If this call is what
                --  grants access to it, that is the point at which it has to
@@ -507,10 +552,7 @@ package body Memory.MMU with SPARK_Mode => Off is
                --  charged for it.
                if Fill and then Frame = 0 then
                   Memory.Physical.User_Alloc (Addr1, Page_Size, Success);
-                  if not Success then
-                     Synchronization.Release (Map.Mutex);
-                     return;
-                  end if;
+                  exit when not Success;
                   declare
                      Allocated : array (1 .. Page_Size) of Unsigned_8
                         with Import, Address => To_Address (Addr1);
@@ -539,21 +581,27 @@ package body Memory.MMU with SPARK_Mode => Off is
 
          Virt := Virt + Page_Size;
       end loop;
-
-      --  FIXME: Ideally we should be way more picky with invalidations, but
-      --  Remap_Range can result in a less restrictive entry going to more
-      --  restrictive, so while we dont have the logic to discern when this
-      --  happens, we will just always invalidate.
-      Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
-
       Synchronization.Release (Map.Mutex);
-      Success := True;
+      Locked := False;
+
+      --  Nothing is freed, but access is only taken away once no core can
+      --  still use what it had.
+      Arch.MMU.Flush_TLBs
+         (Map     => Get_Map_Table_Addr (Map),
+          Addr    => Virtual_Start,
+          Len     => Storage_Count (Virt - To_Integer (Virtual_Start)),
+          Changed => Changed,
+          Remote  => Map /= Kernel_Table);
+      Release_Space (Map);
    exception
       when Constraint_Error =>
          declare
             pragma Suppress (All_Checks);
          begin
-            Synchronization.Release (Map.Mutex);
+            if Locked then
+               Synchronization.Release (Map.Mutex);
+            end if;
+            Release_Space (Map);
          end;
          Success := False;
    end Remap_Range;
@@ -564,42 +612,64 @@ package body Memory.MMU with SPARK_Mode => Off is
        Length        : Storage_Count;
        Success       : out Boolean)
    is
-      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
-      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr  : Virtual_Address;
-      Orig  : Virtual_Address;
-      Perms : Arch.MMU.Clean_Result;
+      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
+      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
+      First   : Virtual_Address;
+      Addr    : Virtual_Address;
+      Orig    : Virtual_Address;
+      Perms   : Arch.MMU.Clean_Result;
+      Frames  : Frame_Batch;
+      Count   : Natural;
+      Changed : Boolean;
+      Locked  : Boolean := False;
    begin
-      Synchronization.Seize (Map.Mutex);
+      Seize_Space (Map);
       while Virt < Final loop
-         Get_Page (Map, Virt, False, Addr);
+         First   := Virt;
+         Count   := 0;
+         Changed := False;
+         Synchronization.Seize (Map.Mutex);
+         Locked := True;
+         while Virt < Final and Count < Batch_Size loop
+            Get_Page (Map, Virt, False, Addr);
 
-         declare
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            if Addr /= 0 then
-               Orig  := Arch.MMU.Clean_Entry (Entry_Body);
-               Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
-               if Perms.User_Flag then
-                  Physical.Free (size_t (Memory.Memory_Offset + Orig));
+            declare
+               Entry_Body : Unsigned_64
+                  with Address => To_Address (Addr), Import;
+            begin
+               if Addr /= 0 and then Arch.MMU.Is_Entry_Present (Entry_Body)
+               then
+                  Changed := True;
+                  Orig    := Arch.MMU.Clean_Entry (Entry_Body);
+                  Perms   := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+                  if Perms.User_Flag then
+                     Count := Count + 1;
+                     Frames (Count) := Orig;
+                  end if;
+                  Entry_Body := Arch.MMU.Make_Not_Present (Entry_Body);
+                  if Perms.Perms.Is_User_Accessible then
+                     Map.User_Size := Map.User_Size - Page_Size;
+                  end if;
                end if;
-               Entry_Body := Arch.MMU.Make_Not_Present (Entry_Body);
-               if Perms.Perms.Is_User_Accessible then
-                  Map.User_Size := Map.User_Size - Page_Size;
-               end if;
-            end if;
-         end;
-         Virt := Virt + Page_Size;
+            end;
+            Virt := Virt + Page_Size;
+         end loop;
+         Synchronization.Release (Map.Mutex);
+         Locked := False;
+
+         Finish_Batch (Map, First, Virt - First, Changed, Frames, Count);
       end loop;
-      Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
-      Synchronization.Release (Map.Mutex);
+      Release_Space (Map);
       Success := True;
    exception
       when Constraint_Error =>
          declare
             pragma Suppress (All_Checks);
          begin
-            Synchronization.Release (Map.Mutex);
+            if Locked then
+               Synchronization.Release (Map.Mutex);
+            end if;
+            Release_Space (Map);
          end;
          Success := False;
    end Unmap_Range;
@@ -651,6 +721,49 @@ package body Memory.MMU with SPARK_Mode => Off is
       Val2 := Global_Table_Usage;
       Stats := (Val1, Val2, 0);
    end Get_Statistics;
+
+   procedure Seize_Space (Map : Page_Table_Acc) is
+   begin
+      if Map /= Kernel_Table then
+         Synchronization.Seize (Map.Space_Lock);
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Seize_Space;
+
+   procedure Release_Space (Map : Page_Table_Acc) is
+   begin
+      if Map /= Kernel_Table then
+         Synchronization.Release (Map.Space_Lock);
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Release_Space;
+
+   procedure Finish_Batch
+      (Map     : Page_Table_Acc;
+       First   : Virtual_Address;
+       Length  : Virtual_Address;
+       Changed : Boolean;
+       Frames  : Frame_Batch;
+       Count   : Natural)
+   is
+   begin
+      Arch.MMU.Flush_TLBs
+         (Map     => Get_Map_Table_Addr (Map),
+          Addr    => To_Address (First),
+          Len     => Storage_Count (Length),
+          Changed => Changed,
+          Remote  => Map /= Kernel_Table);
+      for I in 1 .. Count loop
+         Physical.Free (size_t (Memory.Memory_Offset + Frames (I)));
+      end loop;
+   exception
+      when Constraint_Error =>
+         null;
+   end Finish_Batch;
    ----------------------------------------------------------------------------
    procedure Get_Next_Level
       (Current_Level       : Physical_Address;

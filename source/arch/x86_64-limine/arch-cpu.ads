@@ -19,7 +19,6 @@ with Userland.Process;
 with Scheduler;
 with Arch.GDT;
 with Arch.Limine;
-with Synchronization;
 
 package Arch.CPU is
    --  Core-local data, that each core holds an own version of.
@@ -38,11 +37,7 @@ package Arch.CPU is
       Current_Thread  : Scheduler.TID;
       Current_Process : Userland.Process.PID;
       Retiring_Thread : Scheduler.TID;  --  See Arch.Local.
-
-      Invalidate_Lock  : aliased Synchronization.Binary_Semaphore;
-      Invalidate_Map   : Unsigned_64;
-      Invalidate_Start : System.Address;
-      Invalidate_End   : System.Address;
+      Online          : Boolean := False; --  Its IDT and LAPIC are set up.
    end record;
    for Core_Local use record
       Self         at 0 range   0 ..  63;
@@ -60,6 +55,16 @@ package Arch.CPU is
    Global_Use_XSAVE : Boolean := False;
    Global_Use_SMAP  : Boolean := False;
    Global_FPU_Size  : Unsigned_32;
+
+   --  The TLB shootdown in flight, of which there is one at a time, made by
+   --  Arch.MMU.Flush_TLBs. Every other online core drops the range of the
+   --  table from its TLB if it has that table loaded, all of it if the whole
+   --  flag is set, and then counts the pending cores down.
+   Shootdown_Map     : Unsigned_64    := 0     with Volatile;
+   Shootdown_Start   : System.Address          with Volatile;
+   Shootdown_End     : System.Address          with Volatile;
+   Shootdown_Whole   : Boolean        := False with Volatile;
+   Shootdown_Pending : Unsigned_64    := 0     with Volatile;
 
    --  Init the cores and BSP.
    procedure Init_Cores;

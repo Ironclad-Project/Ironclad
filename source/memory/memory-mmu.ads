@@ -203,11 +203,37 @@ private
    type PML is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
    type Variable_PML is array (Natural range <>) of Unsigned_64;
    type PML_Acc is access PML;
+   --  Mutex guards the entries. Space_Lock is held by any change of a user
+   --  map, from the change until every core has stopped using what it
+   --  replaced and what that pointed to has been freed, so another change
+   --  cannot slip in between.
    type Page_Table is record
-      Top_Level : PML;
-      Mutex     : aliased Synchronization.Binary_Semaphore;
-      User_Size : Unsigned_64;
+      Top_Level  : PML;
+      Mutex      : aliased Synchronization.Binary_Semaphore;
+      Space_Lock : aliased Synchronization.Mutex;
+      User_Size  : Unsigned_64;
    end record;
+
+   --  Hold the space lock of a user map. Nothing the kernel map replaces is
+   --  freed, so it takes none.
+   procedure Seize_Space (Map : Page_Table_Acc) with Pre => Map /= null;
+   procedure Release_Space (Map : Page_Table_Acc) with Pre => Map /= null;
+
+   --  Frames a change removes from a map and owns, which are freed only once
+   --  no core can reach them through a translation it cached.
+   Batch_Size : constant := 256;
+   type Frame_Batch is array (1 .. Batch_Size) of Integer_Address;
+
+   --  Make a batch of changes to the entries of Map on First .. First + Length
+   --  visible to every core, then free the frames it removed. Called with
+   --  Map.Mutex released and the space lock held.
+   procedure Finish_Batch
+      (Map     : Page_Table_Acc;
+       First   : Virtual_Address;
+       Length  : Virtual_Address;
+       Changed : Boolean;
+       Frames  : Frame_Batch;
+       Count   : Natural);
 
    procedure Get_Next_Level
       (Current_Level       : Physical_Address;

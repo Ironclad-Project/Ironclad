@@ -20,10 +20,18 @@ with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
-with Userland.Process;
 with Synchronization;
+with System.Atomic_Operations;
 
 package body Arch.MMU is
+   --  Only one TLB shootdown is made at a time, and above this size a user
+   --  map is dropped from the TLB whole rather than a page at a time. That
+   --  reloads the table, which keeps global entries, and only kernel
+   --  mappings are global.
+   Shootdown_Lock   : aliased Synchronization.Mutex :=
+      Synchronization.Unlocked_Mutex;
+   Whole_Flush_Size : constant Storage_Count := 32 * Page_Size;
+
    --  Bits in the 4K page entries.
    Page_P     : constant Unsigned_64 := Shift_Left (1,  0);
    Page_RW    : constant Unsigned_64 := Shift_Left (1,  1);
@@ -166,47 +174,87 @@ package body Arch.MMU is
       return 0;
    end Make_Not_Present;
 
-   procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count) is
+   procedure Flush_TLBs
+      (Map, Addr : System.Address;
+       Len       : Storage_Count;
+       Changed   : Boolean;
+       Remote    : Boolean)
+   is
       pragma SPARK_Mode (Off);
-      use Userland.Process;
+      pragma Suppress (All_Checks); --  Nothing here can fail, as for locks.
+      function Load is new System.Atomic_Operations.Atomic_Load (Unsigned_64);
+      function Fetch_Add is new System.Atomic_Operations.Atomic_Fetch_Add
+         (Unsigned_64);
+
       A1    : constant    Unsigned_64 := Unsigned_64 (To_Integer (Map));
       Final : constant System.Address := Addr + Len;
-      Curr  :          System.Address := Addr;
-      Proc  : Userland.Process.PID;
+      Whole : constant        Boolean := Remote and Len > Whole_Flush_Size;
+      Self  : Positive;
+      Ints  : Boolean;
+      Curr  : System.Address := Addr;
+      Remote_Flush : Boolean;
+      Discard      : Unsigned_64;
    begin
-      --  First, invalidate for ourselves.
+      --  A translation is only ever cached for an entry that was present.
+      if not Changed then
+         return;
+      end if;
+
+      --  Other cores are only reached one shootdown at a time, and only when
+      --  the map can be running on one of them.
+      Remote_Flush := Remote and then Arch.CPU.Core_Locals /= null and then
+                      Arch.CPU.Core_Count > 1;
+      if Remote_Flush then
+         Synchronization.Seize (Shootdown_Lock);
+      end if;
+
+      --  From here on this core must not change under us, as it does not
+      --  answer its own request.
+      Ints := Arch.Snippets.Interrupts_Enabled;
+      Arch.Snippets.Disable_Interrupts;
+
       if Arch.Snippets.Read_CR3 = A1 then
-         while To_Integer (Curr) < To_Integer (Final) loop
-            Arch.Snippets.Invalidate_Page (To_Integer (Curr));
-            Curr := Curr + Page_Size;
+         if Whole then
+            Arch.Snippets.Write_CR3 (A1);
+         else
+            while To_Integer (Curr) < To_Integer (Final) loop
+               Arch.Snippets.Invalidate_Page (To_Integer (Curr));
+               Curr := Curr + Page_Size;
+            end loop;
+         end if;
+      end if;
+
+      if Remote_Flush then
+         Arch.CPU.Shootdown_Map   := A1;
+         Arch.CPU.Shootdown_Start := Addr;
+         Arch.CPU.Shootdown_End   := Final;
+         Arch.CPU.Shootdown_Whole := Whole;
+
+         --  A core that is not online yet has never run a user map, and its
+         --  LAPIC may not take the interrupt. Each core is counted before it
+         --  is sent to, and sending orders the request's stores before the
+         --  interrupt in either APIC mode.
+         Self := Arch.CPU.Get_Local.Number;
+         for I in Arch.CPU.Core_Locals.all'Range loop
+            if I /= Self and then Arch.CPU.Core_Locals (I).Online then
+               Discard := Fetch_Add (Arch.CPU.Shootdown_Pending'Address, 1);
+               Arch.APIC.LAPIC_Send_IPI
+                  (Arch.CPU.Core_Locals (I).LAPIC_ID,
+                   Arch.Interrupts.Invalidate_Interrupt);
+            end if;
+         end loop;
+
+         while Load (Arch.CPU.Shootdown_Pending'Address) /= 0 loop
+            Arch.Snippets.Pause;
          end loop;
       end if;
 
-      --  If we are running on a process, and said process is running with more
-      --  than one thread, we need to invalidate using funky IPIs.
-      if Arch.CPU.Core_Locals = null then
-         return;
+      if Ints then
+         Arch.Snippets.Enable_Interrupts;
       end if;
-
-      Proc := Arch.CPU.Get_Local.Current_Process;
-
-      for I in Arch.CPU.Core_Locals.all'Range loop
-         if I /= Arch.CPU.Get_Local.Number and then
-            Arch.CPU.Core_Locals (I).Current_Process = Proc
-         then
-            Synchronization.Seize (Arch.CPU.Core_Locals (I).Invalidate_Lock);
-            Arch.CPU.Core_Locals (I).Invalidate_Map   := A1;
-            Arch.CPU.Core_Locals (I).Invalidate_Start := Addr;
-            Arch.CPU.Core_Locals (I).Invalidate_End   := Final;
-            Synchronization.Release (Arch.CPU.Core_Locals (I).Invalidate_Lock);
-            Arch.APIC.LAPIC_Send_IPI
-               (Arch.CPU.Core_Locals (I).LAPIC_ID,
-                Arch.Interrupts.Invalidate_Interrupt);
-         end if;
-      end loop;
-   exception
-      when Constraint_Error =>
-         return;
+      if Remote_Flush then
+         Synchronization.Release (Shootdown_Lock);
+      end if;
    end Flush_TLBs;
 
    procedure Get_Current_Table (Addr : out System.Address) is

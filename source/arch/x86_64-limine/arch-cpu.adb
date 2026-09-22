@@ -322,10 +322,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Current_Thread   => Scheduler.Error_TID,
           Current_Process  => Userland.Process.Error_PID,
           Retiring_Thread  => Scheduler.Error_TID,
-          Invalidate_Lock  => Synchronization.Unlocked_Semaphore,
-          Invalidate_Map   => 0,
-          Invalidate_Start => System.Null_Address,
-          Invalidate_End   => System.Null_Address);
+          Online           => True);
       APIC.LAPIC_Timer_Calibrate (Core_Locals (Core_Number).LAPIC_Timer_Hz);
 
       Snippets.Write_GS        (Locals_Addr);

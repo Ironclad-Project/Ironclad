@@ -21,13 +21,13 @@ with Arch.Context;
 with Memory.MMU;
 with Panic;
 with Messages;
-with Synchronization;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets; use Arch.Snippets;
 with Arch.Local;
 with Userland.Corefile;
 with Userland.Process;
+with System.Atomic_Operations;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
@@ -435,28 +435,30 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end Panic_Handler;
 
    procedure Invalidate_Handler is
-      I            : Positive;
-      Final, Curr  : System.Address;
-      Map          : Unsigned_64;
-   begin
-      I     := CPU.Get_Local.Number;
-      Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock);
-      Final := CPU.Core_Locals (I).Invalidate_End;
-      Curr  := CPU.Core_Locals (I).Invalidate_Start;
-      Map   := CPU.Core_Locals (I).Invalidate_Map;
-      Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
+      pragma Suppress (All_Checks); --  Nothing here can fail, as for locks.
+      function Fetch_Sub is new System.Atomic_Operations.Atomic_Fetch_Sub
+         (Unsigned_64);
 
+      Map     : constant    Unsigned_64 := CPU.Shootdown_Map;
+      Final   : constant System.Address := CPU.Shootdown_End;
+      Curr    :          System.Address := CPU.Shootdown_Start;
+      Discard : Unsigned_64;
+   begin
+      --  Another core changed the entries of a table, and waits until every
+      --  core that could have cached the old ones has dropped them.
       if Snippets.Read_CR3 = Map then
-         while To_Integer (Curr) < To_Integer (Final) loop
-            Snippets.Invalidate_Page (To_Integer (Curr));
-            Curr := Curr + Memory.MMU.Page_Size;
-         end loop;
+         if CPU.Shootdown_Whole then
+            Snippets.Write_CR3 (Map);
+         else
+            while To_Integer (Curr) < To_Integer (Final) loop
+               Snippets.Invalidate_Page (To_Integer (Curr));
+               Curr := Curr + Memory.MMU.Page_Size;
+            end loop;
+         end if;
       end if;
 
+      Discard := Fetch_Sub (CPU.Shootdown_Pending'Address, 1);
       Arch.APIC.LAPIC_EOI;
-   exception
-      when Constraint_Error =>
-         Arch.APIC.LAPIC_EOI;
    end Invalidate_Handler;
 
    procedure Default_ISR_Handler is

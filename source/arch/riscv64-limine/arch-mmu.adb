@@ -162,10 +162,17 @@ package body Arch.MMU is
       return 0;
    end Make_Not_Present;
 
-   procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count) is
-      pragma Unreferenced (Map, Addr, Len);
+   procedure Flush_TLBs
+      (Map, Addr : System.Address;
+       Len       : Storage_Count;
+       Changed   : Boolean;
+       Remote    : Boolean)
+   is
+      pragma Unreferenced (Map, Addr, Len, Changed, Remote);
       pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
    begin
+      --  Without Svvptc an entry becoming present needs a fence as well as one
+      --  that changed.
       System.Machine_Code.Asm
          ("sfence.vma",
           Clobber  => "memory",
