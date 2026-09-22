@@ -420,6 +420,11 @@ private
    Root_Inode         : constant := 2;
    Max_File_Name_Size : constant := 255;
 
+   --  Most links a file may have, Linux's EXT2_LINK_MAX, so what is written
+   --  here stays a valid ext2 filesystem for it. A directory counts one link
+   --  from its parent, its own '.', and the '..' of each subdirectory.
+   Link_Max : constant := 32_000;
+
    --  Size of the on-disk inode of a revision 0 filesystem and the first
    --  inode usable for files there. Both are fixed by the format.
    Old_Inode_Size : constant := 128;

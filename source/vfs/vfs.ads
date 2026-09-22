@@ -92,7 +92,8 @@ package VFS is
        FS_IO_Failure,    --  The underlying device errored out.
        FS_Loop,          --  Too many symlinks were encountered resolving path.
        FS_Full,          --  The file or device is full.
-       FS_Not_Empty);    --  A directory was to be removed with files inside.
+       FS_Not_Empty,     --  A directory was to be removed with files inside.
+       FS_Too_Many_Links); --  A file would get more links than it can have.
 
    --  Access time update policies supported.
    type Access_Time_Policy is

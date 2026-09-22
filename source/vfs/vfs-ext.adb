@@ -364,6 +364,9 @@ package body VFS.EXT with SPARK_Mode => Off is
       then
          Status := FS_Not_Allowed;
          goto Cleanup;
+      elsif Is_Dir and Parent_Inode.Hard_Link_Count >= Link_Max then
+         Status := FS_Too_Many_Links;
+         goto Cleanup;
       end if;
 
       Allocate_Inode
@@ -731,6 +734,9 @@ package body VFS.EXT with SPARK_Mode => Off is
       then
          Status := FS_Not_Allowed;
          goto Cleanup;
+      elsif Source_Inode.Hard_Link_Count >= Link_Max then
+         Status := FS_Too_Many_Links;
+         goto Cleanup;
       end if;
 
       Stamp := Current_Epoch;
@@ -914,6 +920,15 @@ package body VFS.EXT with SPARK_Mode => Off is
                goto Cleanup;
             end if;
          end if;
+      end if;
+
+      --  A directory moving under a new parent gives it one more link, unless
+      --  it replaces a directory there.
+      if Source_Kind = File_Directory and not Same_Parent and not Success2
+         and Target_Parent_Inode.Hard_Link_Count >= Link_Max
+      then
+         Status := FS_Too_Many_Links;
+         goto Cleanup;
       end if;
 
       --  Both names may live in the same directory, in which case there is

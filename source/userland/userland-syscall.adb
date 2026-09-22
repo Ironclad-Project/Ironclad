@@ -8846,6 +8846,7 @@ package body Userland.Syscall is
          when VFS.FS_Full          => Errno := Error_No_Space;
          when VFS.FS_Not_Empty     => Errno := Error_Not_Empty;
          when VFS.FS_Not_Found     => Errno := Error_No_Entity;
+         when VFS.FS_Too_Many_Links => Errno := Error_Too_Many_Links;
       end case;
       Returned := Unsigned_64'Last;
    exception

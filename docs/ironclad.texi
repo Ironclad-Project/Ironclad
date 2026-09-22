@@ -1322,6 +1322,9 @@ Too many symlinks were encountered when resolving a requested path.
 @item EMFILE (1031)
 Too many files were opened by the process.
 
+@item EMLINK (1032)
+A file would get more links than the filesystem allows.
+
 @item ENAMETOOLONG (1036)
 The passed value is too big for the syscall.
 
@@ -2144,6 +2147,10 @@ codes set on failure are:
 
 @item
 @code{EIO}: The operation could not be done out of an internal error.
+
+@item
+@code{EMLINK}: A directory would move into a directory that has as many links
+as it can have.
 @end itemize
 
 @node listprocs
@@ -2715,6 +2722,9 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EINVAL}: The passed path length is way too big.
 @item
 @code{EIO}: Internal error.
+@item
+@code{EMLINK}: The directory it would be made in has as many links as it can
+have, one per subdirectory among them.
 @end itemize
 
 @node symlink
@@ -2836,6 +2846,8 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EINVAL}: The passed path and target lengths are way too big.
 @item
 @code{EIO}: Internal error.
+@item
+@code{EMLINK}: The file has as many links as it can have.
 @end itemize
 
 @node ptrace
