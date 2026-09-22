@@ -2630,7 +2630,8 @@ contents or @code{-1} on failure, with the following errno:
 @item
 @code{EFAULT}: Incorrect addresses for the arguments.
 @item
-@code{EBADF}: @code{fd} does not contain a valid file.
+@code{EBADF}: @code{fd} does not contain a valid file, or it was not opened
+for reading.
 @item
 @code{ENOENT}: @code{fd} is not a directory.
 @item

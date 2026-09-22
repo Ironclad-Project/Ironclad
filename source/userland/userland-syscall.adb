@@ -3502,7 +3502,9 @@ package body Userland.Syscall is
    begin
       Get_Common_Map (Proc, Map);
       Get_File (Proc, FD, File);
-      if File = null or else File.Description /= Description_Inode then
+      if File = null or else File.Description /= Description_Inode or else
+         not File.Inner_Ino_Read
+      then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
       else
