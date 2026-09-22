@@ -1105,6 +1105,16 @@ package body Scheduler with SPARK_Mode => Off is
          return Error_TID;
    end Convert;
 
+   function Is_Alive (Thread : TID; PID : Natural) return Boolean is
+   begin
+      return Thread /= Error_TID                 and then
+             Thread_Pool (Thread).Is_Present     and then
+             Userland.Process.Convert (Thread_Pool (Thread).Process) = PID;
+   exception
+      when Constraint_Error =>
+         return False;
+   end Is_Alive;
+
    procedure List_All (List : out Thread_Listing_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin

@@ -176,6 +176,11 @@ package Scheduler is
    function Convert (Thread : TID) return Natural;
    function Convert (Value : Natural) return TID;
 
+   --  Whether Thread is alive and runs for the process numbered PID, a plain
+   --  number since Userland.Process withs this spec, so naming one of its
+   --  types here would be a cycle.
+   function Is_Alive (Thread : TID; PID : Natural) return Boolean;
+
    type Thread_Listing is record
       Thread : TID;
       Proc   : Natural;

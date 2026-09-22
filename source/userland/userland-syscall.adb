@@ -7540,9 +7540,19 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          Errno    := Error_String_Too_Long;
          return;
+      elsif TID > Unsigned_64 (Natural'Last) then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_Search;
+         return;
       end if;
 
+      --  A thread's name is its own process's to read and write.
       Th := Scheduler.Convert (Natural (TID));
+      if not Scheduler.Is_Alive (Th, Convert (Proc)) then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_Search;
+         return;
+      end if;
 
       declare
          subtype Name_String is String (1 .. Natural (Length));
@@ -7608,7 +7618,19 @@ package body Userland.Syscall is
             return;
          end if;
 
+         if TID > Unsigned_64 (Natural'Last) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_Search;
+            return;
+         end if;
+
          Th := Scheduler.Convert (Natural (TID));
+         if not Scheduler.Is_Alive (Th, Convert (Proc)) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_Search;
+            return;
+         end if;
+
          Scheduler.Set_Name (Th, Str, Succ);
          if Succ then
             Returned := 0;
