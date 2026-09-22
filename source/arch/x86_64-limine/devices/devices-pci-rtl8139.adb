@@ -181,7 +181,6 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
                 IPv4        => [0, 0, 0, 0],
                 IPv4_Subnet => [0, 0, 0, 0],
                 Success     => Success);
-            Networking.Interfaces.Block (Dev, False, Success);
          end if;
       end loop;
    exception

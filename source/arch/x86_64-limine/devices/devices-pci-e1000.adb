@@ -27,8 +27,6 @@ with Memory.Physical;
 with Alignment;
 with Networking.Interfaces;
 with Networking.Stack;
-with Networking.DHCP;
-with Networking.DNS;
 with Scheduler;
 
 with Interfaces.C; use Interfaces.C;
@@ -744,8 +742,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
                 Unsigned_8 (MAC_High and Unsigned_16 (Unsigned_8'Last)),
                 Unsigned_8 (Shift_Right (MAC_High, 8)
                             and Unsigned_16 (Unsigned_8'Last))];
-            Lease   : Networking.DHCP.DHCP_Lease;
-            DHCP_Ok : Boolean;
          begin
             --  Register with no IP initially.
             Networking.Interfaces.Register_Interface
@@ -754,18 +750,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
                 IPv4        => [0, 0, 0, 0],
                 IPv4_Subnet => [0, 0, 0, 0],
                 Success     => Success);
-            Networking.Interfaces.Block (Dev, False, Success);
-
-            --  Perform DHCP discovery.
-            Networking.DHCP.Discover (Dev, MAC_Addr, Lease, DHCP_Ok);
-            if DHCP_Ok and Lease.Is_Valid then
-               Networking.Interfaces.Modify_Addresses
-                  (Dev, Lease.Assigned_IP, Lease.Subnet_Mask, Success);
-               Networking.Stack.Set_Gateway (Lease.Gateway_IP);
-               Networking.DNS.Set_DNS_Server (Lease.DNS_Server_IP);
-            else
-               Messages.Put_Line ("E1000: DHCP failed, no IP assigned");
-            end if;
          end;
       end if;
    exception
