@@ -97,6 +97,8 @@ package body IPC.Socket is
                     Cred_GID => 0,
                     Do_Credential_Reporting => False,
                     Simple_Connected => null,
+                    Connected_Path   => [others => ' '],
+                    Connected_Len    => 0,
                     Data             => [others => 0],
                     Data_Length      => 0);
                when Raw =>
@@ -782,7 +784,8 @@ package body IPC.Socket is
                Scheduler.Yield_If_Able;
             end loop;
          when others =>
-            Sock.Simple_Connected := To_Connect;
+            Sock.Connected_Path (1 .. Path'Length) := Path;
+            Sock.Connected_Len := Path'Length;
       end case;
 
       Sock.Has_Credentials := True;
@@ -840,8 +843,15 @@ package body IPC.Socket is
       pragma SPARK_Mode (Off);
    begin
       Result := Create (Sock.Dom, Sock.Kind);
-      Result.Pending_Accept := Sock;
-      Sock.Pending_Accept   := Result;
+      if Result = null then
+         return;
+      elsif Sock.Kind = Stream then
+         Result.Pending_Accept := Sock;
+         Sock.Pending_Accept   := Result;
+      else
+         Result.Simple_Connected := Sock;
+         Sock.Simple_Connected   := Result;
+      end if;
    end Direct_Connection;
 
    procedure Read
@@ -854,12 +864,10 @@ package body IPC.Socket is
        Success       : out Socket_Status)
    is
       pragma SPARK_Mode (Off);
-      Discard : Boolean;
-      Temp : constant Socket_Acc := Sock.Simple_Connected;
+      pragma Unreferenced (Path, PID, UID, GID);
    begin
-      Connect (Sock, Path, PID, UID, GID, Discard);
+      --  What is read comes from the socket's own buffer, whoever sent it.
       Inner_UNIX_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
-      Sock.Simple_Connected := Temp;
    end Read;
 
    procedure Write
@@ -872,12 +880,19 @@ package body IPC.Socket is
        Success       : out Socket_Status)
    is
       pragma SPARK_Mode (Off);
-      Discard : Boolean;
-      Temp : constant Socket_Acc := Sock.Simple_Connected;
+      pragma Unreferenced (PID, UID, GID);
+      Target : Socket_Acc;
    begin
-      Connect (Sock, Path, PID, UID, GID, Discard);
-      Inner_UNIX_Write (Sock, Data, Is_Blocking, Ret_Count, Success);
-      Sock.Simple_Connected := Temp;
+      --  A connected stream ignores the address, and a datagram goes to the
+      --  socket bound at it alone.
+      if Sock.Kind = Stream then
+         Inner_UNIX_Write (Sock, Data, Is_Blocking, Ret_Count, Success);
+      else
+         Synchronization.Seize (UNIX_Bound_Mutex);
+         Target := Get_Bound (Path);
+         Synchronization.Release (UNIX_Bound_Mutex);
+         Deliver_Datagram (Target, Data, Ret_Count, Success);
+      end if;
    end Write;
 
    procedure Get_Peer_Credentials
@@ -1064,6 +1079,10 @@ package body IPC.Socket is
             To_Close.Pending_Accept.Pending_Accept := null;
          end if;
          To_Close.Pending_Accept := null;
+      elsif To_Close.Kind /= Stream and then To_Close.Simple_Connected /= null
+      then
+         To_Close.Simple_Connected.Simple_Connected := null;
+         To_Close.Simple_Connected := null;
       end if;
 
       Synchronization.Release (UNIX_Bound_Mutex);
@@ -1147,8 +1166,9 @@ package body IPC.Socket is
        Ret_Count   : out Natural;
        Success     : out Socket_Status)
    is
-      Len   : Natural := Data'Length;
-      Final : Natural;
+      Len    : Natural := Data'Length;
+      Final  : Natural;
+      Target : Socket_Acc;
    begin
       case Sock.Kind is
          when Stream =>
@@ -1206,30 +1226,46 @@ package body IPC.Socket is
          <<Cleanup>>
             Synchronization.Release (Sock.Pending_Accept.Mutex);
          when others =>
-            if Sock.Simple_Connected = null or
-               Data'Length > Default_Socket_Size
-            then
-               Ret_Count := 0;
-               Success   := Would_Block;
-               return;
-            end if;
-
-
-            Synchronization.Seize (Sock.Simple_Connected.Mutex);
-            if Sock.Simple_Connected.Data_Length = 0 and then
-               Data'Length <= Default_Socket_Size
-            then
-               Sock.Simple_Connected.Data (1 .. Data'Length) := Data;
-               Sock.Simple_Connected.Data_Length := Data'Length;
-               Ret_Count := Data'Length;
-               Success   := Plain_Success;
+            if Sock.Connected_Len /= 0 then
+               Synchronization.Seize (UNIX_Bound_Mutex);
+               Target := Get_Bound
+                  (Sock.Connected_Path (1 .. Sock.Connected_Len));
+               Synchronization.Release (UNIX_Bound_Mutex);
+               Deliver_Datagram (Target, Data, Ret_Count, Success);
             else
-               Ret_Count := 0;
-               Success   := Would_Block;
+               Deliver_Datagram
+                  (Sock.Simple_Connected, Data, Ret_Count, Success);
             end if;
-            Synchronization.Release (Sock.Simple_Connected.Mutex);
       end case;
    end Inner_UNIX_Write;
+
+   procedure Deliver_Datagram
+      (Target    : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status)
+   is
+   begin
+      if Target = null or else Target.Dom /= UNIX or else
+         Target.Kind = Stream or else Data'Length > Default_Socket_Size
+      then
+         Ret_Count := 0;
+         Success   := Would_Block;
+         return;
+      end if;
+
+      Synchronization.Seize (Target.Mutex);
+      if Target.Data_Length = 0 then
+         Target.Data (1 .. Data'Length) := Data;
+         Target.Data_Length := Data'Length;
+         Ret_Count := Data'Length;
+         Success   := Plain_Success;
+      else
+         Ret_Count := 0;
+         Success   := Would_Block;
+      end if;
+      Synchronization.Release (Target.Mutex);
+   end Deliver_Datagram;
 
    procedure Inner_UNIX_Poll
       (Sock      : Socket_Acc;
@@ -1256,7 +1292,8 @@ package body IPC.Socket is
             end if;
          when others =>
             Can_Read  := Sock.Data_Length      /= 0;
-            Can_Write := Sock.Simple_Connected /= null;
+            Can_Write := Sock.Simple_Connected /= null or
+                         Sock.Connected_Len /= 0;
             Is_Broken := False;
             Is_Error  := False;
       end case;

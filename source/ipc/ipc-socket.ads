@@ -410,6 +410,7 @@ package IPC.Socket is
 private
 
    Default_Socket_Size : constant Natural := 16#2000#;
+   Bind_Path_Max       : constant := 100;
 
    type Socket (Dom : Domain; Kind : DataType) is record
       Mutex : aliased Synchronization.Mutex;
@@ -431,7 +432,11 @@ private
                   Established    : Socket_Acc;
                   Peer_Closed    : Boolean;
                when others =>
+                  --  The other end of a socketpair, and the path connect
+                  --  named, which each write looks up again.
                   Simple_Connected : Socket_Acc;
+                  Connected_Path   : String (1 .. Bind_Path_Max);
+                  Connected_Len    : Natural range 0 .. Bind_Path_Max;
             end case;
          when IPv4 =>
             IPv4_Local_Addr  : Networking.IPv4_Address;
@@ -466,7 +471,6 @@ private
        Success   : out Socket_Status);
    ----------------------------------------------------------------------------
    --  UNIX socket fun.
-   Bind_Path_Max : constant := 100;
    type Bound_Socket is record
       Sock     : Socket_Acc;
       Path     : String (1 .. Bind_Path_Max);
@@ -495,6 +499,13 @@ private
        Is_Blocking : Boolean;
        Ret_Count   : out Natural;
        Success     : out Socket_Status);
+
+   --  Put a datagram in the buffer of Target, a datagram socket or null.
+   procedure Deliver_Datagram
+      (Target    : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status);
 
    procedure Inner_UNIX_Poll
       (Sock      : Socket_Acc;
