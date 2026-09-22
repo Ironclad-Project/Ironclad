@@ -530,7 +530,8 @@ package body Scheduler with SPARK_Mode => Off is
       end loop;
    exception
       when Constraint_Error =>
-         null;
+         --  The index check fires with the lock held.
+         Synchronization.Release (Scheduler_Mutex);
    end Suspend_Until;
 
    procedure Mark_Suspend is
@@ -543,7 +544,8 @@ package body Scheduler with SPARK_Mode => Off is
       Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         null;
+         --  The index check fires with the lock held.
+         Synchronization.Release (Scheduler_Mutex);
    end Mark_Suspend;
 
    procedure Lift_Suspension (Thread : TID) is
@@ -555,7 +557,8 @@ package body Scheduler with SPARK_Mode => Off is
       Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         null;
+         --  The index check fires with the lock held.
+         Synchronization.Release (Scheduler_Mutex);
    end Lift_Suspension;
 
    procedure Is_Suspended (Thread : TID; Suspended : out Boolean) is
