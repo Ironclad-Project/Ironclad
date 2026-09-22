@@ -2027,21 +2027,33 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
+      Total : Natural;
+      Slots : Natural;
    begin
       Get_Common_Map (Proc, Map);
 
       declare
-         subtype KMount_List is Mountpoint_Arr (1 .. Natural (Length));
-         subtype Mount_List  is Mount_Info_Arr (1 .. Natural (Length));
-         package Trans is new Memory.Userland_Transfer (Mount_List);
+         None : Mountpoint_Arr (1 .. 0);
+      begin
+         List_All (None, Total);
+      end;
+      Slots :=
+         (if Length < Unsigned_64 (Total) then Natural (Length) else Total);
 
-         KMnts : KMount_List;
-         Ret   : Natural;
-         Mnts  : Mount_List;
-         Succs : Boolean;
+      declare
+         Slot_Count : constant Natural := Slots;
+         subtype KMount_List is Mountpoint_Arr (1 .. Slot_Count);
+         subtype Mount_List  is Mount_Info_Arr (1 .. Slot_Count);
+
+         KMnts  : KMount_List;
+         Ret    : Natural;
+         Filled : Natural;
+         Mnts   : Mount_List;
+         Succs  : Boolean;
       begin
          List_All (KMnts, Ret);
-         for I in 1 .. Ret loop
+         Filled := Natural'Min (Ret, Slots);
+         for I in 1 .. Filled loop
             case Get_Backing_FS (KMnts (I)) is
                when FS_DEV => Mnts (I).FS_Type := MNT_DEV;
                when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
@@ -2063,11 +2075,17 @@ package body Userland.Syscall is
             Get_Max_Length (KMnts (I), Mnts (I).Max_File_Name);
             Get_Free_Blocks
                (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
-            Get_Free_Blocks
-               (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
+            Get_Free_Inodes
+               (KMnts (I), Mnts (I).Free_Inodes, Mnts (I).Free_InodesU);
          end loop;
 
-         Trans.Paste_Into_Userland (Map, Mnts, SAddr, Succs);
+         declare
+            Out_Count : constant Natural := Filled;
+            subtype Out_List is Mount_Info_Arr (1 .. Out_Count);
+            package Trans is new Memory.Userland_Transfer (Out_List);
+         begin
+            Trans.Paste_Into_Userland (Map, Mnts (1 .. Filled), SAddr, Succs);
+         end;
          if Succs then
             Returned := Unsigned_64 (Ret);
             Errno    := Error_No_Error;

@@ -4551,7 +4551,8 @@ size_t listmounts(struct mountinfo *addr, size_t len);
 @end example
 
 This syscall writes a list of all mounts currently in use in the system to
-@code{addr}, which contains @code{len} items.
+@code{addr}, which contains @code{len} items. If there are more than
+@code{len}, only the first @code{len} are written.
 
 The number of mounts in the system is returned in success, and @code{-1} in
 failure, with the following errno:
