@@ -2113,6 +2113,14 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       --  Translate SVM exit code to NVMM exit code
       case Exit_Code is
+         --  A host interrupt or NMI that ended the run is the host's to
+         --  take, and there is nothing for the VMM to do but run the guest
+         --  again, as the VMX backend answers its external-interrupt exit
+         --  and as NetBSD NVMM answers both.
+         when Arch.Virtualization.SVM.VMEXIT_INTR |
+              Arch.Virtualization.SVM.VMEXIT_NMI =>
+            Exit_Info.Reason := NVMM_EXIT_NONE;
+
          when Arch.Virtualization.SVM.VMEXIT_SHUTDOWN =>
             Exit_Info.Reason := NVMM_EXIT_SHUTDOWN;
 
