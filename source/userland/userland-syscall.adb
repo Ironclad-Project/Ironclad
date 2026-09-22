@@ -1277,6 +1277,16 @@ package body Userland.Syscall is
          when others      => goto Invalid_Value_Return;
       end case;
 
+      --  A network socket needs the capability to use the network.
+      if Dom = IPC.Socket.IPv4 and then
+         not Get_Capabilities (Proc).Can_Use_Networking
+      then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("socket", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       New_Sock := Create (Dom, Data);
       if New_Sock = null then
          goto Invalid_Value_Return;

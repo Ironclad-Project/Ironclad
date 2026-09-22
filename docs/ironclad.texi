@@ -804,7 +804,7 @@ The process will be able to allocate and deallocate both private and shared
 memory regions.
 
 @item MAC_CAP_USE_NET
-The process will be able to use networking.
+The process will be able to use networking, that is, to create IPv4 sockets.
 
 @item MAC_CAP_SYS_NET
 The process will be able to modify networking, for things like hostname
@@ -1901,6 +1901,9 @@ following errno:
 @code{EINVAL}: Invalid combination of flags.
 @item
 @code{EMFILE}: No available file descriptor slots.
+@item
+@code{EACCES}: An IPv4 socket was asked for without the @code{MAC_CAP_USE_NET}
+capability.
 @end itemize
 
 @node sethostname
