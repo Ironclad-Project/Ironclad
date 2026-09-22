@@ -169,11 +169,17 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          Register (Device, "rtl8139" & Integer'Image (Idx), Success);
          if Success then
             Dev := Fetch ("rtl8139" & Integer'Image (Idx));
+
+            --  The card's own address, out of IDR0 .. IDR5, and no IPv4
+            --  address until one is given, as the e1000 registers.
             Networking.Interfaces.Register_Interface
                (Interfaced  => Dev,
-                MAC         => [others => 1],
-                IPv4        => [10, 0, 2, 15],
-                IPv4_Subnet => [255, 0, 0, 0],
+                MAC         =>
+                  [Get_IO_8 (CD, REG_ID),     Get_IO_8 (CD, REG_ID + 1),
+                   Get_IO_8 (CD, REG_ID + 2), Get_IO_8 (CD, REG_ID + 3),
+                   Get_IO_8 (CD, REG_ID + 4), Get_IO_8 (CD, REG_ID + 5)],
+                IPv4        => [0, 0, 0, 0],
+                IPv4_Subnet => [0, 0, 0, 0],
                 Success     => Success);
             Networking.Interfaces.Block (Dev, False, Success);
          end if;
