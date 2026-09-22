@@ -4835,14 +4835,15 @@ package body Userland.Syscall is
                Returned := Unsigned_64'Last;
                return;
             end if;
-
-            File_Perms := Check_Permissions (Proc, FS, Ino);
-            if not File_Perms.Can_Write then
-               Errno    := Error_Bad_Access;
-               Returned := Unsigned_64'Last;
-               return;
-            end if;
          end;
+      end if;
+
+      --  A MAC filter on the file binds whichever way the file was named.
+      File_Perms := Check_Permissions (Proc, FS, Ino);
+      if not File_Perms.Can_Write then
+         Errno    := Error_Bad_Access;
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
       --  Only the owner of the file and a privileged process change its mode.
@@ -5031,14 +5032,15 @@ package body Userland.Syscall is
                Returned := Unsigned_64'Last;
                return;
             end if;
-
-            File_Perms := Check_Permissions (Proc, FS, Ino);
-            if not File_Perms.Can_Write then
-               Errno    := Error_Bad_Access;
-               Returned := Unsigned_64'Last;
-               return;
-            end if;
          end;
+      end if;
+
+      --  A MAC filter on the file binds whichever way the file was named.
+      File_Perms := Check_Permissions (Proc, FS, Ino);
+      if not File_Perms.Can_Write then
+         Errno    := Error_Bad_Access;
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
       --  Only a privileged process gives a file away, and its owner may only
@@ -6059,14 +6061,15 @@ package body Userland.Syscall is
                Returned := Unsigned_64'Last;
                return;
             end if;
-
-            File_Perms := Check_Permissions (Proc, FS, Ino);
-            if not File_Perms.Can_Write then
-               Errno    := Error_Bad_Access;
-               Returned := Unsigned_64'Last;
-               return;
-            end if;
          end;
+      end if;
+
+      --  A MAC filter on the file binds whichever way the file was named.
+      File_Perms := Check_Permissions (Proc, FS, Ino);
+      if not File_Perms.Can_Write then
+         Errno    := Error_Bad_Access;
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
       --  The times of a file are set by its owner, a privileged process, or
