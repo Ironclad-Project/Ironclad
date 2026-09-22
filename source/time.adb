@@ -116,7 +116,6 @@ package body Time is
    end Set_Time;
 
    procedure Get_Resolution (Clock : Clock_Type; Stamp : out Timestamp) is
-      Discard : Time.Timestamp;
    begin
       case Clock is
          --  The Thread and process CPU times are pegged to monotonic.
@@ -124,7 +123,7 @@ package body Time is
               Process_CPU_Time_Clock =>
             Arch.Clocks.Get_Monotonic_Resolution (Stamp);
          when Real_Time_Clock =>
-            Arch.Clocks.Get_Real_Time (Stamp);
+            Arch.Clocks.Get_Real_Time_Resolution (Stamp);
       end case;
    end Get_Resolution;
    ----------------------------------------------------------------------------

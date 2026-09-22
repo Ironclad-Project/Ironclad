@@ -3597,7 +3597,8 @@ Like @code{CLOCK_PROCESS_CPUTIME_ID} but for the current thread.
 
 @table @code
 @item CLOCK_GETRES
-Load the resolution of the passed clock on the contents of @code{time}.
+Load the resolution of the passed clock on the contents of @code{time}, which
+is how small a difference the clock can tell.
 
 @item CLOCK_GETTIME
 Load the epoch date of the passed clock on the contents of @code{time}.
