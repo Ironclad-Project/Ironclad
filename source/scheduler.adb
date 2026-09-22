@@ -717,6 +717,8 @@ package body Scheduler with SPARK_Mode => Off is
       Stack_Top : Unsigned_64;
       Map       : Memory.MMU.Page_Table_Acc;
       Use_Altsk : Boolean;
+      Killed    : Boolean := False;
+      Discard   : Boolean;
       Th        : constant TID := Arch.Local.Get_Current_Thread;
       Proc : constant Userland.Process.PID := Arch.Local.Get_Current_Process;
    begin
@@ -867,18 +869,34 @@ package body Scheduler with SPARK_Mode => Off is
           TCB      => Arch.Local.Fetch_TCB,
           New_TID  => New_TID);
       if New_TID = Error_TID then
-         return;
+         goto Give_Back_Stack;
       end if;
 
       --  A signal thread is listed in no process, so it is let go here.
       Release_Thread (New_TID);
 
+      --  It is taken down with the thread it interrupted, as nothing else
+      --  would take it down.
       while Thread_Pool (New_TID).Is_Present loop
-         Yield_If_Able;
+         if Is_Doomed then
+            Delete_Thread (New_TID);
+            Killed := True;
+         else
+            Yield_If_Able;
+         end if;
       end loop;
 
+   <<Give_Back_Stack>>
+      --  The stack goes once the handler is done with it. One taken down may
+      --  still be leaving on another core, and its process goes too.
       if Use_Altsk then
          Thread_Pool (Th).User_Stack_Used := False;
+      elsif not Killed then
+         Memory.MMU.Unmap_Range
+            (Map           => Map,
+             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+             Length        => Storage_Offset (Stack_Size),
+             Success       => Discard);
       end if;
    exception
       when Constraint_Error =>
