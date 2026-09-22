@@ -3040,7 +3040,14 @@ package body Userland.Syscall is
       Map       : Page_Table_Acc;
       Success   : Boolean;
    begin
-      if Path_Len > Path_Max_Len then
+      --  A rule grants what it names, so only a process that may manage MAC
+      --  can add one: any other could grant itself files it was kept from.
+      if not Get_Capabilities (Proc).Can_Manage_MAC then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("add_mac_permissions", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Path_Len > Path_Max_Len then
          Returned := Unsigned_64'Last;
          Errno    := Error_String_Too_Long;
          return;

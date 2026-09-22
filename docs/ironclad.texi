@@ -2454,14 +2454,15 @@ int add_mac_permissions(const char *path, int flags);
 @end example
 
 This syscall adds permissions to access an inode or device as described in
-@ref{Mandatory access control (MAC)}.
+@ref{Mandatory access control (MAC)}. The process must have
+@code{MAC_CAP_SYS_MAC}.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
 
 @itemize @bullet
 @item
-@code{EPERM}: MAC did not allow this.
+@code{EACCES}: The process does not have @code{MAC_CAP_SYS_MAC}.
 @item
 @code{EFAULT}: The passed pointer does not point to valid memory.
 @item
