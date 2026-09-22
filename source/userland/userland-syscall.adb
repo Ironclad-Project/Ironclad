@@ -4738,6 +4738,7 @@ package body Userland.Syscall is
       File_Perms  : MAC.Permissions;
       Map         : Page_Table_Acc;
       Success     : Boolean;
+      Stat_Val    : VFS.File_Stat;
    begin
       Process.Get_Effective_UID (Proc, User);
 
@@ -4811,6 +4812,19 @@ package body Userland.Syscall is
                return;
             end if;
          end;
+      end if;
+
+      --  Only the owner of the file and a privileged process change its mode.
+      if User /= 0 then
+         VFS.Stat (FS, Ino, Stat_Val, Succ);
+         if Succ /= VFS.FS_Success then
+            Translate_Status (Succ, 0, Returned, Errno);
+            return;
+         elsif Stat_Val.UID /= User then
+            Errno    := Error_Bad_Permissions;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
       end if;
 
       VFS.Change_Mode
@@ -4911,8 +4925,18 @@ package body Userland.Syscall is
       File_Perms  : MAC.Permissions;
       Map         : Page_Table_Acc;
       Success     : Boolean;
+      Stat_Val    : VFS.File_Stat;
+      New_Owner   : Unsigned_32;
+      New_Group   : Unsigned_32;
+      EGID        : Unsigned_32;
+      Groups      : Process.Supplementary_GID_Arr
+         (1 .. Process.Max_Supplementary_Groups);
+      Group_Count : Natural;
+      Is_Member   : Boolean;
    begin
       Process.Get_Effective_UID (Proc, Usr);
+      New_Owner := Unsigned_32 (User  and 16#FFFFFFFF#);
+      New_Group := Unsigned_32 (Group and 16#FFFFFFFF#);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
          Get_File (Proc, Dir_FD, File_Desc);
@@ -4986,12 +5010,33 @@ package body Userland.Syscall is
          end;
       end if;
 
-      VFS.Change_Owner
-         (FS,
-          Ino,
-          Unsigned_32 (User  and 16#FFFFFFFF#),
-          Unsigned_32 (Group and 16#FFFFFFFF#),
-          Succ);
+      --  Only a privileged process gives a file away, and its owner may only
+      --  set its group, to one it is a member of. A value of -1 is kept.
+      if Usr /= 0 then
+         VFS.Stat (FS, Ino, Stat_Val, Succ);
+         if Succ /= VFS.FS_Success then
+            Translate_Status (Succ, 0, Returned, Errno);
+            return;
+         end if;
+
+         Process.Get_Effective_GID (Proc, EGID);
+         Process.Get_Supplementary_Groups (Proc, Groups, Group_Count);
+         Is_Member := New_Group = Unsigned_32'Last or New_Group = EGID;
+         for I in 1 .. Group_Count loop
+            Is_Member := Is_Member or Groups (I) = New_Group;
+         end loop;
+
+         if Stat_Val.UID /= Usr or
+            (New_Owner /= Unsigned_32'Last and New_Owner /= Stat_Val.UID) or
+            not Is_Member
+         then
+            Errno    := Error_Bad_Permissions;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
+      VFS.Change_Owner (FS, Ino, New_Owner, New_Group, Succ);
       Translate_Status (Succ, 0, Returned, Errno);
    exception
       when Constraint_Error =>
@@ -5925,6 +5970,7 @@ package body Userland.Syscall is
       File_Perms  : MAC.Permissions;
       Map         : Page_Table_Acc;
       Success     : Boolean;
+      Stat_Val    : VFS.File_Stat;
    begin
       Get_Common_Map (Proc, Map);
       Process.Get_Effective_UID (Proc, User);
@@ -5990,6 +6036,24 @@ package body Userland.Syscall is
                return;
             end if;
          end;
+      end if;
+
+      --  The times of a file are set by its owner, a privileged process, or
+      --  one that may write to it.
+      if User /= 0 then
+         VFS.Stat (FS, Ino, Stat_Val, Succ);
+         if Succ /= VFS.FS_Success then
+            Translate_Status (Succ, 0, Returned, Errno);
+            return;
+         end if;
+         if Stat_Val.UID /= User then
+            VFS.Check_Access (FS, Ino, False, False, True, False, User, Succ);
+            if Succ /= VFS.FS_Success then
+               Errno    := Error_Bad_Access;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end if;
       end if;
 
       declare

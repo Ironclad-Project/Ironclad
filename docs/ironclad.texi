@@ -3201,7 +3201,8 @@ int fchmod(int dir_fd, char *path, int len, mode_t mode, int flags);
 @end example
 
 This syscall sets the mode for the passed arguments in the same way
-@ref{fstat} fetches information for the passed arguments.
+@ref{fstat} fetches information for the passed arguments. Only the owner of
+the file and a process with an effective user ID of 0 may do so.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -3209,6 +3210,9 @@ following errno:
 @table @code
 @item EINVAL
 The passed FD or mode is not valid.
+
+@item EPERM
+The process is not the owner of the file and its effective user ID is not 0.
 
 @item EACCES
 MAC did not allow this.
@@ -3287,7 +3291,10 @@ int fchown(int dir_fd, char *path, int len, uint32_t user, uint32_t group,
 @end example
 
 This syscall sets the owner's UID and GID for the passed arguments in the same
-way @ref{fstat} fetches information for the passed arguments.
+way @ref{fstat} fetches information for the passed arguments. A user or group
+of @code{-1} is not modified. Only a process with an effective user ID of 0
+may change the owner, and the owner of the file may only change its group, to
+its effective group ID or one of its supplementary group IDs.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -3295,6 +3302,9 @@ following errno:
 @table @code
 @item EINVAL
 The passed FD or the user and group were not valid.
+
+@item EPERM
+The process may not make the change asked for.
 
 @item EACCES
 MAC did not allow this.
@@ -3747,14 +3757,16 @@ int utimes(int dir, const char *path, struct timespec *times, int flags);
 This syscall changes the access and modification time of the passed file to the
 2 first values contained in the @code{times} array. All the standard options
 for @code{dir} are accepted and @code{flags} takes @code{AT_EMPTY_PATH} and
-@code{AT_SYMLINK_NOFOLLOW}.
+@code{AT_SYMLINK_NOFOLLOW}. Only the owner of the file, a process with an
+effective user ID of 0 and one that may write to the file may do so.
 
 @table @code
 @item EFAULT
 @code{path} or @code{times} point to non accessible memory.
 
 @item EACCES
-MAC did not allow this.
+MAC did not allow this, or the process is none of the three that may change
+the times of the file.
 
 @item EINVAL
 An argument is not valid.
