@@ -51,6 +51,10 @@ package Devices.PCI.VirtioNet with SPARK_Mode => Off is
       Num_Buffers at 10 range 0 .. 15;
    end record;
 
+   --  The size of the record above, which is what a non-legacy device reads,
+   --  as this driver negotiates VIRTIO_F_VERSION_1 (virtio 1.3, 5.1.6.1).
+   Packet_Header_Size : constant := 12;
+
    pragma Warnings (Off, "may call Last_Chance_Handler");
    type Net_Data is record
       Recv_Queue : Devices.PCI.Virtio.Virtio_Queue_Acc;

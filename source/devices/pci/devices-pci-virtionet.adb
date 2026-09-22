@@ -278,7 +278,7 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
          (Has_Next => True,
           Address => Unsigned_64
             (To_Integer (Req_Header.all'Address) - Memory.Memory_Offset),
-          Length => 10,
+          Length => Packet_Header_Size,
           Flag_Write => (if Send then False else True),
           Next => 1,
           others => <>);
@@ -329,8 +329,8 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
             goto Failure_Cleanup;
          end if;
          Written := Used_Entries_Array (Used_Index).Length;
-         if Send = False and Written > 10 then
-            Written := Written - 10;
+         if Send = False and Written > Packet_Header_Size then
+            Written := Written - Packet_Header_Size;
          end if;
       end;
 
