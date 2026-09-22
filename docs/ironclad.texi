@@ -2848,9 +2848,10 @@ If the file was just created, one might considering synchronizing the parent
 directory as well, as, depending on the FS and FS driver, parent directory
 entries are stored separately to the file, EXT-series filesystems come to mind.
 
-If @code{flags} is not zero, only the data of the passed descriptor will be
-guaranteed to be flushed, and not modified metadata, this can be used in
-order to minimize disk activity even further.
+If @code{flags} is not zero, only the data of the passed descriptor and the
+metadata needed to retrieve it must be flushed, and not the rest of it, which
+is what @code{fdatasync} asks for. Ironclad flushes everything either way at
+present.
 
 The syscall returns @code{0} or @code{-1} on failure, with the errno:
 

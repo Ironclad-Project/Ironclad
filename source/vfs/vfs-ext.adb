@@ -1874,29 +1874,13 @@ package body VFS.EXT with SPARK_Mode => Off is
        Data_Only : Boolean;
        Status    : out FS_Status)
    is
-      FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
-      Succ : Boolean;
-      Offset : Unsigned_64;
+      pragma Unreferenced (Ino);
+      pragma Unreferenced (Data_Only);
    begin
-      if Data_Only then
-         Synchronization.Seize_Reader (FS_Data.Mutex);
-         Get_Inode_Index (FS_Data, Unsigned_32 (Ino), Offset, Succ);
-         if Succ then
-            Devices.Synchronize
-               (FS_Data.Handle, Offset, Unsigned_64 (FS_Data.Inode_Size),
-                Succ);
-            Status := (if Succ then FS_Success else FS_IO_Failure);
-         else
-            Status := FS_Invalid_Value;
-         end if;
-         Synchronization.Release_Reader (FS_Data.Mutex);
-      else
-         Synchronize (Data, Status);
-      end if;
-   exception
-      when Constraint_Error =>
-         Messages.Put_Line ("Exception while doing an EXT partial sync");
-         Status := FS_IO_Failure;
+      --  The file's data has to reach the device, data only or not, and until
+      --  an inode's blocks can be synced a range at a time only a full sync
+      --  does that. It has a handler of its own.
+      Synchronize (Data, Status);
    end Synchronize;
    ----------------------------------------------------------------------------
    procedure Inner_Open_Inode
