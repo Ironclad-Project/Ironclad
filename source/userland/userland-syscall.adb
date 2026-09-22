@@ -4973,7 +4973,7 @@ package body Userland.Syscall is
                 Ino        => Ino,
                 Success    => Succ,
                 User       => User,
-                Want_Read  => True,
+                Want_Read  => False,
                 Want_Write => False,
                 Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Succ /= VFS.FS_Success then
@@ -5170,7 +5170,7 @@ package body Userland.Syscall is
                 Ino        => Ino,
                 Success    => Succ,
                 User       => Usr,
-                Want_Read  => True,
+                Want_Read  => False,
                 Want_Write => False,
                 Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Succ /= VFS.FS_Success then
@@ -6195,7 +6195,7 @@ package body Userland.Syscall is
                 Ino        => Ino,
                 Success    => Succ,
                 User       => User,
-                Want_Read  => True,
+                Want_Read  => False,
                 Want_Write => False,
                 Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Succ /= VFS.FS_Success then
