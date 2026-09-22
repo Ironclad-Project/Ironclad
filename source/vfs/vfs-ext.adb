@@ -353,11 +353,15 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Inode   => Parent_Inode.all,
           Success        => Success,
           Parent_Open    => Parent_Open);
-      if Success then
-         Status := FS_Exists;
-         goto Cleanup;
-      elsif not Parent_Open then
+      if not Parent_Open then
          Status := FS_Not_Found;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, False, True)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      elsif Success then
+         Status := FS_Exists;
          goto Cleanup;
       elsif Get_Inode_Type (Parent_Inode.Permissions) /= File_Directory then
          Status := FS_Not_Directory;
@@ -535,11 +539,15 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Inode   => Parent_Inode.all,
           Success        => Success,
           Parent_Open    => Parent_Open);
-      if Success then
-         Status := FS_Exists;
-         goto Cleanup;
-      elsif not Parent_Open then
+      if not Parent_Open then
          Status := FS_Not_Found;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, False, True)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      elsif Success then
+         Status := FS_Exists;
          goto Cleanup;
       elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
       then
@@ -709,7 +717,15 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Inode   => Source_Parent_Inode.all,
           Success        => Success,
           Parent_Open    => Parent_Open);
-      if not Success then
+      if not Parent_Open then
+         Status := FS_Not_Found;
+         goto Cleanup;
+      elsif not Check_User_Access
+         (User, Source_Parent_Inode.all, False, False, True)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      elsif not Success then
          Status := FS_Not_Found;
          goto Cleanup;
       elsif Get_Inode_Type (Source_Inode.Permissions) = File_Directory then
@@ -728,11 +744,16 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Inode   => Target_Parent_Inode.all,
           Success        => Success,
           Parent_Open    => Parent_Open);
-      if Success then
-         Status := FS_Exists;
-         goto Cleanup;
-      elsif not Parent_Open then
+      if not Parent_Open then
          Status := FS_Not_Found;
+         goto Cleanup;
+      elsif not Check_User_Access
+         (User, Target_Parent_Inode.all, False, False, True)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      elsif Success then
+         Status := FS_Exists;
          goto Cleanup;
       elsif not Check_User_Access
          (User, Target_Parent_Inode.all, False, True, False)
@@ -855,7 +876,17 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Check that the source exists, that the parent of the target exists,
       --  and that we do not want to keep the file if it exists, along with
       --  permissions.
-      if not Success1 or not Parent_O1 or not Parent_O2 then
+      if not Parent_O1 or not Parent_O2 then
+         Status := FS_Not_Found;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Source_Parent_Inode.all,
+                                   False, False, True)
+         or else not Check_User_Access (User, Target_Parent_Inode.all,
+                                        False, False, True)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      elsif not Success1 then
          Status := FS_Not_Found;
          goto Cleanup;
       elsif Keep and Success2 then
@@ -1097,7 +1128,14 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Inode => Parent_Inode.all,
           Success      => Success,
           Parent_Open  => Parent_Open);
-      if not Success then
+      if not Parent_Open then
+         Status := FS_Not_Found;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, False, True)
+      then
+         Status := FS_Not_Allowed;
+         goto Cleanup;
+      elsif not Success then
          Status := FS_Not_Found;
          goto Cleanup;
       elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)

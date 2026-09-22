@@ -771,6 +771,10 @@ explained later, @code{MAC_CAP_SETUID} is provided, with similar functionality.
 
 Groups are not supported in any shape or form.
 
+Looking a name up in a directory needs search permission on it, the directory
+a lookup starts at included, and adding a name to a directory or removing one
+needs write permission on it too.
+
 @node Mandatory access control (MAC)
 @section Mandatory access control (MAC)
 
@@ -1470,6 +1474,10 @@ is set to the following:
 @code{ENOENT}: The referenced file does not exist.
 
 @item
+@code{EACCES}: Search permission is denied on a directory the path is looked
+up in, or the permission bits of the file deny the access requested.
+
+@item
 @code{EINVAL}: Combination of @code{flags} is not valid.
 
 @item
@@ -1959,6 +1967,9 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @item
 @code{EISDIR}: A directory was passed for unlinking with no
 @code{AT_REMOVEDIR}.
+@item
+@code{EACCES}: Search permission is denied on a directory of the path, or
+write permission on the directory the name is removed from.
 @end itemize
 
 @node fstat
@@ -2068,7 +2079,8 @@ int chdir(int fd);
 @end example
 
 This syscall will set the caller's process current working directory to
-the passed FD, which must point to a directory.
+the passed FD, which must point to a directory the process has search
+permission on.
 
 The syscall returns @code{0} on success and @code{-1} on failure, with the
 following errno:
@@ -2076,6 +2088,8 @@ following errno:
 @itemize @bullet
 @item
 @code{EBADF}: The passed descriptor is not a valid directory.
+@item
+@code{EACCES}: Search permission is denied on the directory.
 @end itemize
 
 @node devctl
@@ -2173,6 +2187,10 @@ codes set on failure are:
 
 @item
 @code{ENAMETOOLONG}: The passed path is too long.
+
+@item
+@code{EACCES}: Search permission is denied on a directory of either path, or
+write permission on either of the directories the names are in.
 
 @item
 @code{EINVAL}: A directory would be moved inside itself, or either name is
@@ -2691,7 +2709,11 @@ GID will be the GID of the parent directory where the file is made.
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
-@code{EACCES}: Bad memory addresses.
+@item
+@code{EFAULT}: Bad memory addresses.
+@item
+@code{EACCES}: Search permission is denied on a directory of the path, or
+write permission on the directory the file is made in.
 @item
 @code{EINVAL}: The passed path length is way too big, or the mode is invalid.
 @item
@@ -2765,7 +2787,11 @@ This syscall creates directories in the passed path.
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
-@code{EACCES}: Bad memory addresses.
+@item
+@code{EFAULT}: Bad memory addresses.
+@item
+@code{EACCES}: Search permission is denied on a directory of the path, or
+write permission on the directory the directory is made in.
 @item
 @code{EINVAL}: The passed path length is way too big.
 @item
@@ -2790,7 +2816,11 @@ and the GID will be the GID of the parent directory where the file is made.
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
-@code{EACCES}: Bad memory addresses.
+@item
+@code{EFAULT}: Bad memory addresses.
+@item
+@code{EACCES}: Search permission is denied on a directory of the path, or
+write permission on the directory the link is made in.
 @item
 @code{EINVAL}: The passed path and target lengths are way too big, or the
 passed mode is invalid.
@@ -2890,7 +2920,10 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
 @item
-@code{EACCES}: Bad memory addresses.
+@code{EFAULT}: Bad memory addresses.
+@item
+@code{EACCES}: Search permission is denied on a directory of either path, or
+write permission on the directory the link is made in.
 @item
 @code{EINVAL}: The passed path and target lengths are way too big.
 @item
@@ -5556,6 +5589,9 @@ of them are exposed under the @code{/dev} location, and support a series of
 standard operations, like being manipulated by the usual file-related
 syscalls like @code{read} or @code{write}, while sporting device-specific
 interfaces in the form of device-specific @code{devctl} requests.
+
+The @code{/dev} directory has mode 0755 and every device in it mode 0666, all
+owned by user and group 0.
 
 All devices in Ironclad have the following @code{devctl} calls implemented:
 

@@ -1741,6 +1741,18 @@ package body Userland.Syscall is
          Errno    := Error_Not_Directory;
          Returned := Unsigned_64'Last;
          return;
+      elsif not VFS.Can_Access_File
+         (User       => User,
+          File_Owner => St.UID,
+          Mode       => St.Mode,
+          Kind       => St.Type_Of_File,
+          Want_Read  => False,
+          Want_Write => False,
+          Want_Exec  => True)
+      then
+         Errno    := Error_Bad_Access;
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
       Set_CWD (Proc, Desc.Inner_Ino_FS, Desc.Inner_Ino);

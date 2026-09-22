@@ -23,6 +23,7 @@ package body VFS.Dev is
    --  All devices share the same permissions.
    --  The only folder of the filesystem is the root, which has inode 0.
    Root_Inode         : constant := 0;
+   Root_Permissions   : constant := 8#755#;
    Device_Permissions : constant := 8#666#;
 
    --  We can save ourselves a bunch of code by just using globals instead of
@@ -290,7 +291,7 @@ package body VFS.Dev is
          S :=
             (Unique_Identifier => Root_Inode,
              Type_Of_File      => File_Directory,
-             Mode              => Device_Permissions,
+             Mode              => Root_Permissions,
              UID               => 0,
              GID               => 0,
              Hard_Link_Count   => 1,

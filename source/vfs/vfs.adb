@@ -453,6 +453,7 @@ package body VFS is
       Entry_Stat      : File_Stat;
       Symlink_Len     : Natural;
       Symlink_Path    : String_Acc := null;
+      Checked_Start   : Boolean := False;
       Dir_Entries     : Directory_Entities_Acc := new Directory_Entities'
          [1 .. 20 =>
             (Inode_Number => 0,
@@ -506,6 +507,28 @@ package body VFS is
             goto Invalid_Value_Return;
          end if;
          Path_Last := Path_Last - 1;
+
+         --  Looking a name up in a directory needs search permission on it,
+         --  the directory the walk starts at included. The others are
+         --  checked as the walk enters them.
+         if not Checked_Start then
+            VFS.Stat (Actual_Key, Actual_Ino, Entry_Stat, Success);
+            if Success /= FS_Success then
+               goto Invalid_Value_Return;
+            end if;
+            if not Can_Access_File
+               (User       => User,
+                File_Owner => Entry_Stat.UID,
+                Mode       => Entry_Stat.Mode,
+                Kind       => Entry_Stat.Type_Of_File,
+                Want_Read  => False,
+                Want_Write => False,
+                Want_Exec  => True)
+            then
+               goto Not_Allowed_Return;
+            end if;
+            Checked_Start := True;
+         end if;
 
          --  Read the entries of current directory, check if the component
          --  of path is found.
@@ -647,9 +670,9 @@ package body VFS is
                    File_Owner => Entry_Stat.UID,
                    Mode       => Entry_Stat.Mode,
                    Kind       => Entry_Stat.Type_Of_File,
-                   Want_Read  => True,
+                   Want_Read  => False,
                    Want_Write => False,
-                   Want_Exec  => False)
+                   Want_Exec  => True)
                then
                   goto Not_Allowed_Return;
                end if;

@@ -272,7 +272,9 @@ package VFS is
    procedure Get_Max_Length (Key : FS_Handle; Length : out Unsigned_64)
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
-   --  Open a file with an absolute path inside the mount.
+   --  Open a file with an absolute path inside the mount. Every directory a
+   --  name is looked up in needs search permission, the one the walk starts
+   --  at included.
    --  @param Key        Relative FS Handle to start opening.
    --  @param Relative   Relative directory inode to open from.
    --  @param Path       Path to be accessed inside Relative, or absolute.
