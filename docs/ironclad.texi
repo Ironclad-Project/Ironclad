@@ -2373,9 +2373,12 @@ On failure, the syscall returns @code{-1}. The returned @code{errno} are:
 void exit_thread(void);
 @end example
 
-This syscall terminates the calling thread "immediately".
-Any open file descriptors belonging to the process to be closed, and any
-threads of execution are terminated.
+This syscall terminates the calling thread "immediately". The rest of the
+process is left alone: its other threads, its open file descriptors and its
+memory all stay as they were.
+
+If the calling thread is the last one of the process, the process exits with
+a status of @code{0}, as a process cannot go on with no thread to run it.
 
 This syscall does not return any value, but it sets errno on failure:
 

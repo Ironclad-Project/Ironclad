@@ -353,12 +353,25 @@ package body Userland.Process with SPARK_Mode => Off is
    end Get_Thread_Count;
 
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
-      Tmp_System, Tmp_User : Time.Timestamp;
+      Discard : Natural;
    begin
+      Remove_Thread (Proc, Thread, Discard);
+   end Remove_Thread;
+
+   procedure Remove_Thread
+      (Proc      : PID;
+       Thread    : Scheduler.TID;
+       Remaining : out Natural)
+   is
+      Tmp_System, Tmp_User : Time.Timestamp;
+      Found : Boolean := False;
+   begin
+      Remaining := 0;
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Thread then
             Registry (Proc).Thread_List (I) := Error_TID;
+            Found := True;
             Scheduler.Get_Runtimes (Thread, Tmp_System, Tmp_User);
             if Registry (Proc).Parent /= Error_PID and then
                Registry (Registry (Proc).Parent) /= null
@@ -370,13 +383,20 @@ package body Userland.Process with SPARK_Mode => Off is
                   Registry (Registry (Proc).Parent).Children_User +
                   Tmp_User;
             end if;
-            exit;
+         elsif Registry (Proc).Thread_List (I) /= Error_TID then
+            Remaining := Remaining + 1;
          end if;
       end loop;
       Synchronization.Release (Registry (Proc).Data_Mutex);
+
+      --  A thread already flushed leaves the process to whoever flushed it.
+      if not Found and Remaining = 0 then
+         Remaining := 1;
+      end if;
    exception
       when Constraint_Error =>
-         null;
+         --  Not known to be the last, so not the one to end the process.
+         Remaining := 1;
    end Remove_Thread;
 
    procedure Flush_Threads (Proc : PID) is
@@ -1068,15 +1088,15 @@ package body Userland.Process with SPARK_Mode => Off is
          if not Memory.MMU.Make_Active (Memory.MMU.Kernel_Table) then
             Messages.Put_Line ("Could not switch table on thread exit");
          end if;
-
-         Remove_Thread (Process, Arch.Local.Get_Current_Thread);
       end if;
 
       --  Inherit all our children to init, who will take care of them.
       Reassign_Parent_To_Init (Process);
 
       --  Remove all state but the return value and keep the zombie around
-      --  until we are waited, the process's virtual machines first.
+      --  until we are waited, the process's virtual machines first. The
+      --  caller leaves the thread list with the others, so a thread exiting
+      --  meanwhile never takes itself for the last.
       Flush_Threads (Process);
       Destroy_Machines (Process);
       Flush_Files   (Process);
@@ -1118,15 +1138,15 @@ package body Userland.Process with SPARK_Mode => Off is
          if not Memory.MMU.Make_Active (Memory.MMU.Kernel_Table) then
             Messages.Put_Line ("Could not switch table on thread exit");
          end if;
-
-         Remove_Thread (Process, Arch.Local.Get_Current_Thread);
       end if;
 
       --  Inherit all our children to init, who will take care of them.
       Reassign_Parent_To_Init (Process);
 
       --  Remove all state but the return value and keep the zombie around
-      --  until we are waited, the process's virtual machines first.
+      --  until we are waited, the process's virtual machines first. The
+      --  caller leaves the thread list with the others, so a thread exiting
+      --  meanwhile never takes itself for the last.
       Flush_Threads (Process);
       Destroy_Machines (Process);
       Flush_Files   (Process);

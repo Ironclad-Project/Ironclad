@@ -258,6 +258,19 @@ package Userland.Process is
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID)
       with Pre => Proc /= Error_PID;
 
+   --  Remove a thread from the process and say how many it has left, counted
+   --  in the same step, so that of threads leaving together exactly one sees
+   --  none left. A thread the process no longer lists, having been taken by
+   --  an exit, a kill or an exec under way, is not told that none are left.
+   --  @param Proc      Process to remove a thread from.
+   --  @param Thread    Thread to remove.
+   --  @param Remaining Threads the process has once this one is gone.
+   procedure Remove_Thread
+      (Proc      : PID;
+       Thread    : Scheduler.TID;
+       Remaining : out Natural)
+      with Pre => Proc /= Error_PID;
+
    --  Flush all the threads from a process.
    --  @param Proc Process to remove all threads.
    procedure Flush_Threads (Proc : PID) with Pre => Proc /= Error_PID;

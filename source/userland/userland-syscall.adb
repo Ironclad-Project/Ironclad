@@ -2975,11 +2975,20 @@ package body Userland.Syscall is
 
    procedure Exit_Thread (Returned : out Unsigned_64; Errno : out Errno_Value)
    is
+      Proc  : constant PID := Arch.Local.Get_Current_Process;
+      Count : Natural;
    begin
       Errno := Error_No_Error;
       Returned := 0;
+
+      --  A process ends with a status of 0 when its last thread does. The
+      --  thread leaves and learns how many are left in one step, so of
+      --  threads leaving together exactly one ends the process.
       Userland.Process.Remove_Thread
-         (Arch.Local.Get_Current_Process, Arch.Local.Get_Current_Thread);
+         (Proc, Arch.Local.Get_Current_Thread, Count);
+      if Count = 0 then
+         Userland.Process.Exit_Process (Proc, Unsigned_8'(0));
+      end if;
       Scheduler.Bail;
    end Exit_Thread;
 
