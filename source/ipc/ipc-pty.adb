@@ -420,6 +420,18 @@ package body IPC.PTY is
             end case;
          when TIOCSCTTY =>
             Set_Controlling_TTY (Proc, PTY, Success);
+            if Success then
+               declare
+                  SID, PGID : Unsigned_32;
+               begin
+                  Get_Session_ID (Proc, SID);
+                  Get_PGID (Proc, PGID);
+                  Synchronization.Seize (PTY.Global_Data_Mutex);
+                  PTY.Session_ID    := SID;
+                  PTY.Process_Group := PGID;
+                  Synchronization.Release (PTY.Global_Data_Mutex);
+               end;
+            end if;
          when TIOCNOTTY =>
             Clear_Controlling_TTY (Proc, PTY, Success);
          when TIOCGPGRP =>
