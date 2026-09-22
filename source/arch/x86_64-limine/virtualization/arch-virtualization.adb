@@ -55,6 +55,13 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       V_Intr_Masking : Boolean;          --  Virtual interrupt masking enabled
       XCR0_Value     : Unsigned_64;      --  Guest XCR0 value
 
+      --  The core the VCPU last entered the guest on, Natural'Last before
+      --  its first entry, and whether its nested table has lost or changed a
+      --  translation since: either has what the processor cached for the
+      --  guest flushed before the next entry (see VCPU_Run_Ex).
+      Last_Host_CPU  : Natural;
+      Flush_Wanted   : Boolean;
+
       --  SVM-specific.
       VMCB_Addr      : Integer_Address;
       VMCB_Phys      : Unsigned_64;
@@ -100,6 +107,23 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    ASID_In_Use     : ASID_Bitmap := [others => False];
    ASID_Lock       : aliased Binary_Semaphore := Unlocked_Semaphore;
    Next_ASID_Hint  : Unsigned_32 := 1;  --  Hint for next free ASID
+
+   --  The ASID a VCPU without one of its own uses, which Allocate_ASID never
+   --  hands out: the highest the processor has, "The maximum ASID value
+   --  supported by a processor is implementation specific" and CPUID
+   --  Fn8000_000A_EBX giving the number supported, the host's ASID 0
+   --  included (AMD APM 40332 rev 4.10, Vol. 2 15.5.1). Every entry with it
+   --  flushes. Under VMX it is the VPID, which may not be 0 (Intel SDM
+   --  325462-092US, Vol. 3C 29.2.1.1) and which EPT makes safe to share
+   --  (Vol. 3C 31.4.3.3).
+   Shared_ASID : Unsigned_32 := Max_ASID;
+
+   --  The TLB_CONTROL command that flushes one guest's translations: "Flush
+   --  this guest's TLB entries" (3) where CPUID Fn8000_000A_EDX[FlushByAsid]
+   --  says the processor has it, else "Flush entire TLB" (1), which every SVM
+   --  processor has (AMD APM 40332 rev 4.10, Vol. 2 15.16.1).
+   SVM_Flush_Command : Unsigned_32 :=
+      Arch.Virtualization.SVM.TLB_CONTROL_FLUSH_ALL;
 
    --  Data for serialization.
    type Seg_Bytes is array (0 .. 15) of Unsigned_8;
@@ -155,6 +179,30 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                   Has_XSAVE := False;
                else
                   FPU_Area_Size := Align.Align_Up (Size, 64);
+               end if;
+            end;
+         end if;
+
+         --  How many ASIDs the processor has (EBX, which counts the host's
+         --  ASID 0) and whether it can flush one guest's alone (EDX bit 6,
+         --  FlushByAsid), CPUID Fn8000_000A.
+         if Current_Backend = Backend_SVM then
+            declare
+               EAX, EBX, ECX, EDX : Unsigned_32;
+               CPUID_OK           : Boolean;
+            begin
+               Arch.Snippets.Get_CPUID
+                  (16#8000_000A#, 0, EAX, EBX, ECX, EDX, CPUID_OK);
+               if CPUID_OK then
+                  if EBX > Max_ASID then
+                     Shared_ASID := Max_ASID;
+                  elsif EBX >= 2 then
+                     Shared_ASID := EBX - 1;
+                  end if;
+                  if (EDX and Shift_Left (Unsigned_32'(1), 6)) /= 0 then
+                     SVM_Flush_Command :=
+                        Arch.Virtualization.SVM.TLB_CONTROL_FLUSH_GUEST;
+                  end if;
                end if;
             end;
          end if;
@@ -430,8 +478,8 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             ASID : constant Unsigned_32 := Allocate_ASID;
          begin
             if ASID = 0 then
-               --  No ASID available, fall back to ASID 1 with TLB flush
-               VMCB_Ptr.Control.Guest_ASID := 1;
+               --  None free: the shared one, which every entry flushes.
+               VMCB_Ptr.Control.Guest_ASID := Shared_ASID;
                Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID := 0;
             else
                VMCB_Ptr.Control.Guest_ASID := ASID;
@@ -454,9 +502,10 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          --  Bit 24: V_INTR_MASKING - isolate guest IF from host
          VMCB_Ptr.Control.V_Intr_Control := Shift_Left (Unsigned_64'(1), 24);
 
-         --  TLB control: flush all on first run
+         --  Nothing is flushed from here: VCPU_Run_Ex decides before every
+         --  entry, and the first one always flushes.
          VMCB_Ptr.Control.TLB_Control :=
-            Arch.Virtualization.SVM.TLB_CONTROL_FLUSH_ALL;
+            Arch.Virtualization.SVM.TLB_CONTROL_DO_NOTHING;
 
          --  VMCB Clean = 0 means reload all state from VMCB on VMRUN
          VMCB_Ptr.Control.VMCB_Clean := 0;
@@ -569,7 +618,9 @@ package body Arch.Virtualization with SPARK_Mode => Off is
                Machines (Positive (Mach)).VCPUs (CPU).MSRPM_Addr;
             MSRPM_PA  : constant Unsigned_64 :=
                Unsigned_64 (MSRPM_VA - Arch.MMU.Memory_Offset);
-            VPID_Val  : constant Unsigned_16 := Unsigned_16 (Allocate_ASID);
+            VPID_Got  : constant Unsigned_32 := Allocate_ASID;
+            VPID_Val  : constant Unsigned_16 := Unsigned_16
+               (if VPID_Got = 0 then Shared_ASID else VPID_Got);
             Clear_OK  : Boolean;
             Setup_OK  : Boolean;
          begin
@@ -577,8 +628,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Machines (Positive (Mach)).VCPUs (CPU).VMCS_Addr := CS_Addr;
             Machines (Positive (Mach)).VCPUs (CPU).VMCS_Phys := VMCS_PA;
             Machines (Positive (Mach)).VCPUs (CPU).VMX_Launched := False;
-            Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID :=
-               Unsigned_32 (VPID_Val);
+            Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID := VPID_Got;
 
             --  Write VMCS revision ID before VMCLEAR
             Arch.Virtualization.VMX.Write_VMCS_Revision (CS_Addr);
@@ -1809,6 +1859,7 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       VMCB_Ptr  : Arch.Virtualization.SVM.VMCB_Acc;
       Exit_Code : Unsigned_64;
       Host_XCR0 : Unsigned_64;
+      Here      : Natural;
    begin
       --  Initialize exit info
       Exit_Info.Reason := NVMM_EXIT_NONE;
@@ -1851,10 +1902,6 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       begin
          VMCB_Ptr := VMCB_Obj'Unchecked_Access;
       end;
-
-      --  Clear TLB control after first run (only flush on first entry)
-      VMCB_Ptr.Control.TLB_Control :=
-         Arch.Virtualization.SVM.TLB_CONTROL_DO_NOTHING;
 
       --  Set up event injection if pending
       if Machines (Positive (Mach)).VCPUs (CPU).Event_Pending then
@@ -1911,6 +1958,29 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          return True;
       end if;
 
+      --  Flush what the processor may have cached for this guest whenever it
+      --  may be stale: on a core the VCPU did not last enter on, where its
+      --  ASID may since have served another VCPU and its own entries predate
+      --  its latest changes; when its nested table lost or changed a
+      --  translation since the last entry (Flush_Wanted); and on every entry
+      --  with the shared ASID. After such a change a VMM returning to the same
+      --  ASID "should use either TLB command 011b or 001b", and VMRUN "reads,
+      --  but does not change" the field, so it is cleared once an entry has
+      --  carried it out (AMD APM 40332 rev 4.10, Vol. 2 15.16.1). The machine
+      --  lock keeps host interrupts out from here to the exit, so the core
+      --  cannot change under the decision, and it keeps GPA changes and runs
+      --  apart, so no other core needs to be told.
+      Here := Arch.CPU.Get_Local.Number;
+      if Machines (Positive (Mach)).VCPUs (CPU).Last_Host_CPU /= Here or
+         Machines (Positive (Mach)).VCPUs (CPU).Flush_Wanted or
+         Machines (Positive (Mach)).VCPUs (CPU).Assigned_ASID = 0
+      then
+         VMCB_Ptr.Control.TLB_Control := SVM_Flush_Command;
+      else
+         VMCB_Ptr.Control.TLB_Control :=
+            Arch.Virtualization.SVM.TLB_CONTROL_DO_NOTHING;
+      end if;
+
       --  The guest's FPU state goes in for the entry and comes out after
       --  it, the host's kept aside meanwhile (Enter_Guest_FPU).
       Enter_Guest_FPU (Mach, CPU, Host_XCR0);
@@ -1937,6 +2007,16 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       --  Reload IDT after VMRUN (may not be fully restored)
       Arch.IDT.Load_IDT;
+
+      --  An entry that happened carried out the flush it asked for. One that
+      --  VMRUN refused (VMEXIT_INVALID, its consistency checks) entered
+      --  nothing, so the flush stays wanted.
+      if VMCB_Ptr.Control.Exit_Code /= Unsigned_64'Last then
+         Machines (Positive (Mach)).VCPUs (CPU).Last_Host_CPU := Here;
+         Machines (Positive (Mach)).VCPUs (CPU).Flush_Wanted := False;
+         VMCB_Ptr.Control.TLB_Control :=
+            Arch.Virtualization.SVM.TLB_CONTROL_DO_NOTHING;
+      end if;
 
       --  Check if stop was requested
       if Machines (Positive (Mach)).VCPUs (CPU).Stop_Requested then
@@ -2367,9 +2447,14 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Current_GPA := GPA + Unsigned_64 (I) * Page_4KB;
             Current_HPA := HPA + Unsigned_64 (I) * Page_4KB;
 
-            --  PT index within PT0 (GPA / 4KB, max 511)
+            --  PT index within PT0 (GPA / 4KB, max 511). Replacing an
+            --  entry that was present changes a translation the guest may
+            --  have cached, so its next entry flushes (see VCPU_Run_Ex).
             PT_Idx := Natural (Current_GPA / Page_4KB);
             if PT_Idx <= 511 then
+               if (PT0 (PT_Idx) and 1) /= 0 then
+                  Machines (Positive (Mach)).VCPUs (CPU).Flush_Wanted := True;
+               end if;
                PT0 (PT_Idx) := Current_HPA or Flags;
             end if;
          end loop;
@@ -2449,6 +2534,8 @@ package body Arch.Virtualization with SPARK_Mode => Off is
 
       NPT_Addr := Machines (Positive (Mach)).VCPUs (CPU).NPT_Addr;
 
+      --  Clearing an entry that was present takes away a translation the
+      --  guest may have cached, so its next entry flushes (see VCPU_Run_Ex).
       declare
          PT0 : U64_Array (0 .. 511)
             with Import, Address => To_Address (NPT_Addr + 24576);
@@ -2456,6 +2543,9 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          Last  : constant Integer := Integer ((GPA + Size) / Page_4KB) - 1;
       begin
          for I in First .. Last loop
+            if (PT0 (I) and 1) /= 0 then
+               Machines (Positive (Mach)).VCPUs (CPU).Flush_Wanted := True;
+            end if;
             PT0 (I) := 0;
          end loop;
       end;
@@ -3188,18 +3278,24 @@ package body Arch.Virtualization with SPARK_Mode => Off is
    end Leave_Guest_FPU;
    ----------------------------------------------------------------------------
    function Allocate_ASID return Unsigned_32 is
+      --  1 .. Shared_ASID - 1, never the shared one (see Shared_ASID).
+      Limit  : constant Unsigned_32 := Shared_ASID - 1;
       Result : Unsigned_32 := 0;
    begin
+      if Limit = 0 then
+         return 0;
+      end if;
+
       Seize (ASID_Lock);
-      for I in 1 .. Max_ASID loop
+      for I in 1 .. Limit loop
          declare
             Idx : constant Unsigned_32 :=
-               ((Next_ASID_Hint - 1 + Unsigned_32 (I) - 1) mod Max_ASID) + 1;
+               ((Next_ASID_Hint - 1 + I - 1) mod Limit) + 1;
          begin
             if not ASID_In_Use (Positive (Idx)) then
                ASID_In_Use (Positive (Idx)) := True;
                Result := Idx;
-               Next_ASID_Hint := (Idx mod Max_ASID) + 1;
+               Next_ASID_Hint := (Idx mod Limit) + 1;
                exit;
             end if;
          end;
@@ -3244,6 +3340,8 @@ package body Arch.Virtualization with SPARK_Mode => Off is
       Machines (Positive (Mach)).VCPUs (CPU).V_Intr_Masking := False;
       --  XCR0 defaults to 1 (x87 FPU only)
       Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value := 1;
+      Machines (Positive (Mach)).VCPUs (CPU).Last_Host_CPU := Natural'Last;
+      Machines (Positive (Mach)).VCPUs (CPU).Flush_Wanted := False;
    exception
       when Constraint_Error =>
          null;
