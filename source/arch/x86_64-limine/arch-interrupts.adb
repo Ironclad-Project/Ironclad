@@ -18,6 +18,7 @@ with Arch.APIC;
 with Arch.GDT;
 with Arch.CPU;
 with Arch.Context;
+with Arch.MMU;
 with Memory.MMU;
 with Panic;
 with Messages;
@@ -32,7 +33,21 @@ with System.Atomic_Operations;
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
+      --  The one instruction of Snippets.Copy_Userland that touches userland,
+      --  and where it resumes to report what it could not copy.
+      procedure Copy_Start
+         with Import, Convention => C,
+              External_Name => "arch_copy_userland_start";
+      procedure Copy_End
+         with Import, Convention => C,
+              External_Name => "arch_copy_userland_end";
+      procedure Copy_Fixup
+         with Import, Convention => C,
+              External_Name => "arch_copy_userland_fixup";
+
       Signal : Userland.Process.Signal;
+      Addr   : Unsigned_64;
+
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=
          [0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
           4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
@@ -43,6 +58,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
           24 => "???", 25 => "???", 26 => "???", 27 => "???",
           28 => "#HV", 29 => "#VC", 30 => "#SX"];
    begin
+      --  Read where the fault happened before anything else can fault and
+      --  write CR2 over it.
+      Addr := Read_CR2;
+
       --  Check whether we have to panic or just exit the thread.
       if State.CS = (GDT.User_Code64_Segment or 3) then
          Signal := (case Num is
@@ -55,6 +74,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
              " (" & Userland.Process.Signal'Image (Signal) & ")");
          Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
          Userland.Process.Exit_Process (Local.Get_Current_Process, Signal);
+      elsif Num = 14 and then
+            State.RIP >= Unsigned_64 (To_Integer (Copy_Start'Address)) and then
+            State.RIP <  Unsigned_64 (To_Integer (Copy_End'Address))   and then
+            Addr < Unsigned_64 (MMU.Canonical_Hole_Offset)
+      then
+         --  A copy met a userland page that is gone or protected, as when
+         --  another thread unmapped it meanwhile. The copy ends there.
+         State.RIP := Unsigned_64 (To_Integer (Copy_Fixup'Address));
       else
          Panic.Hard_Panic ("Kernel " & Exception_Text (Num), State.all);
       end if;

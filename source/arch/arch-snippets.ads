@@ -14,8 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces;
 #if ArchName = """x86_64-limine"""
-   with Interfaces; use Interfaces;
+   use Interfaces;
    with Memory;     use Memory;
 #end if;
 
@@ -48,6 +49,24 @@ package Arch.Snippets is
    --  can be enabled and disabled.
    procedure Enable_Userland_Memory_Access  with Inline;
    procedure Disable_Userland_Memory_Access with Inline;
+
+   --  Copy between kernel memory and a userland address, for which the caller
+   --  has enabled userland memory access. The copy may fault on the userland
+   --  side if another thread unmaps or protects it meanwhile, which the fault
+   --  handler turns into the end of the copy instead of a kernel panic.
+   --  @param Kernel  Kernel side of the copy, of at least Length bytes.
+   --  @param User    Userland side of the copy.
+   --  @param Length  Bytes to copy.
+   --  @param To_User Nonzero to copy from Kernel to User, else the reverse.
+   --  @param Left    Bytes that were not copied, 0 when all of them were.
+   procedure Copy_Userland
+      (Kernel  : System.Address;
+       User    : System.Address;
+       Length  : Interfaces.Unsigned_64;
+       To_User : Interfaces.Unsigned_64;
+       Left    : out Interfaces.Unsigned_64)
+      with Import, Convention => C, External_Name => "arch_copy_userland",
+           Global => null;
 
    --  Make sure every memory access is completed before this.
    procedure Full_Memory_Load_Store_Barrier with Inline;

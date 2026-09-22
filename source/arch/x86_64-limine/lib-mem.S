@@ -72,3 +72,26 @@ memcmp:
     xor %eax, %eax
 3:
     ret
+
+# Copy between kernel memory and a userland address, for which the caller has
+# opened userland access: rdi is the kernel side, rsi the userland side, rdx
+# the length, rcx nonzero to copy to userland, and the bytes left uncopied are
+# stored at r8. A page fault on the copy resumes at arch_copy_userland_fixup
+# (see the exception handler) with rcx holding what is left.
+.global arch_copy_userland
+arch_copy_userland:
+    endbr64
+    test %rcx, %rcx
+    mov %rdx, %rcx
+    jz 4f
+    xchg %rdi, %rsi
+4:
+.global arch_copy_userland_start
+arch_copy_userland_start:
+    rep movsb
+.global arch_copy_userland_end
+arch_copy_userland_end:
+.global arch_copy_userland_fixup
+arch_copy_userland_fixup:
+    mov %rcx, (%r8)
+    ret

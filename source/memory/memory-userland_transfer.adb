@@ -20,31 +20,29 @@ with Alignment;
 package body Memory.Userland_Transfer is
    package A is new Alignment (Integer_Address);
 
-   pragma Warnings
-      (Off, "address specification on ""Mem_Data"" is imprecisely supported",
-       Reason => "Clear a bit of warning spam");
-
    procedure Take_From_Userland
       (Map     : Memory.MMU.Page_Table_Acc;
        Data    : out T;
        Addr    : System.Address;
        Success : out Boolean)
    is
+      pragma SPARK_Mode (Off); --  Copying through addresses is against SPARK.
+      pragma Suppress (All_Checks); --  An object size cannot be out of range.
+      Length, Left : Unsigned_64;
    begin
       Check_Access (Map, Addr, False, Success);
       if not Success then
          return;
       end if;
 
-      declare
-         Mem_Data : constant T with Import, Convention => C, Address => Addr;
-      begin
-         Arch.Snippets.Enable_Userland_Memory_Access;
-         Arch.Snippets.Full_Memory_Load_Store_Barrier;
-         Data    := Mem_Data;
-         Success := True;
-         Arch.Snippets.Disable_Userland_Memory_Access;
-      end;
+      --  The userland side may still go away while it is read, which ends
+      --  the copy short instead of faulting the kernel.
+      Length := Unsigned_64 (T'Object_Size / 8);
+      Arch.Snippets.Enable_Userland_Memory_Access;
+      Arch.Snippets.Full_Memory_Load_Store_Barrier;
+      Arch.Snippets.Copy_Userland (Data'Address, Addr, Length, 0, Left);
+      Arch.Snippets.Disable_Userland_Memory_Access;
+      Success := Left = 0;
    end Take_From_Userland;
 
    procedure Paste_Into_Userland
@@ -53,21 +51,22 @@ package body Memory.Userland_Transfer is
        Addr    : System.Address;
        Success : out Boolean)
    is
+      pragma SPARK_Mode (Off); --  Copying through addresses is against SPARK.
+      pragma Suppress (All_Checks); --  An object size cannot be out of range.
+      Length, Left : Unsigned_64;
    begin
       Check_Access (Map, Addr, True, Success);
       if not Success then
          return;
       end if;
 
-      declare
-         Mem_Data : T with Import, Convention => C, Address => Addr;
-      begin
-         Arch.Snippets.Enable_Userland_Memory_Access;
-         Mem_Data := Data;
-         Success  := True;
-         Arch.Snippets.Full_Memory_Load_Store_Barrier;
-         Arch.Snippets.Disable_Userland_Memory_Access;
-      end;
+      --  As above, the userland side may go away while it is written.
+      Length := Unsigned_64 (T'Object_Size / 8);
+      Arch.Snippets.Enable_Userland_Memory_Access;
+      Arch.Snippets.Copy_Userland (Data'Address, Addr, Length, 1, Left);
+      Arch.Snippets.Full_Memory_Load_Store_Barrier;
+      Arch.Snippets.Disable_Userland_Memory_Access;
+      Success := Left = 0;
    end Paste_Into_Userland;
 
    procedure Check_Access

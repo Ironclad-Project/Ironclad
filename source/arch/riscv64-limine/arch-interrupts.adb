@@ -17,6 +17,7 @@
 with System.Machine_Code;
 with Panic;
 with Arch.Snippets;
+with Arch.MMU;
 with Scheduler;
 with Arch.Context;
 with Userland.Syscall; use Userland.Syscall;
@@ -70,7 +71,20 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end Unload_Interrupt;
    ----------------------------------------------------------------------------
    procedure Handle_Trap (Ctx : not null Frame_Acc) is
+      --  The instructions of Snippets.Copy_Userland that touch userland, and
+      --  where it resumes to report what it could not copy.
+      procedure Copy_Start
+         with Import, Convention => C,
+              External_Name => "arch_copy_userland_start";
+      procedure Copy_End
+         with Import, Convention => C,
+              External_Name => "arch_copy_userland_end";
+      procedure Copy_Fixup
+         with Import, Convention => C,
+              External_Name => "arch_copy_userland_fixup";
+
       SCause, SStatus : Unsigned_64;
+      STVal           : Unsigned_64;
       Is_Int, Is_User : Boolean;
       Cause           : Unsigned_64;
       Signal          : Userland.Process.Signal;
@@ -114,6 +128,24 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Messages.Put_Line ("Userland exception: " & Signal'Image);
             Userland.Corefile.Generate_Corefile (Context.GP_Context (Ctx.all));
             Userland.Process.Exit_Process (Local.Get_Current_Process, Signal);
+         elsif (Cause = 5 or Cause = 7 or Cause = 13 or Cause = 15) and then
+               Ctx.SEPC >=
+                  Unsigned_64 (To_Integer (Copy_Start'Address)) and then
+               Ctx.SEPC < Unsigned_64 (To_Integer (Copy_End'Address))
+         then
+            System.Machine_Code.Asm
+               ("csrr %0, stval",
+                Outputs  => Unsigned_64'Asm_Output ("=r", STVal),
+                Clobber  => "memory",
+                Volatile => True);
+            if STVal >= Unsigned_64 (MMU.Canonical_Hole_Offset) then
+               Panic.Hard_Panic ("Kernel fault copying to or from userland",
+                                 Ctx.all);
+            end if;
+
+            --  A copy met a userland page that is gone or protected, as when
+            --  another thread unmapped it meanwhile. The copy ends there.
+            Ctx.SEPC := Unsigned_64 (To_Integer (Copy_Fixup'Address));
          else
             Panic.Hard_Panic
                ((case Cause is

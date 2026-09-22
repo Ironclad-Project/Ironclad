@@ -89,3 +89,32 @@ memcmp:
         li      a0,0
 11:
         ret
+
+# Copy between kernel memory and a userland address, for which the caller has
+# opened userland access: a0 is the kernel side, a1 the userland side, a2 the
+# length, a3 nonzero to copy to userland, and the bytes left uncopied are
+# stored at a4. A page or access fault on the copy resumes at
+# arch_copy_userland_fixup (see the trap handler) with a2 holding what is left.
+.global arch_copy_userland
+arch_copy_userland:
+        mv      t0,a1
+        mv      t1,a0
+        beq     a3,zero,12f
+        mv      t0,a0
+        mv      t1,a1
+12:
+        beq     a2,zero,arch_copy_userland_fixup
+.global arch_copy_userland_start
+arch_copy_userland_start:
+        lbu     t2,0(t0)
+        sb      t2,0(t1)
+.global arch_copy_userland_end
+arch_copy_userland_end:
+        addi    t0,t0,1
+        addi    t1,t1,1
+        addi    a2,a2,-1
+        bne     a2,zero,arch_copy_userland_start
+.global arch_copy_userland_fixup
+arch_copy_userland_fixup:
+        sd      a2,0(a4)
+        ret
