@@ -41,6 +41,11 @@ package Scheduler is
    --  Doubles as the function to initialize core locals.
    procedure Idle_Core with No_Return;
 
+   --  The three below make a userland thread held: it is not run until
+   --  Release_Thread lets it go, which Userland.Process.Add_Thread does as
+   --  it lists the thread in its process, so a thread cannot end before its
+   --  process knows of it. Delete_Thread takes a held thread never let go.
+
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
    procedure Create_User_Thread
@@ -74,6 +79,10 @@ package Scheduler is
        PID      : Natural;
        TCB      : System.Address;
        New_TID  : out TID);
+
+   --  Let a thread made by Create_User_Thread run.
+   --  @param Thread Thread to let go, which must be held.
+   procedure Release_Thread (Thread : TID);
 
    --  Removes a thread, kernel or user, from existence (if it exists).
    procedure Delete_Thread (Thread : TID);

@@ -313,6 +313,10 @@ package body Userland.Process with SPARK_Mode => Off is
             Scheduler.Set_Policy (Thread, Registry (Proc).Pol);
             Scheduler.Set_RR_Interval (Thread,
                Registry (Proc).RR_Sec, Registry (Proc).RR_NS);
+
+            --  The thread was made held, and it runs only now that it is
+            --  listed.
+            Scheduler.Release_Thread (Thread);
             Success := True;
             exit;
          end if;

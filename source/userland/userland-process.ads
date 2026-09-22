@@ -233,7 +233,9 @@ package Userland.Process is
    --  Get elapsed time since creation of the process.
    procedure Get_Elapsed_Time (Proc : PID; Elapsed : out Time.Timestamp);
 
-   --  Add a thread to the process.
+   --  Add a thread to the process and let it run, a user thread being made
+   --  held (see Scheduler.Create_User_Thread). A thread refused is still
+   --  held, and its maker deletes it.
    --  @param Proc    Process to add a thread.
    --  @param Thread  Thread to add.
    --  @param Success True on success, False on failure.

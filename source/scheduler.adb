@@ -40,6 +40,7 @@ package body Scheduler with SPARK_Mode => Off is
    type Thread_Info is record
       Is_Present      : Boolean with Atomic;
       Is_Running      : Boolean with Atomic;
+      Is_Held         : Boolean with Atomic;  --  See Create_User_Thread.
       Path            : String (1 .. 20);
       Path_Len        : Natural range 0 .. 20;
       Pol             : Policy;
@@ -98,6 +99,7 @@ package body Scheduler with SPARK_Mode => Off is
          [others =>
             (Is_Present      => False,
              Is_Running      => False,
+             Is_Held         => False,
              Path            => [others => ' '],
              Path_Len        => 0,
              RR_Micro_Inter  => Default_RR_NS_Interval / 1000,
@@ -381,6 +383,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID) :=
          (Is_Present     => True,
           Is_Running     => False,
+          Is_Held        => True,
           Path           => [others => ' '],
           Path_Len       => 0,
           RR_Micro_Inter => Default_RR_NS_Interval / 1000,
@@ -414,6 +417,16 @@ package body Scheduler with SPARK_Mode => Off is
          Synchronization.Release (Scheduler_Mutex);
          New_TID := Error_TID;
    end Create_User_Thread;
+
+   procedure Release_Thread (Thread : TID) is
+   begin
+      --  No lock: the flag is atomic, and Add_Thread calls this with the
+      --  process's own lock held, which the scheduler's must never nest in.
+      Thread_Pool (Thread).Is_Held := False;
+   exception
+      when Constraint_Error =>
+         null;
+   end Release_Thread;
 
    procedure Delete_Thread (Thread : TID) is
    begin
@@ -857,6 +870,9 @@ package body Scheduler with SPARK_Mode => Off is
          return;
       end if;
 
+      --  A signal thread is listed in no process, so it is let go here.
+      Release_Thread (New_TID);
+
       while Thread_Pool (New_TID).Is_Present loop
          Yield_If_Able;
       end loop;
@@ -1258,7 +1274,9 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Evaluate_Runnable (T : TID; Can_Run : out Boolean) is
    begin
-      Can_Run := Thread_Pool (T).Is_Present and not Thread_Pool (T).Is_Running;
+      Can_Run := Thread_Pool (T).Is_Present and
+                 not Thread_Pool (T).Is_Running and
+                 not Thread_Pool (T).Is_Held;
       if Can_Run then
          Evaluate_Suspended (T, Can_Run);
          Can_Run := not Can_Run;

@@ -1070,6 +1070,7 @@ package body Userland.Syscall is
 
       Add_Thread (Child, New_TID, Success);
       if not Success then
+         Scheduler.Delete_Thread (New_TID);
          goto Block_Error;
       end if;
 
@@ -7345,6 +7346,7 @@ package body Userland.Syscall is
 
       Add_Thread (Proc, New_TID, Success);
       if not Success then
+         Scheduler.Delete_Thread (New_TID);
          goto Block_Error;
       end if;
 
