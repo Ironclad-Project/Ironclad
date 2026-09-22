@@ -89,7 +89,7 @@ package body Time is
    end ">";
    ----------------------------------------------------------------------------
    procedure Get_Time (Clock : Clock_Type; Stamp : out Timestamp) is
-      Discard : Time.Timestamp;
+      User : Time.Timestamp;
    begin
       case Clock is
          when Monotonic_Clock =>
@@ -97,11 +97,14 @@ package body Time is
          when Real_Time_Clock =>
             Arch.Clocks.Get_Real_Time (Stamp);
          when Thread_CPU_Time_Clock =>
+            --  Execution time is all of it, in the kernel and out of it.
             Scheduler.Get_Runtimes
-               (Arch.Local.Get_Current_Thread, Stamp, Discard);
+               (Arch.Local.Get_Current_Thread, Stamp, User);
+            Stamp := Stamp + User;
          when Process_CPU_Time_Clock =>
             Userland.Process.Get_Runtime_Times
-               (Arch.Local.Get_Current_Process, Stamp, Discard);
+               (Arch.Local.Get_Current_Process, Stamp, User);
+            Stamp := Stamp + User;
       end case;
    end Get_Time;
 
