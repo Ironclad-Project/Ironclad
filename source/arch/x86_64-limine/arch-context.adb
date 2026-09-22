@@ -70,10 +70,21 @@ package body Arch.Context with SPARK_Mode => Off is
    end Is_User_Context;
 
    procedure Init_FP_Context (Ctx : out FP_Context) is
-      FPU_Word : constant Unsigned_32 := 2#1100111111#;
-      MXCSR    : constant Unsigned_64 := 2#1111110000000#;
-      Result   : Memory.Virtual_Address;
+      FPU_Word  : constant Unsigned_32 := 2#1100111111#;
+      MXCSR     : constant Unsigned_64 := 2#1111110000000#;
+      Own_Word  : Unsigned_32 := 0;
+      Own_MXCSR : Unsigned_64 := 0;
+      Result    : Memory.Virtual_Address;
    begin
+      --  The control words loaded are the caller's, so they are kept aside
+      --  while the defaults are saved and put back after.
+      Asm ("fnstcw %0",
+           Outputs  => Unsigned_32'Asm_Output ("=m", Own_Word),
+           Volatile => True);
+      Asm ("stmxcsr %0",
+           Outputs  => Unsigned_64'Asm_Output ("=m", Own_MXCSR),
+           Volatile => True);
+
       --  Set up FPU control word and MXCSR as defined by SysV.
       Asm ("fldcw %0",
            Inputs   => Unsigned_32'Asm_Input ("m", FPU_Word),
@@ -97,6 +108,15 @@ package body Arch.Context with SPARK_Mode => Off is
 
       --  Save the current context with the control words and all.
       Save_FP_Context (Ctx);
+
+      Asm ("fldcw %0",
+           Inputs   => Unsigned_32'Asm_Input ("m", Own_Word),
+           Clobber  => "memory",
+           Volatile => True);
+      Asm ("ldmxcsr %0",
+           Inputs   => Unsigned_64'Asm_Input ("m", Own_MXCSR),
+           Clobber  => "memory",
+           Volatile => True);
    end Init_FP_Context;
 
    procedure Clone_FP_Context (Ctx : out FP_Context) is

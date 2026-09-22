@@ -4495,7 +4495,8 @@ capability @code{MAC_CAP_SYSMAC}.
 int create_thread(void *callback, void *arg, void *stack, void *tls_addr, int cluster);
 @end example
 
-This syscall creates a thread for the caller process.
+This syscall creates a thread for the caller process. The new thread starts
+with the default floating-point state, and the caller's is left untouched.
 
 This syscall returns the TID on success or @code{-1} on failure, with the errno:
 

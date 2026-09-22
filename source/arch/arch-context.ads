@@ -57,8 +57,8 @@ package Arch.Context is
    --  Whether the context was saved while running in userland.
    function Is_User_Context (Ctx : GP_Context) return Boolean;
 
-   --  Save and restore floating-point context. Init_FP_Context resets the
-   --  current state to the defaults before saving it, Clone_FP_Context saves
+   --  Save and restore floating-point context. Init_FP_Context saves the
+   --  defaults and leaves the current state as it was, Clone_FP_Context saves
    --  the current state as it is.
    procedure Init_FP_Context    (Ctx : out FP_Context);
    procedure Clone_FP_Context   (Ctx : out FP_Context);
