@@ -162,6 +162,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
             Sync        => null,
             Sync_Range  => null,
             IO_Control  => null,
+            IO_Argument => null,
             Mmap        => null,
             Poll        => null,
             Remove      => null);

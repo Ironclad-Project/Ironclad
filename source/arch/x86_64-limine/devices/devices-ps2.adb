@@ -155,6 +155,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
            Read        => Kb_Read'Access,
            Write       => null,
            IO_Control  => null,
+           IO_Argument => null,
            Mmap        => null,
            Poll        => Kb_Poll'Access,
            Remove      => null), "ps2keyboard", Success);
@@ -171,6 +172,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
            Read        => Ms_Read'Access,
            Write       => null,
            IO_Control  => Ms_IO_Control'Access,
+           IO_Argument => Ms_IO_Argument'Access,
            Mmap        => null,
            Poll        => Ms_Poll'Access,
            Remove      => null), "ps2mouse", Success);
@@ -298,6 +300,11 @@ package body Devices.PS2 with SPARK_Mode => Off is
          Success   := Dev_IO_Failure;
    end Ms_Read;
 
+   IOCTL_Enable_2_1_Scaling : constant := 1;
+   IOCTL_Enable_1_1_Scaling : constant := 2;
+   IOCTL_Set_Resolution     : constant := 3;
+   IOCTL_Set_Sample_Rate    : constant := 4;
+
    procedure Ms_IO_Control
       (Key      : System.Address;
        Request  : Unsigned_64;
@@ -310,11 +317,6 @@ package body Devices.PS2 with SPARK_Mode => Off is
 
       function To_Integer is
          new Ada.Unchecked_Conversion (System.Address, Unsigned_64);
-
-      IOCTL_Enable_2_1_Scaling : constant := 1;
-      IOCTL_Enable_1_1_Scaling : constant := 2;
-      IOCTL_Set_Resolution     : constant := 3;
-      IOCTL_Set_Sample_Rate    : constant := 4;
 
       Argument_Integer : constant Unsigned_64 := To_Integer (Argument);
       Unused : Unsigned_8;
@@ -366,6 +368,24 @@ package body Devices.PS2 with SPARK_Mode => Off is
          Success := False;
          Extra   := 0;
    end Ms_IO_Control;
+
+   procedure Ms_IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+   begin
+      case Request is
+         when IOCTL_Enable_2_1_Scaling | IOCTL_Enable_1_1_Scaling |
+              IOCTL_Set_Resolution     | IOCTL_Set_Sample_Rate    =>
+            Usage := IO_No_Memory;
+         when others =>
+            Usage := IO_Unknown;
+      end case;
+      Size := 0;
+   end Ms_IO_Argument;
 
    procedure Ms_Poll
       (Data      : System.Address;

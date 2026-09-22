@@ -88,6 +88,7 @@ package body Devices.Ramdev is
           Sync        => null,
           Sync_Range  => null,
           IO_Control  => null,
+          IO_Argument => null,
           Mmap        => null,
           Poll        => null,
           Remove      => null);

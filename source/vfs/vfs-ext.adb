@@ -1592,6 +1592,9 @@ package body VFS.EXT with SPARK_Mode => Off is
          Status := FS_IO_Failure;
    end Truncate;
 
+   EXT_GETFLAGS : constant := 16#5600#;
+   EXT_SETFLAGS : constant := 16#5601#;
+
    procedure IO_Control
       (Data   : System.Address;
        Ino    : File_Inode_Number;
@@ -1599,9 +1602,6 @@ package body VFS.EXT with SPARK_Mode => Off is
        Arg    : System.Address;
        Status : out FS_Status)
    is
-      EXT_GETFLAGS : constant := 16#5600#;
-      EXT_SETFLAGS : constant := 16#5601#;
-
       FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Inod    : Inode_Acc := new Inode;
       Success : Boolean;
@@ -1660,6 +1660,24 @@ package body VFS.EXT with SPARK_Mode => Off is
          Messages.Put_Line ("Exception while doing an EXT ioctl");
          Status := FS_IO_Failure;
    end IO_Control;
+
+   procedure IO_Argument
+      (Req   : Unsigned_64;
+       Usage : out Devices.IO_Usage;
+       Size  : out Natural)
+   is
+   begin
+      Size := Unsigned_32'Object_Size / 8;
+      case Req is
+         when EXT_GETFLAGS =>
+            Usage := Devices.IO_Write;
+         when EXT_SETFLAGS =>
+            Usage := Devices.IO_Read;
+         when others =>
+            Usage := Devices.IO_Unknown;
+            Size  := 0;
+      end case;
+   end IO_Argument;
 
    procedure Change_Mode
       (Data   : System.Address;

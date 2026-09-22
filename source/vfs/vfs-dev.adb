@@ -335,6 +335,11 @@ package body VFS.Dev is
       end if;
    end Stat;
 
+   DEV_PARTUUID : constant := 16#9821#;
+   BLKSSZGET    : constant := 16#9822#;
+   BLKGETSIZE   : constant := 16#9823#;
+   BLKGETSIZE64 : constant := 16#9824#;
+
    procedure IO_Control
       (Data   : System.Address;
        Ino    : File_Inode_Number;
@@ -344,11 +349,6 @@ package body VFS.Dev is
        Status : out FS_Status)
    is
       pragma Unreferenced (Data);
-
-      DEV_PARTUUID : constant := 16#9821#;
-      BLKSSZGET    : constant := 16#9822#;
-      BLKGETSIZE   : constant := 16#9823#;
-      BLKGETSIZE64 : constant := 16#9824#;
       Success  : Boolean;
    begin
       Extra := 0;
@@ -406,6 +406,44 @@ package body VFS.Dev is
          end;
       end if;
    end IO_Control;
+
+   procedure IO_Argument
+      (Data  : System.Address;
+       Ino   : File_Inode_Number;
+       Req   : Unsigned_64;
+       Usage : out Devices.IO_Usage;
+       Size  : out Natural)
+   is
+      pragma Unreferenced (Data);
+      Handle : Device_Handle;
+   begin
+      Usage := Devices.IO_Unknown;
+      Size  := 0;
+      if Ino = Root_Inode or else
+         not (Ino in 0 .. File_Inode_Number (Natural'Last))
+      then
+         return;
+      end if;
+
+      Handle := From_Unique_ID (Natural (Ino));
+      if Handle = Devices.Error_Handle then
+         return;
+      end if;
+
+      case Req is
+         when DEV_PARTUUID =>
+            Usage := Devices.IO_Write;
+            Size  := Devices.UUID'Object_Size / 8;
+         when BLKSSZGET =>
+            Usage := Devices.IO_Write;
+            Size  := Unsigned_32'Object_Size / 8;
+         when BLKGETSIZE | BLKGETSIZE64 =>
+            Usage := Devices.IO_Write;
+            Size  := Unsigned_64'Object_Size / 8;
+         when others =>
+            Devices.IO_Argument (Handle, Req, Usage, Size);
+      end case;
+   end IO_Argument;
 
    procedure Mmap
       (Data    : System.Address;

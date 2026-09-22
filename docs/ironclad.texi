@@ -2084,7 +2084,8 @@ following errno:
 @code{EBADF}: The passed file does not exist for the process.
 
 @item
-@code{EFAULT}: The passed argument is in non-accessible memory
+@code{EFAULT}: The passed argument is in non-accessible memory, or stopped
+being so before what the request returns could be written there.
 @end itemize
 
 @node sched_yield

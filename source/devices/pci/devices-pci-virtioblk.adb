@@ -169,6 +169,7 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
                 Sync        => Sync'Access,
                 Sync_Range  => Sync_Range'Access,
                 IO_Control  => null,
+                IO_Argument => null,
                 Mmap        => null,
                 Poll        => null,
                 Remove      => null), Dev_Data.Name.all, Success);

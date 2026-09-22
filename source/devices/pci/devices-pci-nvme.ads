@@ -671,6 +671,12 @@ private
        Extra    : out Unsigned_64;
        Success  : out Boolean);
 
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural);
+
    --  Operations on the Controller
    procedure Controller_Await_Ready
       (M : NVMe_Registers_Acc; Enabled : Boolean);

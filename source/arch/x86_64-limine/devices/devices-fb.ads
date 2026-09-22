@@ -43,6 +43,12 @@ private
        Extra    : out Unsigned_64;
        Success  : out Boolean);
 
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural);
+
    procedure Mmap
       (Data    : System.Address;
        Map     : Memory.MMU.Page_Table_Acc;

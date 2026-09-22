@@ -56,6 +56,7 @@ package body Devices.Serial with SPARK_Mode => Off is
                 Read        => Read'Access,
                 Write       => Write'Access,
                 IO_Control  => IO_Control'Access,
+                IO_Argument => IO_Argument'Access,
                 Mmap        => null,
                 Poll        => Poll'Access,
                 Remove      => null);
@@ -218,6 +219,30 @@ package body Devices.Serial with SPARK_Mode => Off is
       end case;
       Synchronization.Release (COM.Mutex);
    end IO_Control;
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+   begin
+      Size := TermIOs.Main_Data'Object_Size / 8;
+      case Request is
+         when TermIOs.TCGETS =>
+            Usage := IO_Write;
+         when TermIOs.TCSETS | TermIOs.TCSETSW | TermIOs.TCSETSF =>
+            Usage := IO_Read;
+         when others =>
+            Usage := IO_Unknown;
+            Size  := 0;
+      end case;
+   exception
+      when Constraint_Error =>
+         Usage := IO_Unknown;
+         Size  := 0;
+   end IO_Argument;
 
    procedure Poll
       (Data      : System.Address;

@@ -150,6 +150,11 @@ package VFS.EXT is
        Arg    : System.Address;
        Status : out FS_Status);
 
+   procedure IO_Argument
+      (Req   : Unsigned_64;
+       Usage : out Devices.IO_Usage;
+       Size  : out Natural);
+
    procedure Change_Mode
       (Data   : System.Address;
        Ino    : File_Inode_Number;

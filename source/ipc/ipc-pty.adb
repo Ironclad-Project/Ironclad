@@ -85,6 +85,7 @@ package body IPC.PTY is
           Sync        => null,
           Sync_Range  => null,
           IO_Control  => Dev_IO_Control'Access,
+          IO_Argument => Dev_IO_Argument'Access,
           Mmap        => null,
           Poll        => null,
           Remove      => null);
@@ -439,6 +440,40 @@ package body IPC.PTY is
             Success := False;
       end case;
    end IO_Control;
+
+   procedure IO_Argument
+      (Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+   begin
+      Size := 0;
+      case Request is
+         when TCGETS =>
+            Usage := IO_Write;
+            Size  := Main_Data'Object_Size / 8;
+         when TCSETS | TCSETSW | TCSETSF =>
+            Usage := IO_Read;
+            Size  := Main_Data'Object_Size / 8;
+         when TIOCGWINSZ =>
+            Usage := IO_Write;
+            Size  := Win_Size'Object_Size / 8;
+         when TIOCSWINSZ =>
+            Usage := IO_Read;
+            Size  := Win_Size'Object_Size / 8;
+         when TIOCGPGRP | TIOCGSID =>
+            Usage := IO_Write;
+            Size  := Unsigned_32'Object_Size / 8;
+         when TIOCSPGRP =>
+            Usage := IO_Read;
+            Size  := Unsigned_32'Object_Size / 8;
+         when TCFLSH | TCXONC | TIOCSCTTY | TIOCNOTTY | TCSBRKP |
+              TIOCSPTLCK =>
+            Usage := IO_No_Memory;
+         when others =>
+            Usage := IO_Unknown;
+      end case;
+   end IO_Argument;
    ----------------------------------------------------------------------------
    procedure Read_From_End
       (End_Mutex   : aliased in out Synchronization.Binary_Semaphore;
@@ -679,4 +714,15 @@ package body IPC.PTY is
           Success    => Success);
       Extra := 0;
    end Dev_IO_Control;
+
+   procedure Dev_IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+   begin
+      IO_Argument (Request, Usage, Size);
+   end Dev_IO_Argument;
 end IPC.PTY;

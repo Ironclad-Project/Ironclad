@@ -181,6 +181,7 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
                 Sync        => null,
                 Sync_Range  => null,
                 IO_Control  => null,
+                IO_Argument => null,
                 Mmap        => null,
                 Poll        => null,
                 Remove      => null), Final_Name, Success);

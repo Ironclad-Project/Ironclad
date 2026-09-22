@@ -103,6 +103,14 @@ package VFS.Dev is
        Status : out FS_Status)
       with Pre => Devices.Is_Initialized;
 
+   procedure IO_Argument
+      (Data  : System.Address;
+       Ino   : File_Inode_Number;
+       Req   : Unsigned_64;
+       Usage : out Devices.IO_Usage;
+       Size  : out Natural)
+      with Pre => Devices.Is_Initialized;
+
    procedure Mmap
       (Data    : System.Address;
        Ino     : File_Inode_Number;

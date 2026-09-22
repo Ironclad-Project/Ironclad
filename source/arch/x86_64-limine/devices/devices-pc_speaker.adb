@@ -30,6 +30,7 @@ package body Devices.PC_Speaker with SPARK_Mode => Off is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => IO_Control'Access,
+           IO_Argument => IO_Argument'Access,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "pcspeaker", Success);
@@ -76,4 +77,17 @@ package body Devices.PC_Speaker with SPARK_Mode => Off is
       Extra   := 0;
       Success := True;
    end IO_Control;
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+      pragma Unreferenced (Request);
+   begin
+      Usage := IO_Read;
+      Size  := Unsigned_32'Object_Size / 8;
+   end IO_Argument;
 end Devices.PC_Speaker;

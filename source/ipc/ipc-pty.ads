@@ -152,6 +152,12 @@ package IPC.PTY is
        Argument   : System.Address;
        Success    : out Boolean);
 
+   --  Describe how a request of IO_Control uses its argument.
+   procedure IO_Argument
+      (Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural);
+
    --  Ghost function for checking whether a PTY is properly initialized.
    function Is_Valid (P : Inner_Acc) return Boolean with Ghost;
 
@@ -225,4 +231,10 @@ private
        Argument : System.Address;
        Extra    : out Unsigned_64;
        Success  : out Boolean);
+
+   procedure Dev_IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural);
 end IPC.PTY;

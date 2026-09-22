@@ -503,6 +503,20 @@ package VFS is
        Status  : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
+   --  Describe how an ioctl on the inode uses its argument.
+   --  @param Key     FS Handle to open.
+   --  @param Ino     Inode to operate on.
+   --  @param Request FS-Specific request to describe.
+   --  @param Usage   How the argument is used, IO_Unknown if not a request.
+   --  @param Size    Bytes read or written at the argument.
+   procedure IO_Argument
+      (Key     : FS_Handle;
+       Ino     : File_Inode_Number;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+      with Pre => Is_Initialized and Key /= Error_Handle;
+
    --  Do an FS-specific mmap operation on a file.
    --  @param Key     FS Handle to open.
    --  @param Ino     Inode to operate on.

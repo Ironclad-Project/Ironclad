@@ -60,6 +60,12 @@ private
        Argument : System.Address;
        Extra    : out Unsigned_64;
        Success  : out Boolean);
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural);
    ----------------------------------------------------------------------------
    procedure Unlock_Registers (Base_Addr : System.Address);
    procedure Keep_Alive (Base_Addr : System.Address);

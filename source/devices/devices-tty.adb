@@ -32,6 +32,7 @@ package body Devices.TTY is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => IO_Control'Access,
+           IO_Argument => IO_Argument'Access,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "tty", Success);
@@ -121,4 +122,15 @@ package body Devices.TTY is
       end if;
       Extra := 0;
    end IO_Control;
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+   begin
+      IPC.PTY.IO_Argument (Request, Usage, Size);
+   end IO_Argument;
 end Devices.TTY;

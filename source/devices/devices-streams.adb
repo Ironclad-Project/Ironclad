@@ -33,6 +33,7 @@ package body Devices.Streams is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
+           IO_Argument => null,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "null", Success_1);
@@ -46,6 +47,7 @@ package body Devices.Streams is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
+           IO_Argument => null,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "zero", Success_2);
@@ -59,6 +61,7 @@ package body Devices.Streams is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
+           IO_Argument => null,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "full", Success_3);
@@ -72,6 +75,7 @@ package body Devices.Streams is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
+           IO_Argument => null,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "random", Success_4);
@@ -85,6 +89,7 @@ package body Devices.Streams is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
+           IO_Argument => null,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "urandom", Success_5);

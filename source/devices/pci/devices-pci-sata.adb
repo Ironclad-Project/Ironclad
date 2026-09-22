@@ -91,6 +91,7 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
                    Sync        => Sync'Access,
                    Sync_Range  => Sync_Range'Access,
                    IO_Control  => IO_Control'Access,
+                   IO_Argument => IO_Argument'Access,
                    Mmap        => null,
                    Poll        => null,
                    Remove      => null), Drive_Data.Name.all, Success);
@@ -479,6 +480,8 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
          Success := False;
    end Sync_Range;
 
+   BLKRRPART : constant := 16#9825#;
+
    procedure IO_Control
       (Key      : System.Address;
        Request  : Unsigned_64;
@@ -487,7 +490,6 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
        Success  : out Boolean)
    is
       pragma Unreferenced (Argument);
-      BLKRRPART : constant := 16#9825#;
       Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
    begin
       Extra := 0;
@@ -508,4 +510,16 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       when Constraint_Error =>
          Success := False;
    end IO_Control;
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+   begin
+      Usage := (if Request = BLKRRPART then IO_No_Memory else IO_Unknown);
+      Size  := 0;
+   end IO_Argument;
 end Devices.PCI.SATA;

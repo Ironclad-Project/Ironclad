@@ -44,6 +44,14 @@ package Devices is
        Dev_IO_Failure,    --  The underlying hardware errored out.
        Dev_Full);         --  A write was completely out of capacity bounds.
 
+   --  How an IO_Control request uses its argument, so that the memory it
+   --  names can be checked before the request runs.
+   type IO_Usage is
+      (IO_Unknown,   --  Not a request of the device, it must not be run.
+       IO_No_Memory, --  The argument is not used as an address.
+       IO_Read,      --  Size bytes are read at the argument.
+       IO_Write);    --  Size bytes are written at the argument.
+
    --  Data that defines a device.
    type Resource is record
       Data        : System.Address;
@@ -88,6 +96,11 @@ package Devices is
           Argument : System.Address;
           Extra    : out Unsigned_64;
           Success  : out Boolean);
+      IO_Argument : access procedure
+         (Key     : System.Address;
+          Request : Unsigned_64;
+          Usage   : out IO_Usage;
+          Size    : out Natural);
       Mmap : access procedure
          (Key     : System.Address;
           Map     : Memory.MMU.Page_Table_Acc;
@@ -250,6 +263,18 @@ package Devices is
        Argument : System.Address;
        Extra    : out Unsigned_64;
        Success  : out Boolean)
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+
+   --  Describe how a device-specific IO control request uses its argument.
+   --  @param Handle  Handle to operate on, must be valid.
+   --  @param Request Device-specific request.
+   --  @param Usage   How the argument is used, IO_Unknown if not a request.
+   --  @param Size    Bytes read or written at the argument.
+   procedure IO_Argument
+      (Handle  : Device_Handle;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Do a device-specific memory map request.

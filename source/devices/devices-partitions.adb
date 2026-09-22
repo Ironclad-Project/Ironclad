@@ -309,6 +309,7 @@ package body Devices.Partitions is
          Read        => Read'Access,
          Write       => Write'Access,
          IO_Control  => null,
+         IO_Argument => null,
          Mmap        => null,
          Poll        => null,
          Remove      => Remove'Access

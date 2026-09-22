@@ -1647,30 +1647,32 @@ package body Userland.Syscall is
        Returned      : out Unsigned_64;
        Errno         : out Errno_Value)
    is
+      pragma SPARK_Mode (Off); --  Handing drivers an address is against SPARK.
       pragma Unreferenced (Argument_Len);
       package Trans is new Memory.Userland_Transfer (Unsigned_32);
+      procedure Free is new Ada.Unchecked_Deallocation
+         (Operation_Data, Operation_Data_Acc);
 
       Info_I : constant Integer_Address := Integer_Address (Info_Addr);
       Info_S : constant  System.Address := To_Address (Info_I);
-      I_Arg : constant Integer_Address := Integer_Address (Argument_Addr);
-      S_Arg : constant  System.Address := To_Address (I_Arg);
-      Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      File  : File_Description_Acc;
-      Succ  : Boolean;
-      Extra : Unsigned_64;
-      FSSuc : VFS.FS_Status;
-      User  : Unsigned_32;
-      Map   : Page_Table_Acc;
+      I_Arg  : constant Integer_Address := Integer_Address (Argument_Addr);
+      S_Arg  : constant  System.Address := To_Address (I_Arg);
+      Proc   : constant             PID := Arch.Local.Get_Current_Process;
+      File   : File_Description_Acc;
+      Succ   : Boolean;
+      Extra  : Unsigned_64;
+      FSSuc  : VFS.FS_Status;
+      Map    : Page_Table_Acc;
+      Usage  : Devices.IO_Usage;
+      Size   : Natural;
+      Arg    : System.Address := S_Arg;
+      Buffer : Operation_Data_Acc := null;
    begin
-      --  FIXME: This degenerate localized SMAP disabling is required because
-      --  the current Ironclad devctl API is just the legacy ioctl API. And
-      --  that API is poorly suited to do memory address checks.
-      --
-      --  Ideally access checks could be done ahead of time using the
-      --  Argument_Len argument but we allow passing 0 for legacy ioctl-like
-      --  semantics.
+      --  The legacy ioctl API passes no length for the argument, so how a
+      --  request uses it is asked of whatever handles the file, and a request
+      --  the handler does not describe is not run at all. The handler works on
+      --  a copy of the argument in kernel memory, never on userland memory.
       Get_Common_Map (Proc, Map);
-      Arch.Snippets.Enable_Userland_Memory_Access;
 
       Get_File (Proc, FD, File);
       if File = null then
@@ -1679,7 +1681,50 @@ package body Userland.Syscall is
          goto Cleanup;
       end if;
 
-      Userland.Process.Get_Effective_UID (Proc, User);
+      case File.Description is
+         when Description_Inode =>
+            VFS.IO_Argument
+               (Key     => File.Inner_Ino_FS,
+                Ino     => File.Inner_Ino,
+                Request => Request,
+                Usage   => Usage,
+                Size    => Size);
+         when Description_Primary_PTY | Description_Secondary_PTY =>
+            IPC.PTY.IO_Argument (Request, Usage, Size);
+         when others =>
+            Usage := Devices.IO_Unknown;
+            Size  := 0;
+      end case;
+
+      case Usage is
+         when Devices.IO_Unknown =>
+            Errno    := Error_Not_A_TTY;
+            Returned := Unsigned_64'Last;
+            goto Cleanup;
+         when Devices.IO_No_Memory =>
+            null;
+         when Devices.IO_Read | Devices.IO_Write =>
+            --  What the handler is to read is copied in, and where it is to
+            --  write is checked before the request runs.
+            Buffer := new Operation_Data'[1 .. Size => 0];
+            declare
+               Arg_Size : constant Natural := Size;
+               subtype Arg_Data is Operation_Data (1 .. Arg_Size);
+               package Arg_Trans is new Memory.Userland_Transfer (Arg_Data);
+            begin
+               if Usage = Devices.IO_Read then
+                  Arg_Trans.Take_From_Userland (Map, Buffer.all, S_Arg, Succ);
+               else
+                  Arg_Trans.Check_Access (Map, S_Arg, True, Succ);
+               end if;
+            end;
+            if not Succ then
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               goto Cleanup;
+            end if;
+            Arg := Buffer.all'Address;
+      end case;
 
       case File.Description is
          when Description_Inode =>
@@ -1687,17 +1732,17 @@ package body Userland.Syscall is
                (Key     => File.Inner_Ino_FS,
                 Ino     => File.Inner_Ino,
                 Request => Request,
-                Arg     => S_Arg,
+                Arg     => Arg,
                 Extra   => Extra,
                 Status  => FSSuc);
             Succ := FSSuc = VFS.FS_Success;
          when Description_Primary_PTY =>
             IPC.PTY.IO_Control
-               (File.Inner_Primary_PTY, True, Request, S_Arg, Succ);
+               (File.Inner_Primary_PTY, True, Request, Arg, Succ);
             Extra := 0;
          when Description_Secondary_PTY =>
             IPC.PTY.IO_Control
-               (File.Inner_Secondary_PTY, False, Request, S_Arg, Succ);
+               (File.Inner_Secondary_PTY, False, Request, Arg, Succ);
             Extra := 0;
          when others =>
             Extra := 0;
@@ -1712,6 +1757,21 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
       end if;
 
+      --  What the handler wrote goes out to userland.
+      if Succ and Usage = Devices.IO_Write then
+         declare
+            Arg_Size : constant Natural := Size;
+            subtype Arg_Data is Operation_Data (1 .. Arg_Size);
+            package Arg_Trans is new Memory.Userland_Transfer (Arg_Data);
+         begin
+            Arg_Trans.Paste_Into_Userland (Map, Buffer.all, S_Arg, Succ);
+         end;
+         if not Succ then
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+         end if;
+      end if;
+
       if Info_Addr /= 0 then
          Trans.Paste_Into_Userland (Map, Unsigned_32 (Extra), Info_S, Succ);
          if not Succ then
@@ -1721,13 +1781,11 @@ package body Userland.Syscall is
       end if;
 
    <<Cleanup>>
-      Arch.Snippets.Full_Memory_Load_Store_Barrier;
-      Arch.Snippets.Disable_Userland_Memory_Access;
+      Free (Buffer);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing DevCtl");
-         Arch.Snippets.Full_Memory_Load_Store_Barrier;
-         Arch.Snippets.Disable_Userland_Memory_Access;
+         Free (Buffer);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end DevCtl;

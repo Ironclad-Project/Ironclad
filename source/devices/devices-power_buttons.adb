@@ -38,6 +38,7 @@ package body Devices.Power_Buttons is
               Sync        => null,
               Sync_Range  => null,
               IO_Control  => null,
+              IO_Argument => null,
               Mmap        => null,
               Poll        => Poll_Power_Button'Access,
               Remove      => null), "pwrbutton", Success);
@@ -57,6 +58,7 @@ package body Devices.Power_Buttons is
               Sync        => null,
               Sync_Range  => null,
               IO_Control  => null,
+              IO_Argument => null,
               Mmap        => null,
               Poll        => Poll_Sleep_Button'Access,
               Remove      => null), "sleepbutton", Success);

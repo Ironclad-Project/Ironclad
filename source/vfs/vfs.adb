@@ -1184,6 +1184,25 @@ package body VFS is
       end case;
    end IO_Control;
 
+   procedure IO_Argument
+      (Key     : FS_Handle;
+       Ino     : File_Inode_Number;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.IO_Argument (Mounts (Key).FS_Data, Ino, Request, Usage, Size);
+         when FS_EXT =>
+            EXT.IO_Argument (Request, Usage, Size);
+         when FS_FAT =>
+            Usage := IO_Unknown;
+            Size  := 0;
+      end case;
+   end IO_Argument;
+
    procedure Mmap
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;

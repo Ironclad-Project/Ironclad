@@ -345,6 +345,22 @@ package body Devices is
       end if;
    end IO_Control;
 
+   procedure IO_Argument
+      (Handle  : Device_Handle;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+   begin
+      if Devices_Data (Handle).Contents.IO_Argument /= null then
+         Devices_Data (Handle).Contents.IO_Argument
+            (Devices_Data (Handle).Contents.Data, Request, Usage, Size);
+      else
+         Usage := IO_Unknown;
+         Size  := 0;
+      end if;
+   end IO_Argument;
+
    procedure Mmap
       (Handle  : Device_Handle;
        Map     : Memory.MMU.Page_Table_Acc;

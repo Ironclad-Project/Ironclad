@@ -256,6 +256,7 @@ package body Devices.FB with SPARK_Mode => Off is
                 Read        => null,
                 Write       => null,
                 IO_Control  => IO_Control'Access,
+                IO_Argument => IO_Argument'Access,
                 Mmap        => Mmap'Access,
                 Poll        => null,
                 Remove      => null);
@@ -280,6 +281,13 @@ package body Devices.FB with SPARK_Mode => Off is
              (FBPonse.Count /= 0);
    end Have_Any_FBs;
 
+   --  fbdev ioctl requests.
+   FBIOGET_VSCREENINFO : constant := 16#4600#;
+   FBIOPUT_VSCREENINFO : constant := 16#4601#;
+   FBIOGET_FSCREENINFO : constant := 16#4602#;
+   FBIOGETCMAP         : constant := 16#4604#;
+   FBIOPUTCMAP         : constant := 16#4605#;
+
    procedure IO_Control
       (Key      : System.Address;
        Request  : Unsigned_64;
@@ -287,13 +295,6 @@ package body Devices.FB with SPARK_Mode => Off is
        Extra    : out Unsigned_64;
        Success  : out Boolean)
    is
-      --  fbdev ioctl requests.
-      FBIOGET_VSCREENINFO : constant := 16#4600#;
-      FBIOPUT_VSCREENINFO : constant := 16#4601#;
-      FBIOGET_FSCREENINFO : constant := 16#4602#;
-      FBIOGETCMAP         : constant := 16#4604#;
-      FBIOPUTCMAP         : constant := 16#4605#;
-
       Dev_Data : Internal_FB_Data  with Import, Address => Key;
       Var_Req  : FB_Var_ScreenInfo with Import, Address => Argument;
       Fix_Req  : FB_Fix_ScreenInfo with Import, Address => Argument;
@@ -310,6 +311,37 @@ package body Devices.FB with SPARK_Mode => Off is
          when others => Success := False;
       end case;
    end IO_Control;
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+   begin
+      case Request is
+         when FBIOGET_VSCREENINFO =>
+            Usage := IO_Write;
+            Size  := FB_Var_ScreenInfo'Object_Size / 8;
+         when FBIOPUT_VSCREENINFO =>
+            Usage := IO_Read;
+            Size  := FB_Var_ScreenInfo'Object_Size / 8;
+         when FBIOGET_FSCREENINFO =>
+            Usage := IO_Write;
+            Size  := FB_Fix_ScreenInfo'Object_Size / 8;
+         when FBIOGETCMAP | FBIOPUTCMAP =>
+            Usage := IO_No_Memory;
+            Size  := 0;
+         when others =>
+            Usage := IO_Unknown;
+            Size  := 0;
+      end case;
+   exception
+      when Constraint_Error =>
+         Usage := IO_Unknown;
+         Size  := 0;
+   end IO_Argument;
 
    procedure Mmap
       (Data    : System.Address;

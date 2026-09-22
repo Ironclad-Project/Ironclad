@@ -87,6 +87,7 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => IO_Control'Access,
+           IO_Argument => IO_Argument'Access,
            Mmap        => null,
            Poll        => null,
            Remove      => null), "i6300esb", Success);
@@ -115,6 +116,10 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
          Success   := Dev_IO_Failure;
    end Write;
 
+   WDOG_START     : constant := 1;
+   WDOG_STOP      : constant := 2;
+   WDOG_HEARTBEAT : constant := 3;
+
    procedure IO_Control
       (Key      : System.Address;
        Request  : Unsigned_64;
@@ -122,9 +127,6 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
        Extra    : out Unsigned_64;
        Success  : out Boolean)
    is
-      WDOG_START     : constant := 1;
-      WDOG_STOP      : constant := 2;
-      WDOG_HEARTBEAT : constant := 3;
       D : constant Dog_Data_Acc := Dog_Data_Acc (Con.To_Pointer (Key));
       Val : Unsigned_8;
    begin
@@ -159,6 +161,27 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
          Extra   := 0;
          Success := False;
    end IO_Control;
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural)
+   is
+      pragma Unreferenced (Key);
+   begin
+      case Request is
+         when WDOG_START | WDOG_STOP =>
+            Usage := IO_No_Memory;
+            Size  := 0;
+         when WDOG_HEARTBEAT =>
+            Usage := IO_Read;
+            Size  := Unsigned_32'Object_Size / 8;
+         when others =>
+            Usage := IO_Unknown;
+            Size  := 0;
+      end case;
+   end IO_Argument;
    ----------------------------------------------------------------------------
    procedure Unlock_Registers (Base_Addr : System.Address) is
       Reg : Unsigned_16 with Import, Address => Base_Addr + RELOAD;
