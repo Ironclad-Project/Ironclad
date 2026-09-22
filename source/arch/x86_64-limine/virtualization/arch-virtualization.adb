@@ -17,6 +17,7 @@
 with Alignment;
 with Arch.Virtualization.SVM;
 with Arch.Virtualization.VMX;
+with Arch.CPU;
 with Arch.IDT;
 with Arch.MMU;
 with Arch.Snippets;
@@ -3409,6 +3410,19 @@ package body Arch.Virtualization with SPARK_Mode => Off is
          Release (Machines (Positive (Mach)).Lock);
          return True;
       end if;
+
+      --  An exit loads the host's TR, FS and GS bases and CR3 from the VMCS,
+      --  and a VCPU runs on whichever core its thread is on, so they are this
+      --  core's and this thread's, written before every entry.
+      Arch.Virtualization.VMX.VMCS_Write_Unchecked
+         (Arch.Virtualization.VMX.VMCS_HOST_TR_BASE,
+          Unsigned_64 (To_Integer (Arch.CPU.Get_Local.Core_TSS'Address)));
+      Arch.Virtualization.VMX.VMCS_Write_Unchecked
+         (Arch.Virtualization.VMX.VMCS_HOST_FS_BASE, Arch.Snippets.Read_FS);
+      Arch.Virtualization.VMX.VMCS_Write_Unchecked
+         (Arch.Virtualization.VMX.VMCS_HOST_GS_BASE, Arch.Snippets.Read_GS);
+      Arch.Virtualization.VMX.VMCS_Write_Unchecked
+         (Arch.Virtualization.VMX.VMCS_HOST_CR3, Arch.Snippets.Read_CR3);
 
       --  The guest's FPU state goes in for the entry and comes out after
       --  it, the host's kept aside meanwhile (Enter_Guest_FPU).
