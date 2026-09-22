@@ -1248,6 +1248,8 @@ package body Userland.Syscall is
                 Sig         => Cause);
             if Did_Exit then
                goto Waited_Exited;
+            elsif Waited = Error_PID then
+               goto Child_Error;
             end if;
 
             exit when Dont_Hang;
@@ -1264,6 +1266,8 @@ package body Userland.Syscall is
                 Sig         => Cause);
             if Did_Exit then
                goto Waited_Exited;
+            elsif Waited = Error_PID then
+               goto Child_Error;
             end if;
 
             exit when Dont_Hang;

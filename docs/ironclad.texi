@@ -1783,6 +1783,9 @@ waiting, if the process has not finished yet, @code{0} will be returned.
 the PIDs the callee has as children. @code{0}, which waits on all the children
 of a process group, is not implemented yet.
 
+A wait for children the caller does not have fails with @code{ECHILD} rather
+than waiting for something that cannot come.
+
 This syscall returns the PID waited on or @code{-1} on failure, along with the
 following errno:
 
