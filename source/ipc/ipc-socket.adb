@@ -391,7 +391,6 @@ package body IPC.Socket is
             --  Check if we have a valid local IP.
             if Local_IP = Networking.IPv4_Address'(0, 0, 0, 0) then
                Success := False;
-               Synchronization.Release (Sock.Mutex);
                return;
             end if;
 
