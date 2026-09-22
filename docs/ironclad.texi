@@ -5392,6 +5392,9 @@ instruction bytes a memory exit reports are read from the guest's own memory at
 its instruction pointer, and are fewer than a whole instruction where that runs
 off the end of what the guest was given.
 
+A guest's floating-point and vector registers are its own whatever its XCR0
+holds: the kernel exchanges them with the host's around every entry, the SSE
+registers always and every other component while the guest's XCR0 names it.
 The guest sets XCR0 with XSETBV, and a value the processor would refuse, one
 naming a component the processor lacks, leaving out x87, naming AVX without
 SSE, naming only some of AVX-512's three components or naming them without SSE

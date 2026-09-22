@@ -3284,12 +3284,19 @@ package body Arch.Virtualization with SPARK_Mode => Off is
        Host_XCR0 : out Unsigned_64)
    is
       Guest_Area, Host_Area : Integer_Address;
-      Guest_XCR0            : Unsigned_64;
+      Guest_XCR0, Switched  : Unsigned_64;
    begin
       Host_XCR0  := 0;
       Guest_Area := Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
       Host_Area  := Guest_Area + FPU_Area_Size;
       Guest_XCR0 := Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
+
+      --  What is switched is the guest's XCR0 and SSE always: SSE
+      --  instructions run whatever XCR0 says (Intel SDM 325462-092US, Vol. 1
+      --  13.3), so a guest's XMM registers and MXCSR are its own whatever its
+      --  XCR0 names. XCR0 is widened for the save and restore alone, which a
+      --  valid XCR0 always allows.
+      Switched := Guest_XCR0 or 2#11#;
 
       if Has_XSAVE then
          declare
@@ -3300,8 +3307,8 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             Host_XCR0 := Arch.Virtualization.SVM.Get_XCR0;
             Arch.Virtualization.SVM.XSAVE_Save
                (To_Address (Host_Area), Host_XCR0);
-            if Guest_XCR0 /= Host_XCR0 and then Guest_XCR0 /= 0 then
-               Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
+            if Switched /= Host_XCR0 then
+               Arch.Virtualization.SVM.Set_XCR0 (Switched);
             end if;
 
             --  Only what XCR0 has for the restore may be marked in the area:
@@ -3310,9 +3317,12 @@ package body Arch.Virtualization with SPARK_Mode => Off is
             --  bits outside its mask as they were. A component a guest
             --  disables starts from its initial state if the guest enables it
             --  again.
-            XSTATE_BV := XSTATE_BV and Guest_XCR0;
+            XSTATE_BV := XSTATE_BV and Switched;
             Arch.Virtualization.SVM.XSAVE_Restore
-               (To_Address (Guest_Area), Guest_XCR0);
+               (To_Address (Guest_Area), Switched);
+            if Guest_XCR0 /= Switched then
+               Arch.Virtualization.SVM.Set_XCR0 (Guest_XCR0);
+            end if;
          end;
       else
          declare
@@ -3336,16 +3346,20 @@ package body Arch.Virtualization with SPARK_Mode => Off is
        Host_XCR0 : Unsigned_64)
    is
       Guest_Area, Host_Area : Integer_Address;
-      Guest_XCR0            : Unsigned_64;
+      Guest_XCR0, Switched  : Unsigned_64;
    begin
       Guest_Area := Machines (Positive (Mach)).VCPUs (CPU).FPU_Addr;
       Host_Area  := Guest_Area + FPU_Area_Size;
       Guest_XCR0 := Machines (Positive (Mach)).VCPUs (CPU).XCR0_Value;
+      Switched   := Guest_XCR0 or 2#11#;
 
       if Has_XSAVE then
+         if Guest_XCR0 /= Switched then
+            Arch.Virtualization.SVM.Set_XCR0 (Switched);
+         end if;
          Arch.Virtualization.SVM.XSAVE_Save
-            (To_Address (Guest_Area), Guest_XCR0);
-         if Guest_XCR0 /= Host_XCR0 and then Guest_XCR0 /= 0 then
+            (To_Address (Guest_Area), Switched);
+         if Switched /= Host_XCR0 then
             Arch.Virtualization.SVM.Set_XCR0 (Host_XCR0);
          end if;
          Arch.Virtualization.SVM.XSAVE_Restore
