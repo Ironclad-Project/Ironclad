@@ -298,7 +298,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
    is
       CD : constant Controller_Data_Acc :=
          Controller_Data_Acc (C1.To_Pointer (Key));
-      pragma Unreferenced (Offset, Is_Blocking);
+      pragma Unreferenced (Offset);
    begin
       declare
          CMD : Unsigned_8;
@@ -307,6 +307,14 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
             CMD := Get_IO_8 (CD, REG_CMD);
             --  Exit the loop when the BUFE (RX buffer empty) bit is 0
             exit when (CMD and 16#01#) = 0;
+
+            --  A caller that asked not to wait is answered with nothing, as
+            --  the e1000 answers it.
+            if not Is_Blocking then
+               Ret_Count := 0;
+               Success   := Dev_Success;
+               return;
+            end if;
             Scheduler.Yield_If_Able;
          end loop;
       end;
