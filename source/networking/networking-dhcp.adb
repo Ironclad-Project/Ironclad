@@ -508,8 +508,10 @@ package body Networking.DHCP is
             return;
          end if;
 
-         --  Try to receive a packet.
-         Devices.Read (Dev, 0, Recv_Buf, Recv_Count, Recv_Stat);
+         --  Try to receive a packet, without waiting inside the driver for
+         --  one, or the deadline above could never be reached.
+         Devices.Read
+            (Dev, 0, Recv_Buf, Recv_Count, Recv_Stat, Is_Blocking => False);
          if Recv_Stat = Devices.Dev_Success and Recv_Count > 0 then
             --  Parse Ethernet header.
             Ethernet.Parse_Header (Recv_Buf (1 .. Recv_Count), Eth_Hdr,
@@ -589,6 +591,7 @@ package body Networking.DHCP is
       end loop;
    exception
       when Constraint_Error =>
-         Success := True;
+         --  A packet that does not parse is not a response.
+         Success := False;
    end Wait_DHCP_Response;
 end Networking.DHCP;
