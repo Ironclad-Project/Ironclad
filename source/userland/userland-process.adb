@@ -1405,7 +1405,9 @@ package body Userland.Process with SPARK_Mode => Off is
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       Success := Registry (Proc).Process_Group /= Unsigned_32 (Proc);
       if Success then
-         Registry (Proc).Session_ID := Unsigned_32 (Proc);
+         Registry (Proc).Session_ID      := Unsigned_32 (Proc);
+         Registry (Proc).Process_Group   := Unsigned_32 (Proc);
+         Registry (Proc).Controlling_TTY := null;
       end if;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception

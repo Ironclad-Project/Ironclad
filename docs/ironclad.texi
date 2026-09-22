@@ -3395,6 +3395,9 @@ it from there.
 @code{getsid} allows its arguments to be @code{0}. When @code{0} is passed,
 it will be taken to be the PID of the calling process.
 
+@code{setsid} also makes the caller the leader of a new process group of the
+same ID, and leaves it with no controlling terminal.
+
 On success, @code{getsid} returns the session ID, and @code{setsid}
 returns the new session ID. On failure, both syscalls return @code{-1} with the
 following errno:
