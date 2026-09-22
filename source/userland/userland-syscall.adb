@@ -4457,6 +4457,7 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       package Trans is new Memory.Userland_Transfer (Time_Spec);
+      Curr      : constant PID := Arch.Local.Get_Current_Process;
       Proc      : PID;
       New_IAddr : constant Integer_Address := Integer_Address (New_Addr);
       New_SAddr : constant  System.Address := To_Address (New_IAddr);
@@ -4467,7 +4468,7 @@ package body Userland.Syscall is
       Value     : Time_Spec;
    begin
       if ID = 0 then
-         Proc := Arch.Local.Get_Current_Process;
+         Proc := Curr;
       else
          Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
          if Proc = Error_PID then
@@ -4477,7 +4478,9 @@ package body Userland.Syscall is
          end if;
       end if;
 
-      Get_Common_Map (Proc, Map);
+      --  The buffers and the capability are the caller's, whatever process
+      --  the interval is asked about.
+      Get_Common_Map (Curr, Map);
 
       if Old_IAddr /= 0 then
          Get_RR_Interval (Proc, Value.Seconds, Value.Nanoseconds);
@@ -4488,9 +4491,9 @@ package body Userland.Syscall is
       end if;
 
       if New_IAddr /= 0 then
-         if not Get_Capabilities (Proc).Can_Change_Scheduling then
+         if not Get_Capabilities (Curr).Can_Change_Scheduling then
             Errno := Error_Bad_Access;
-            Execute_MAC_Failure ("sched_rr_interval", Proc);
+            Execute_MAC_Failure ("sched_rr_interval", Curr);
             Returned := Unsigned_64'Last;
             return;
          end if;
