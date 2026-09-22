@@ -23,9 +23,10 @@ package Devices.Serial is
    --  Little functions for debug reading and printing.
    procedure Init_COM1;
    procedure Read_COM1
-      (S       : out Operation_Data;
-       Count   : out Natural;
-       Success : out Dev_Status);
+      (S           : out Operation_Data;
+       Count       : out Natural;
+       Success     : out Dev_Status;
+       Is_Blocking : Boolean);
    procedure Write_COM1 (C : Character);
    procedure Write_COM1 (S : String);
 

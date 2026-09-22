@@ -24,14 +24,16 @@ package Arch.Debug is
    Supports_Read : constant Boolean;
 
    --  Read what has arrived of a byte device array, waiting for the first
-   --  byte, unless the calling thread has to give up its wait.
-   --  @param Message Array to read into.
-   --  @param Count   Bytes read.
-   --  @param Success Dev_Success, or a failure if the wait was given up.
+   --  byte if asked to, unless the calling thread has to give up its wait.
+   --  @param Message     Array to read into.
+   --  @param Count       Bytes read.
+   --  @param Success     Dev_Success, or a failure if the wait was given up.
+   --  @param Is_Blocking Whether to wait for the first byte.
    procedure Read
-      (Message : out Devices.Operation_Data;
-       Count   : out Natural;
-       Success : out Devices.Dev_Status);
+      (Message     : out Devices.Operation_Data;
+       Count       : out Natural;
+       Success     : out Devices.Dev_Status;
+       Is_Blocking : Boolean);
 
    --  Print a character message atomically.
    --  @param Message Character to print.

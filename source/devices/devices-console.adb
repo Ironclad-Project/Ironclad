@@ -49,10 +49,10 @@ package body Devices.Console is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key, Offset, Is_Blocking);
+      pragma Unreferenced (Key, Offset);
    begin
       if Arch.Debug.Supports_Read then
-         Arch.Debug.Read (Data, Ret_Count, Success);
+         Arch.Debug.Read (Data, Ret_Count, Success, Is_Blocking);
       else
          Ret_Count := 0;
          Success   := Dev_Not_Supported;

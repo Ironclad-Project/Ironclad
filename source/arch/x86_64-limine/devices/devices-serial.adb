@@ -80,12 +80,13 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Init_COM1;
 
    procedure Read_COM1
-      (S       : out Operation_Data;
-       Count   : out Natural;
-       Success : out Dev_Status)
+      (S           : out Operation_Data;
+       Count       : out Natural;
+       Success     : out Dev_Status;
+       Is_Blocking : Boolean)
    is
    begin
-      Read (COM1'Address, 0, S, Count, Success, True);
+      Read (COM1'Address, 0, S, Count, Success, Is_Blocking);
    end Read_COM1;
 
    procedure Write_COM1 (C : Character) is
@@ -113,9 +114,9 @@ package body Devices.Serial with SPARK_Mode => Off is
          null;
    end Write_COM1;
    ----------------------------------------------------------------------------
-   --  What has arrived is read, and a read waits for the first byte only. The
-   --  lock keeps interrupts off, so it is not held while waiting, and a thread
-   --  that has to give up its wait does so.
+   --  What has arrived is read, and a read that may wait waits for the first
+   --  byte only. The lock keeps interrupts off, so it is not held while
+   --  waiting, and a thread that has to give up its wait does so.
    procedure Read
       (Key         : System.Address;
        Offset      : Unsigned_64;
@@ -124,7 +125,7 @@ package body Devices.Serial with SPARK_Mode => Off is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Offset, Is_Blocking);
+      pragma Unreferenced (Offset);
       COM   : COM_Root with Import, Address => Key;
       Ready : Boolean;
    begin
@@ -139,7 +140,7 @@ package body Devices.Serial with SPARK_Mode => Off is
                I := Arch.Snippets.Port_In (COM.Port);
             end if;
             Synchronization.Release (COM.Mutex);
-            exit when Ready or Ret_Count /= 0;
+            exit when Ready or Ret_Count /= 0 or not Is_Blocking;
             if Scheduler.Is_Doomed then
                Success := Dev_IO_Failure;
                return;

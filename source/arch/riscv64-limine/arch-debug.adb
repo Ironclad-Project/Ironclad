@@ -21,10 +21,12 @@ with Arch.Flanterm;
 
 package body Arch.Debug with SPARK_Mode => Off is
    procedure Read
-      (Message : out Devices.Operation_Data;
-       Count   : out Natural;
-       Success : out Devices.Dev_Status)
+      (Message     : out Devices.Operation_Data;
+       Count       : out Natural;
+       Success     : out Devices.Dev_Status;
+       Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Is_Blocking);
    begin
       Message := [others => 0];
       Count   := 0;

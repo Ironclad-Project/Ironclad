@@ -21,12 +21,13 @@ with Arch.Flanterm;
 
 package body Arch.Debug is
    procedure Read
-      (Message : out Devices.Operation_Data;
-       Count   : out Natural;
-       Success : out Devices.Dev_Status)
+      (Message     : out Devices.Operation_Data;
+       Count       : out Natural;
+       Success     : out Devices.Dev_Status;
+       Is_Blocking : Boolean)
    is
    begin
-      Devices.Serial.Read_COM1 (Message, Count, Success);
+      Devices.Serial.Read_COM1 (Message, Count, Success, Is_Blocking);
    end Read;
 
    procedure Print (Message : Character) is
