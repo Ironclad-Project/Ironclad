@@ -4193,7 +4193,11 @@ The syscall returns the address the segment was attached at on success or
 
 @table @code
 @item EACCES
-The caller does not have enough permissions for attaching.
+The caller may not use the segment the way it asks to. The segment's
+permission bits decide by the same owner, group and other classes a file's do
+(@pxref{Users and groups}), with the segment's creator counting as an owner:
+read is asked for, and write as well unless @code{SHM_RDONLY} was passed. A
+process with @code{MAC_CAP_IPC} is not checked.
 
 @item EIDRM
 @code{shmid} points to a removed identifier.
@@ -4262,6 +4266,11 @@ Get the associated information of the passed segment id and write it to the
 structure pointed to by @code{buf}.
 @end table
 
+@code{IPC_SET} and @code{IPC_RMID} may only be issued by an owner of the
+segment, that is, a process whose effective user ID is either
+@code{shm_perm.uid} or @code{shm_perm.cuid}, while @code{IPC_STAT} asks for
+read permission. A process with @code{MAC_CAP_IPC} is not checked.
+
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
 
@@ -4269,6 +4278,13 @@ following errno:
 @item EINVAL
 @code{shmid} is not a shared memory identifier, or @code{cmd} is not one of
 the commands above.
+
+@item EPERM
+@code{cmd} is @code{IPC_SET} or @code{IPC_RMID} and the caller does not own
+the segment.
+
+@item EACCES
+@code{cmd} is @code{IPC_STAT} and the caller may not read the segment.
 
 @item EFAULT
 @code{buffer} points to invalid memory.

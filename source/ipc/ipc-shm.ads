@@ -61,10 +61,21 @@ package IPC.SHM is
        Size    : out Unsigned_64)
       with Pre => ID /= Error_ID;
 
+   --  Whether a user may use a segment the way it asks to, by the owner,
+   --  group and other classes (POSIX.1-2024, XSH 2.7.1).
    procedure Check_Permissions
+      (ID         : Segment_ID;
+       UID        : Unsigned_32;
+       GID        : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Success    : out Boolean)
+      with Pre => ID /= Error_ID;
+
+   --  Whether a user owns a segment, which setting and removing one asks.
+   procedure Check_Ownership
       (ID      : Segment_ID;
        UID     : Unsigned_32;
-       GID     : Unsigned_32;
        Success : out Boolean)
       with Pre => ID /= Error_ID;
 

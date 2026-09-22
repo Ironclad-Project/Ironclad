@@ -6955,7 +6955,13 @@ package body Userland.Syscall is
       if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
          Get_Effective_UID (Proc, EUID);
          Get_Effective_GID (Proc, EGID);
-         IPC.SHM.Check_Permissions (Truncated, EUID, EGID, Success);
+         IPC.SHM.Check_Permissions
+            (ID         => Truncated,
+             UID        => EUID,
+             GID        => EGID,
+             Want_Read  => True,
+             Want_Write => (Flags and SHM_RDONLY) = 0,
+             Success    => Success);
          if not Success then
             Errno := Error_Bad_Access;
             Returned := Unsigned_64'Last;
@@ -7058,11 +7064,28 @@ package body Userland.Syscall is
       if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
          Get_Effective_UID (Proc, EUID);
          Get_Effective_GID (Proc, EGID);
-         IPC.SHM.Check_Permissions (Trunc_ID, EUID, EGID, Found);
-         if not Found then
-            Errno := Error_Bad_Access;
-            Returned := Unsigned_64'Last;
-            return;
+         if CMD = IPC_RMID or CMD = IPC_SET then
+            --  Only an owner sets or removes a segment (POSIX.1-2024,
+            --  shmctl [EPERM]).
+            IPC.SHM.Check_Ownership (Trunc_ID, EUID, Found);
+            if not Found then
+               Errno := Error_Bad_Permissions;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         else
+            IPC.SHM.Check_Permissions
+               (ID         => Trunc_ID,
+                UID        => EUID,
+                GID        => EGID,
+                Want_Read  => True,
+                Want_Write => False,
+                Success    => Found);
+            if not Found then
+               Errno := Error_Bad_Access;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
          end if;
       end if;
 

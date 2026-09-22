@@ -183,22 +183,53 @@ package body IPC.SHM is
    end Attach;
 
    procedure Check_Permissions
-      (ID      : Segment_ID;
-       UID     : Unsigned_32;
-       GID     : Unsigned_32;
-       Success : out Boolean)
+      (ID         : Segment_ID;
+       UID        : Unsigned_32;
+       GID        : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Success    : out Boolean)
    is
+      Read_Bit, Write_Bit : Unsigned_64;
    begin
       Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
-         Success := UID = Registry (ID).Owner_UID or
-            (GID = Registry (ID).Owner_GID and
-            (Registry (ID).Mode and 8#040#) /= 0);
+         --  One class decides: the owner's if either owner ID matches, else
+         --  the group's, else everybody's (POSIX.1-2024, XSH 2.7.1).
+         if UID = Registry (ID).Owner_UID or UID = Registry (ID).Creator_UID
+         then
+            Read_Bit  := 8#0400#;
+            Write_Bit := 8#0200#;
+         elsif GID = Registry (ID).Owner_GID or
+               GID = Registry (ID).Creator_GID
+         then
+            Read_Bit  := 8#0040#;
+            Write_Bit := 8#0020#;
+         else
+            Read_Bit  := 8#0004#;
+            Write_Bit := 8#0002#;
+         end if;
+
+         Success :=
+            (not Want_Read or else (Registry (ID).Mode and Read_Bit) /= 0) and
+            (not Want_Write or else (Registry (ID).Mode and Write_Bit) /= 0);
       else
          Success := False;
       end if;
       Synchronization.Release (Registry_Mutex);
    end Check_Permissions;
+
+   procedure Check_Ownership
+      (ID      : Segment_ID;
+       UID     : Unsigned_32;
+       Success : out Boolean)
+   is
+   begin
+      Synchronization.Seize (Registry_Mutex);
+      Success := Registry (ID).Is_Present and then
+         (UID = Registry (ID).Owner_UID or UID = Registry (ID).Creator_UID);
+      Synchronization.Release (Registry_Mutex);
+   end Check_Ownership;
 
    procedure Mark_Refcounted (ID : Segment_ID) is
    begin
