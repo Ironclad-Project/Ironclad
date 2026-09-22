@@ -8520,7 +8520,11 @@ package body Userland.Syscall is
       Is_Writeable  : Boolean;
       Is_Executable : Boolean;
       Kernel_HVA    : Unsigned_64;
-      Trans_Prot    : Virtualization.GPA_Flags;
+      Trans_Prot    : constant Virtualization.GPA_Flags :=
+         (Can_Read           => (Prot and GPA_PROT_READ) /= 0,
+          Can_Write          => (Prot and GPA_PROT_WRITE) /= 0,
+          Can_Exec           => (Prot and GPA_PROT_EXEC) /= 0,
+          Is_User_Accessible => (Prot and GPA_PROT_USER) /= 0);
    begin
       if not Virtualization.Is_Supported then
          Errno    := Error_Not_Supported;
@@ -8564,8 +8568,14 @@ package body Userland.Syscall is
                 Is_Readable,
                 Is_Writeable,
                 Is_Executable);
+            --  A guest is given no more than the caller may do: a page the
+            --  caller cannot write is refused to a guest that would write it.
             if not Is_Mapped or not Is_User then
                Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            elsif Trans_Prot.Can_Write and not Is_Writeable then
+               Errno    := Error_Bad_Access;
                Returned := Unsigned_64'Last;
                return;
             end if;
@@ -8573,12 +8583,6 @@ package body Userland.Syscall is
             --  Convert physical address to kernel virtual address
             Kernel_HVA := Unsigned_64 (To_Integer (Physical_Addr)) +
                           Unsigned_64 (Arch.MMU.Memory_Offset);
-
-            Trans_Prot :=
-               (Can_Read => (Prot and GPA_PROT_READ) /= 0,
-                Can_Write => (Prot and GPA_PROT_WRITE) /= 0,
-                Can_Exec => (Prot and GPA_PROT_EXEC) /= 0,
-                Is_User_Accessible => (Prot and GPA_PROT_USER) /= 0);
 
             --  Map this single page for all active VCPUs
             if not Virtualization.GPA_Map_All

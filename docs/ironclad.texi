@@ -5153,8 +5153,13 @@ The machine belongs to another process.
 int nvmm_gpa_map(int machine_id, uint64_t hva_addr, uint64_t gpa_addr, size_t size, int prot);
 @end example
 
-This syscall executes the VCPU and blocks until execution is stopped, returns
-@code{0} on success, or @code{-1} on failure, with the following errno:
+This syscall gives the machine's guest the @code{size} bytes of the caller's
+memory at @code{hva_addr} as its physical memory at @code{gpa_addr}, with the
+access @code{prot} asks for, on every VCPU the machine has. A guest is given no
+more than the caller may do: write access to a page the caller cannot write is
+refused. A failure part of the way through leaves the pages before it mapped.
+The syscall returns @code{0} on success, or @code{-1} on failure, with the
+following errno:
 
 @table @code
 @item ENOTSUPP
@@ -5163,6 +5168,12 @@ virtualization, thus NVMM capability is not available.
 
 @item EPERM
 The machine belongs to another process.
+
+@item EFAULT
+Part of the host range is not memory of the caller.
+
+@item EACCES
+Write access was asked for a page the caller cannot write itself.
 @end table
 
 @node nvmm_gpa_unmap
@@ -5370,6 +5381,9 @@ A machine belongs to the process that created it. A call naming it from any
 other process fails with @code{EPERM}, from a child that @code{fork} made as
 well, and the machine is destroyed, with everything it holds, when its owner
 exits or replaces its image with @code{exec}.
+
+A guest is given no more than its owner may do: write access to a page the
+owner cannot write is refused.
 
 A guest has the memory @ref{nvmm_gpa_map} gave it and nothing else of the host:
 any other access to guest-physical memory, a read, a write or an instruction
