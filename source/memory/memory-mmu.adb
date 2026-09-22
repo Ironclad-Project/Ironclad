@@ -885,6 +885,8 @@ package body Memory.MMU with SPARK_Mode => Off is
       Addr, Addr2, Addr3 : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
    begin
+      --  A level with nothing present has nothing to copy.
+      Success := True;
       for I in Current_Level'Range loop
          declare
             L : constant Unsigned_64 := Current_Level (I);
