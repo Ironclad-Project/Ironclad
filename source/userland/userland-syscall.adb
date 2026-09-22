@@ -648,6 +648,20 @@ package body Userland.Syscall is
          end if;
 
          if File.Description = Description_Inode then
+            --  A mapping needs the file open for reading whatever protection
+            --  it asks for, and for writing too when it is shared and may be
+            --  written (POSIX.1-2024, mmap [EACCES]). A device's memory is
+            --  mapped as it is, so every mapping of one is shared.
+            if not File.Inner_Ino_Read or else
+               (Perms.Can_Write and then not File.Inner_Ino_Write and then
+                ((Flags and MAP_SHARED) /= 0 or else
+                 Get_Backing_FS (File.Inner_Ino_FS) = FS_DEV))
+            then
+               Errno    := Error_Bad_Access;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
             VFS.Mmap
                (Key         => File.Inner_Ino_FS,
                 Ino         => File.Inner_Ino,

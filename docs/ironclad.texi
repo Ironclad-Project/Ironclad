@@ -1599,6 +1599,12 @@ initialize the requested memory window, starting to read from @code{offset},
 filling with zeros the non-filled part, if any. This kind of filling does not
 advance the reading counter of the passed device or inode.
 
+A file mapping reads the file whatever protection is asked for, so @code{fd}
+must be open for reading; and a @code{MAP_SHARED} mapping asking for
+@code{PROT_WRITE} must be open for writing too, as must any mapping of a device
+asking for it, a device's memory being mapped as it is rather than copied.
+Either way the error is @code{EACCES}.
+
 @code{hint} and @code{length}, if not matching page boundaries for the
 architecture, will be aligned by the kernel to the closest page boundaries.
 
@@ -1644,7 +1650,9 @@ The format of @code{prot} is the same as @code{mmap}.
 @code{ENOMEM}: The operation could not be completed due to a lack of memory.
 
 @item
-@code{EACCES}: MAC disallowed this.
+@code{EACCES}: MAC disallowed this, or @code{fd} is not open for reading, or
+@code{PROT_WRITE} was asked for a @code{MAP_SHARED} mapping or a device while
+@code{fd} is not open for writing.
 @end itemize
 
 @node getpid/getppid
