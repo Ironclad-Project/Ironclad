@@ -178,6 +178,7 @@ package body Userland.Loader is
       Success2     : FS_Status;
       Returned_TID : Scheduler.TID;
       Table        : Memory.MMU.Page_Table_Acc;
+      User         : Unsigned_32;
    begin
       --  Reserve space for the linker and base program.
       Bump_Alloc_Base (Proc, 16#C000000#, Base_Slide);
@@ -192,11 +193,18 @@ package body Userland.Loader is
       end if;
 
       if Loaded_ELF.Linker_Len /= 0 then
-         --  The interpreter's path is stored along with its terminator.
+         --  The interpreter's path is stored along with its terminator. The
+         --  interpreter is opened and checked with the credentials of whoever
+         --  runs the program, never with more than those.
+         Process.Get_Effective_UID (Proc, User);
          Open (Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Len - 1), LD_FS,
-               LD_Ino, Success2, 0, True, False);
+               LD_Ino, Success2, User, True, False);
          if Success2 /= VFS.FS_Success then
             Success := False;
+            return;
+         end if;
+         Check_Interpreter (Proc, LD_FS, LD_Ino, Success);
+         if not Success then
             return;
          end if;
 
@@ -263,6 +271,7 @@ package body Userland.Loader is
       Banged_Ino : File_Inode_Number;
       Path_Acc   : String_Acc;
       Arg_Acc    : String_Acc;
+      User       : Unsigned_32;
    begin
       Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, True, Success2);
       if Success2 /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
@@ -324,10 +333,17 @@ package body Userland.Loader is
       end loop;
 
    <<Return_Shebang>>
-      Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success2, 0, True,
+      --  The interpreter is opened and checked with the credentials of
+      --  whoever runs the script, never with more than those.
+      Process.Get_Effective_UID (Proc, User);
+      Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success2, User, True,
          False);
       if Success2 /= FS_Success then
          Success := False;
+         return;
+      end if;
+      Check_Interpreter (Proc, Banged_FS, Banged_Ino, Success);
+      if not Success then
          return;
       end if;
 
@@ -379,4 +395,34 @@ package body Userland.Loader is
       Free (Path_Acc);
       Free (Arg_Acc);
    end Start_Shebang;
+
+   procedure Check_Interpreter
+      (Proc    : PID;
+       FS      : FS_Handle;
+       Ino     : File_Inode_Number;
+       Success : out Boolean)
+   is
+      File_St : File_Stat;
+      Status  : VFS.FS_Status;
+      User    : Unsigned_32;
+   begin
+      Success := False;
+      if not Check_Permissions (Proc, FS, Ino).Can_Execute then
+         return;
+      end if;
+
+      VFS.Stat (FS, Ino, File_St, Status);
+      if Status /= VFS.FS_Success then
+         return;
+      end if;
+
+      Process.Get_Effective_UID (Proc, User);
+      Success := VFS.Can_Access_File
+         (User       => User,
+          File_Owner => File_St.UID,
+          Mode       => File_St.Mode,
+          Want_Read  => True,
+          Want_Write => False,
+          Want_Exec  => True);
+   end Check_Interpreter;
 end Userland.Loader;

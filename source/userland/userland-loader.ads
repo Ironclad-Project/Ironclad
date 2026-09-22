@@ -90,4 +90,12 @@ private
 
    --  Longest interpreter path and argument a script may name.
    Script_Max_Len : constant := 255;
+
+   --  Check an interpreter may be run by the caller, exactly as the program
+   --  the caller named is checked.
+   procedure Check_Interpreter
+      (Proc    : PID;
+       FS      : FS_Handle;
+       Ino     : File_Inode_Number;
+       Success : out Boolean);
 end Userland.Loader;

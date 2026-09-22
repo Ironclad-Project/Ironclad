@@ -1690,7 +1690,10 @@ each counted with its terminator and the 8 bytes of its pointer.
 
 A file starting with @code{#!} is run by the interpreter it names, which may
 itself be such a file, down to 4 levels. The interpreter's path and its single
-optional argument may be up to 255 bytes each.
+optional argument may be up to 255 bytes each. An interpreter, whether named
+by a script or by a program's own headers, is opened with the credentials of
+whoever runs the program and must be a file they may execute, just like the
+program itself.
 
 This syscall only returns in failure with @code{-1} with the following errno:
 
