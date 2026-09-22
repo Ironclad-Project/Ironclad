@@ -225,6 +225,8 @@ package body Devices.Partitions is
       Free (Sector);
    exception
       when Constraint_Error =>
+         --  The buffer goes on this path too.
+         Free (Sector);
          Success := False;
    end Parse_GPT_Partitions;
 
@@ -285,6 +287,8 @@ package body Devices.Partitions is
       Free (Sector);
    exception
       when Constraint_Error =>
+         --  The buffer goes on this path too.
+         Free (Sector);
          Success := False;
    end Parse_MBR_Partitions;
 
