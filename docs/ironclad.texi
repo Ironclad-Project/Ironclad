@@ -2292,8 +2292,8 @@ its size.
 
 @item
 @code{F_SETPIPE_SZ}: If @code{fd} points to a FIFO or pipe, the size will
-be set to the value of @code{arg}. If the operation would cause data loss, it
-will fail.
+be set to the value of @code{arg}. It fails if @code{arg} is smaller than 4096
+bytes or the operation would cause data loss.
 
 @item
 @code{F_GETLK}: If @code{fd} points to a filesystem inode, the data passed

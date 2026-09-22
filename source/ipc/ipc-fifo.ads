@@ -87,8 +87,8 @@ package IPC.FIFO is
    --  Set the current size of a FIFO.
    --  @param P FIFO to configure.
    --  @param Size Size to set for the FIFO.
-   --  @param Success True in success, False if there was a failure or the
-   --  passed size would cause data loss.
+   --  @param Success True in success, False if the size is below the default
+   --  or would cause data loss.
    procedure Set_Size (P : Inner_Acc; Size : Natural; Success : out Boolean)
       with Pre => (Is_Valid (P) and Size < Natural'Last - 100);
 

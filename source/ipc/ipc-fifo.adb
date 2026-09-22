@@ -108,31 +108,34 @@ package body IPC.FIFO is
 
    procedure Set_Size (P : Inner_Acc; Size : Natural; Success : out Boolean) is
       New_Buffer, Old_Buffer : Devices.Operation_Data_Acc := null;
-      New_Idx : Natural := 1;
    begin
+      if Size < Default_Data_Length then
+         Success := False;
+         return;
+      end if;
+
       New_Buffer := new Devices.Operation_Data'[1 .. Size => 0];
 
       Synchronization.Seize (P.Mutex);
-      if Size = P.Data_Count then
-         Success := True;
-      elsif Size > P.Data_Count then
-         while P.Read_Index /= P.Write_Index loop
-            New_Buffer (New_Idx) := P.Data (P.Read_Index);
+      if Size >= P.Data_Count then
+         --  Copy by count, as the indexes of a full buffer are equal.
+         for I in 1 .. P.Data_Count loop
+            New_Buffer (I) := P.Data (P.Read_Index);
             Advance_Index (P, P.Read_Index);
-            New_Idx := New_Idx + 1;
          end loop;
-         Old_Buffer := P.Data;
-         P.Data := New_Buffer;
-         P.Read_Index := 1;
-         P.Write_Index := P.Data_Count + 1;
-         Success := True;
+         Old_Buffer    := P.Data;
+         P.Data        := New_Buffer;
+         New_Buffer    := null;
+         P.Read_Index  := 1;
+         P.Write_Index := (P.Data_Count mod Size) + 1;
+         Success       := True;
       else
          Success := False;
       end if;
       Synchronization.Release (P.Mutex);
-      if Success and Old_Buffer /= null then
-         Free (Old_Buffer);
-      end if;
+
+      Free (Old_Buffer);
+      Free (New_Buffer);
    end Set_Size;
 
    procedure Read
