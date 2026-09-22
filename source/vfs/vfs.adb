@@ -158,8 +158,11 @@ package body VFS is
                when FS_FAT => FAT.Unmount (Mounts (I).FS_Data);
             end case;
 
+            --  The slot goes with its anchor, so no walk crosses into it.
             if Force or Mounts (I).FS_Data = Null_Address then
                Mounts (I).Mounted_Dev := Devices.Error_Handle;
+               Mounts (I).Base_Key    := Error_Handle;
+               Mounts (I).Base_Ino    := 0;
                Success := True;
             end if;
             exit;
@@ -592,7 +595,8 @@ package body VFS is
                   Actual_Key := Root_Idx;
                else
                   for I in Mounts'Range loop
-                     if Mounts (I).Base_Key = Actual_Key and
+                     if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
+                        Mounts (I).Base_Key = Actual_Key and then
                         Mounts (I).Base_Ino = Actual_Ino
                      then
                         Actual_Key := I;
@@ -622,7 +626,8 @@ package body VFS is
                   end if;
                else
                   for I in Mounts'Range loop
-                     if Mounts (I).Base_Key = Actual_Key and
+                     if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
+                        Mounts (I).Base_Key = Actual_Key and then
                         Mounts (I).Base_Ino = Actual_Ino
                      then
                         Actual_Key := I;
