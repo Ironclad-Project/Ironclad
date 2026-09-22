@@ -25,15 +25,18 @@ package body IPC.Futex is
    package Trans is new Memory.Userland_Transfer (Unsigned_32);
 
    Empty_Futex : constant System.Address := Null_Address;
+
+   --  Wakes counts the wakes an address had, so that a wait is woken by the
+   --  ones after it registered, and never by one that came before.
    type Futex_Inner is record
-      Key_Addr    : System.Address;
-      Wakey_Wakey : Boolean with Atomic;
-      Waiters     : Unsigned_32;
+      Key_Addr : System.Address;
+      Wakes    : Unsigned_64;
+      Waiters  : Unsigned_32;
    end record;
    type Futex_Arr is array (1 .. 300) of Futex_Inner;
 
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
-   Registry : Futex_Arr := [others => (System.Null_Address, False, 0)];
+   Registry : Futex_Arr := [others => (System.Null_Address, 0, 0)];
 
    procedure Wait
       (Map         : Memory.MMU.Page_Table_Acc;
@@ -52,72 +55,87 @@ package body IPC.Futex is
       end if;
 
       declare
-         Idx : array (1 .. Keys'Length) of Natural;
+         Idx   : array (1 .. Keys'Length) of Natural     := [others => 0];
+         Seen  : array (1 .. Keys'Length) of Unsigned_64 := [others => 0];
+         Count : Natural := 0;
+
+         --  Give back the keys registered so far, with the lock held.
+         procedure Leave;
+         procedure Leave is
+         begin
+            for I in 1 .. Count loop
+               Registry (Idx (I)).Waiters := Registry (Idx (I)).Waiters - 1;
+               if Registry (Idx (I)).Waiters = 0 then
+                  Registry (Idx (I)).Key_Addr := Empty_Futex;
+               end if;
+            end loop;
+         exception
+            when Constraint_Error =>
+               null;
+         end Leave;
       begin
-         --  Find and/or allocate indexes for the passed mutexes.
-         for I in Keys'Range loop
-            Trans.Take_From_Userland (Map, Value, Keys (I).Key_Addr, Success2);
-            if not Success2 or else Value /= Keys (I).Expected then
+         --  The values are compared under the lock Wake takes as well, so a
+         --  wake between a comparison and the registration cannot be lost.
+         Synchronization.Seize (Registry_Mutex);
+         for K of Keys loop
+            Trans.Take_From_Userland (Map, Value, K.Key_Addr, Success2);
+            if not Success2 or else Value /= K.Expected then
+               Leave;
+               Synchronization.Release (Registry_Mutex);
                Success := Wait_Try_Again;
                return;
             end if;
 
-            Synchronization.Seize (Registry_Mutex);
-
             for J in Registry'Range loop
-               if Registry (J).Key_Addr = Keys (I).Key_Addr then
-                  Idx (I) := J;
-                  Registry (J).Waiters := Registry (J).Waiters + 1;
-                  goto End_Of_Iter;
+               if Registry (J).Key_Addr = K.Key_Addr then
+                  Idx (Count + 1) := J;
+                  goto Register;
                end if;
             end loop;
             for J in Registry'Range loop
                if Registry (J).Key_Addr = Empty_Futex then
-                  Idx (I) := J;
-                  Registry (J).Key_Addr    := Keys (I).Key_Addr;
-                  Registry (J).Wakey_Wakey := False;
-                  Registry (J).Waiters     := 1;
-                  goto End_Of_Iter;
+                  Idx (Count + 1) := J;
+                  Registry (J).Key_Addr := K.Key_Addr;
+                  goto Register;
                end if;
             end loop;
 
+            Leave;
             Synchronization.Release (Registry_Mutex);
             Success := Wait_No_Space;
             return;
-         <<End_Of_Iter>>
-            Synchronization.Release (Registry_Mutex);
+
+         <<Register>>
+            Count := Count + 1;
+            Seen (Count) := Registry (Idx (Count)).Wakes;
+            Registry (Idx (Count)).Waiters :=
+               Registry (Idx (Count)).Waiters + 1;
          end loop;
+         Synchronization.Release (Registry_Mutex);
 
          --  Now that we have a built list of indexes to wait, we wait.
          Arch.Clocks.Get_Monotonic_Time (Final);
          Final := Final + (Max_Seconds, Max_Nanos);
 
+         Success := Wait_Try_Again;
          loop
-            for I of Idx loop
-               Synchronization.Seize (Registry_Mutex);
-               if Registry (I).Wakey_Wakey then
-                  Registry (I).Waiters := Registry (I).Waiters - 1;
-                  if Registry (I).Waiters = 0 then
-                     Registry (I).Wakey_Wakey := False;
-                     Registry (I).Key_Addr := Empty_Futex;
-                  end if;
-                  Synchronization.Release (Registry_Mutex);
+            Synchronization.Seize (Registry_Mutex);
+            for I in 1 .. Count loop
+               if Registry (Idx (I)).Wakes /= Seen (I) then
                   Success := Wait_Success;
-                  return;
                end if;
-               Synchronization.Release (Registry_Mutex);
-
-               Arch.Clocks.Get_Monotonic_Time (Curr);
-               if Curr >= Final then
-                  goto Cleanup;
-               end if;
-               Scheduler.Yield_If_Able;
             end loop;
+
+            Arch.Clocks.Get_Monotonic_Time (Curr);
+            if Success = Wait_Success or Curr >= Final then
+               Leave;
+               Synchronization.Release (Registry_Mutex);
+               return;
+            end if;
+            Synchronization.Release (Registry_Mutex);
+            Scheduler.Yield_If_Able;
          end loop;
       end;
-
-   <<Cleanup>>
-      Success := Wait_Try_Again;
    exception
       when Constraint_Error =>
          Success := Wait_Try_Again;
@@ -129,9 +147,11 @@ package body IPC.Futex is
       for K of Keys loop
          Synchronization.Seize (Registry_Mutex);
          for I in Registry'Range loop
-            if Registry (I).Key_Addr = K.Key_Addr then
-               Registry (I).Wakey_Wakey := True;
-               Awoken_Count             := Awoken_Count + 1;
+            if Registry (I).Key_Addr /= Empty_Futex and then
+               Registry (I).Key_Addr = K.Key_Addr
+            then
+               Registry (I).Wakes := Registry (I).Wakes + 1;
+               Awoken_Count       := Awoken_Count + 1;
             end if;
          end loop;
          Synchronization.Release (Registry_Mutex);
