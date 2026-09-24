@@ -1079,14 +1079,19 @@ package body Userland.Syscall is
          if Str_Errno /= Error_No_Error then
             Errno    := Str_Errno;
             Returned := Unsigned_64'Last;
-         elsif Success and then Memory.MMU.Make_Active (Map) then
+         elsif Success and then
+            Memory.MMU.Make_Active (Memory.MMU.Kernel_Table)
+         then
             --  Free critical state now that we know wont be running.
-            --  Of course dont remove the map if we are vforked.
+            --  Of course dont remove the map if we are vforked. We are left
+            --  on the kernel's table, as the new image may end and its map
+            --  go before we are done.
             Userland.Process.Remove_Thread (Proc, Th);
             Pop_VFork_Marker (Proc, Success);
             Set_Exec_Marker (Proc);
             if not Success then
                Detach_All_SHM (Proc);
+               Scheduler.Wait_For_Removed (Convert (Proc));
                Memory.MMU.Destroy_Table (Orig);
             else
                --  The parent waits for its table back, see Fork.
@@ -1358,6 +1363,7 @@ package body Userland.Syscall is
       --  when it exited.
       Get_Common_Map (Waited, Map);
       if Map /= null then
+         Scheduler.Wait_For_Removed (Convert (Waited));
          Memory.MMU.Destroy_Table (Map);
       end if;
       Userland.Process.Delete_Process (Waited);

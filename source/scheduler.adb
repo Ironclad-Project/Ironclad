@@ -30,6 +30,8 @@ with Memory.Userland_Transfer;
 
 package body Scheduler with SPARK_Mode => Off is
    Fast_Reschedule_Micros : constant := 10_000;
+   Removed_Wait_Seconds   : constant := 2;  --  See Wait_For_Removed.
+   Removed_Poll_Micros    : constant := 1_000;
    type Thread_Stack is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64 is array (Natural range <>) of Unsigned_64;
    --  A stack's top is the address one past its last byte, and the psABIs
@@ -490,6 +492,46 @@ package body Scheduler with SPARK_Mode => Off is
          null;
    end Delete_Locked;
 
+   procedure Wait_For_Removed (PID : Natural) is
+      Self   : constant TID := Arch.Local.Get_Current_Thread;
+      Kernel : constant System.Address :=
+         Memory.MMU.Get_Map_Table_Addr (Memory.MMU.Kernel_Table);
+      Final  : Time.Timestamp;
+      Curr   : Time.Timestamp;
+      Found  : Boolean;
+   begin
+      --  Threads that went to wait on the kernel's map count as gone, see Bail
+      --  and Scheduler_ISR. One that never leaves its core, as one stuck in
+      --  the kernel would, is only waited for a while.
+      Arch.Clocks.Get_Monotonic_Time (Final);
+      Final := Final + (Removed_Wait_Seconds, 0);
+      loop
+         Found := False;
+         Synchronization.Seize (Scheduler_Mutex);
+         for T in Thread_Pool'Range loop
+            if T /= Self and then
+               not Thread_Pool (T).Is_Present and then
+               Thread_Pool (T).Is_Running and then
+               Thread_Pool (T).PageMap /= Kernel and then
+               Userland.Process.Convert (Thread_Pool (T).Process) = PID
+            then
+               Found := True;
+               exit;
+            end if;
+         end loop;
+         Synchronization.Release (Scheduler_Mutex);
+
+         Arch.Clocks.Get_Monotonic_Time (Curr);
+         exit when not Found or Curr >= Final;
+         Begin_Wait;
+         Wait_Event (No_Deadline, Removed_Poll_Micros);
+         End_Wait;
+      end loop;
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Scheduler_Mutex);
+   end Wait_For_Removed;
+
    procedure Yield_If_Able is
       Curr_TID : constant     TID := Arch.Local.Get_Current_Thread;
       Is_Init  : constant Boolean := Is_Initialized;
@@ -511,6 +553,7 @@ package body Scheduler with SPARK_Mode => Off is
          Thread_Pool (Thread).Is_Present := False;
          Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
       end if;
+      Thread_Pool (Thread).PageMap := Memory.MMU.Get_Curr_Table_Addr;
       Synchronization.Release (Scheduler_Mutex);
       if Thread_Pool (Thread).Watcher /= Error_TID then
          Wake_Event (Thread_Pool (Thread)'Address);
@@ -1257,6 +1300,8 @@ package body Scheduler with SPARK_Mode => Off is
             Arch.Context.Is_User_Context (State)
          then
             Discard := Memory.MMU.Make_Active (Memory.MMU.Kernel_Table);
+            Thread_Pool (Current_TID).PageMap :=
+               Memory.MMU.Get_Curr_Table_Addr;
             Arch.Context.Init_Kernel_GP_Context
                (State,
                 Thread_Pool (Current_TID).Kernel_Stack.all'Address +

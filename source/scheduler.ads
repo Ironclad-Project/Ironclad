@@ -87,6 +87,13 @@ package Scheduler is
    --  Removes a thread, kernel or user, from existence (if it exists).
    procedure Delete_Thread (Thread : TID);
 
+   --  A removed thread goes on running until its core next reschedules. Wait
+   --  until no removed thread of a process is still on a core with the map
+   --  of the process, as a map destroyed meanwhile would be pulled from
+   --  under them.
+   --  @param PID Process of the threads, a plain number as for Is_Alive.
+   procedure Wait_For_Removed (PID : Natural);
+
    --  If interruptible, give up the rest of our execution time and go back to
    --  rescheduling, else just return.
    procedure Yield_If_Able;
