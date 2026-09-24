@@ -884,17 +884,18 @@ package body Memory.MMU with SPARK_Mode => Off is
       type Arr is array (1 .. Page_Size) of Unsigned_8;
       Addr, Addr2, Addr3 : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
+      Target_Table : Virtual_Address := Memory.Null_Address;
    begin
       --  A level with nothing present has nothing to copy.
       Success := True;
       for I in Current_Level'Range loop
-         declare
-            L : constant Unsigned_64 := Current_Level (I);
-            A : constant Integer_Address :=
-               Arch.MMU.Clean_Entry (Current_Level (I));
-            Next : PML with Import, Address => To_Address (Memory_Offset + A);
-         begin
-            if Arch.MMU.Is_Entry_Present (L) then
+         if Arch.MMU.Is_Entry_Present (Current_Level (I)) then
+            declare
+               L : constant Unsigned_64 := Current_Level (I);
+               A : constant Integer_Address := Arch.MMU.Clean_Entry (L);
+               Next : PML
+                  with Import, Address => To_Address (Memory_Offset + A);
+            begin
                case Current_Depth is
                   when 5 =>
                      Clone_Level
@@ -913,13 +914,20 @@ package body Memory.MMU with SPARK_Mode => Off is
                         (Idx_5, Idx_4, Idx_3, I, Variable_PML (Next),
                          1, Target, Success);
                   when others =>
-                     Addr := Idx_To_Addr (Idx_5, Idx_4, Idx_3, Idx_2, I);
-                     Perms := Arch.MMU.Clean_Entry_Perms (L);
-                     Get_Page (Target, Addr, True, Addr2);
-                     if Addr2 = Memory.Null_Address then
-                        Success := False;
-                        return;
+                     --  The entries of a table all go to one table of the
+                     --  target, which is only looked up for the first.
+                     if Target_Table = Memory.Null_Address then
+                        Addr := Idx_To_Addr (Idx_5, Idx_4, Idx_3, Idx_2, I);
+                        Get_Page (Target, Addr, True, Addr2);
+                        if Addr2 = Memory.Null_Address then
+                           Success := False;
+                           return;
+                        end if;
+                        Target_Table := Addr2 - Virtual_Address (I - 1) * 8;
+                     else
+                        Addr2 := Target_Table + Virtual_Address (I - 1) * 8;
                      end if;
+                     Perms := Arch.MMU.Clean_Entry_Perms (L);
                      declare
                         Res : Unsigned_64 with
                            Import, Address => To_Address (Addr2);
@@ -949,11 +957,11 @@ package body Memory.MMU with SPARK_Mode => Off is
                      end;
                      Success := True;
                end case;
-               if not Success then
-                  return;
-               end if;
+            end;
+            if not Success then
+               return;
             end if;
-         end;
+         end if;
       end loop;
    exception
       when Constraint_Error =>
