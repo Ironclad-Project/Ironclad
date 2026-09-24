@@ -91,12 +91,33 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Create_Process (Parent : PID; Returned : out PID) is
       P : PID renames Parent;
+
+      --  PIDs still in use as process group or session IDs, which are not
+      --  given to new processes.
+      Held : array (Process_Arr'Range) of Boolean := [others => False];
+      Group, Session : Unsigned_32;
    begin
       Returned := Error_PID;
 
       Synchronization.Seize (Registry_Mutex);
+      --  The locks of the processes are not taken, as IDs change with this
+      --  lock held, see Set_PGID, or to the PID of a live process, which is
+      --  not free anyway, see Create_Session.
+      for Proc of Registry.all loop
+         if Proc /= null then
+            Group   := Proc.Process_Group;
+            Session := Proc.Session_ID;
+            if Group in 1 .. Unsigned_32 (Process_Arr'Last) then
+               Held (PID (Group)) := True;
+            end if;
+            if Session in 1 .. Unsigned_32 (Process_Arr'Last) then
+               Held (PID (Session)) := True;
+            end if;
+         end if;
+      end loop;
+
       for I in Registry.all'Range loop
-         if Registry (I) = null then
+         if Registry (I) = null and then not Held (I) then
             Registry (I) := new Process_Data'
                (Data_Mutex      => Synchronization.Unlocked_Mutex,
                 Controlling_TTY => null,
@@ -1413,12 +1434,15 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Set_PGID (Proc : PID; PGID : Unsigned_32) is
    begin
+      --  With Registry_Mutex held, see Create_Process.
+      Synchronization.Seize (Registry_Mutex);
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Process_Group := PGID;
       Synchronization.Release (Registry (Proc).Data_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         null;
+         Synchronization.Release (Registry_Mutex);
    end Set_PGID;
 
    procedure Get_Session_ID (Proc : PID; ID : out Unsigned_32) is

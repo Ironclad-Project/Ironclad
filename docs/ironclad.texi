@@ -1739,7 +1739,8 @@ This syscall creates a new process based on the parent process. The created
 process will only have 1 thread copying the caller one, and will be placed
 on the passed thread cluster. The child's floating-point state is the
 caller's own, rounding mode and exception masks included, and the caller's
-is left untouched.
+is left untouched. The child is never given a PID still in use as a process
+group or session ID.
 
 @code{flags} is a bitmap that can be used to customize the forking operation,
 the values that can be passed are:

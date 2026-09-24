@@ -198,6 +198,7 @@ package Userland.Process is
    procedure List_All (List : out Process_Info_Arr; Total : out Natural);
 
    --  Create an empty process, a parent may be passed for getting some data.
+   --  PIDs still in use as process group or session IDs are not reused.
    --  @param Parent   Parent of the process, or Error_PID for none.
    --  @param Returned PID if successful, or Error_PID if not successful.
    procedure Create_Process (Parent : PID; Returned : out PID);
