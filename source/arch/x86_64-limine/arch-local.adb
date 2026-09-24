@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Machine_Code; use System.Machine_Code;
 with Panic;
 with Arch.CPU;
 with Arch.APIC;
@@ -26,10 +27,12 @@ package body Arch.Local with SPARK_Mode => Off is
       Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
       if Is_Ints then Snippets.Disable_Interrupts; end if;
+      if not CPU.Get_Local.Is_Timer_Set_Up then
+         APIC.LAPIC_Timer_Setup (Interrupts.Scheduler_Interrupt);
+         CPU.Get_Local.Is_Timer_Set_Up := True;
+      end if;
       APIC.LAPIC_Timer_Oneshot
-         (Interrupts.Scheduler_Interrupt,
-          CPU.Get_Local.LAPIC_Timer_Hz,
-          Unsigned_64 (Microseconds));
+         (CPU.Get_Local.LAPIC_Timer_Hz, Unsigned_64 (Microseconds));
       if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
@@ -37,14 +40,20 @@ package body Arch.Local with SPARK_Mode => Off is
    end Reschedule_In;
 
    procedure Reschedule_ASAP is
-      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
-      --  Force rescheduling by calling the ISR vector directly.
-      if Is_Ints then Snippets.Disable_Interrupts; end if;
-      APIC.LAPIC_Timer_Stop;
-      APIC.LAPIC_Send_IPI
-         (CPU.Get_Local.LAPIC_ID, Interrupts.Scheduler_Interrupt);
-      if Is_Ints then Snippets.Enable_Interrupts; end if;
+      --  With interrupts enabled that is right away, through the vector the
+      --  core calls itself. Else, the core sends itself the vector of the
+      --  scheduler, which comes in once they are enabled again.
+      if Snippets.Interrupts_Enabled then
+         Asm ("int %0",
+              Inputs   => Unsigned_32'Asm_Input
+                 ("i", Interrupts.Yield_Interrupt - 1),
+              Volatile => True);
+      else
+         APIC.LAPIC_Timer_Stop;
+         APIC.LAPIC_Send_IPI
+            (CPU.Get_Local.LAPIC_ID, Interrupts.Scheduler_Interrupt);
+      end if;
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception rescheduling");

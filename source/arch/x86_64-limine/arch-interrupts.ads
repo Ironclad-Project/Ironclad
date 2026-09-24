@@ -88,6 +88,12 @@ package Arch.Interrupts is
    Invalidate_Interrupt : constant := 16#84#;
    procedure Invalidate_Handler;
 
+   --  Entrypoint for the scheduler handler when a core reschedules itself.
+   --  It is called with an int instruction, so there is no interrupt for the
+   --  LAPIC to acknowledge.
+   Yield_Interrupt : constant := 16#85#;
+   procedure Yield_Handler (Num : Integer; State : not null ISR_GPRs_Acc);
+
    --  Default ISR handler.
    procedure Default_ISR_Handler;
 

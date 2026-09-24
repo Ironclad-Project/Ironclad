@@ -38,11 +38,14 @@ package Arch.APIC is
    --  Stop the timer.
    procedure LAPIC_Timer_Stop;
 
-   --  Setup the LAPIC timer to wait for some given time and then call the
-   --  vector.
+   --  Set the LAPIC timer up to call the vector once when it runs out, for
+   --  LAPIC_Timer_Oneshot to start.
+   procedure LAPIC_Timer_Setup (Vector : IDT.IDT_Index);
+
+   --  Start the LAPIC timer, set up with LAPIC_Timer_Setup, to run out after
+   --  some given time.
    procedure LAPIC_Timer_Oneshot
-      (Vector       : IDT.IDT_Index;
-       Hz           : Unsigned_64;
+      (Hz           : Unsigned_64;
        Microseconds : Unsigned_64);
 
    --  LAPIC End Of Interrupt routine, that is to be called at the end of

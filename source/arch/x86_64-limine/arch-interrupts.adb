@@ -461,6 +461,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Snippets.HCF;
    end Panic_Handler;
 
+   procedure Yield_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
+      pragma Unreferenced (Num);
+   begin
+      Scheduler.Scheduler_ISR (Context.GP_Context (State.all));
+   end Yield_Handler;
+
    procedure Invalidate_Handler is
       pragma Suppress (All_Checks); --  Nothing here can fail, as for locks.
       function Fetch_Sub is new System.Atomic_Operations.Atomic_Fetch_Sub

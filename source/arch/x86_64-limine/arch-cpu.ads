@@ -38,6 +38,7 @@ package Arch.CPU is
       Current_Process : Userland.Process.PID;
       Retiring_Thread : Scheduler.TID;  --  See Arch.Local.
       Online          : Boolean := False; --  Its IDT and LAPIC are set up.
+      Is_Timer_Set_Up : Boolean := False; --  See Arch.Local.
    end record;
    for Core_Local use record
       Self         at 0 range   0 ..  63;

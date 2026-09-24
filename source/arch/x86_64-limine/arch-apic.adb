@@ -195,18 +195,19 @@ package body Arch.APIC with SPARK_Mode => Off is
    procedure LAPIC_Timer_Stop is
    begin
       LAPIC_Write (LAPIC_Timer_Init_Counter_Register, 0);
-      LAPIC_Write (LAPIC_Timer_Register, Shift_Left (1, 16));
    end LAPIC_Timer_Stop;
 
-   procedure LAPIC_Timer_Oneshot
-      (Vector       : IDT.IDT_Index;
-       Hz           : Unsigned_64;
-       Microseconds : Unsigned_64)
-   is
+   procedure LAPIC_Timer_Setup (Vector : IDT.IDT_Index) is
    begin
       LAPIC_Timer_Stop;
       LAPIC_Write (LAPIC_Timer_Register, (Unsigned_32 (Vector) - 1));
       LAPIC_Write (LAPIC_Timer_Divisor_Register, LAPIC_Timer_2_Divisor);
+   end LAPIC_Timer_Setup;
+
+   procedure LAPIC_Timer_Oneshot (Hz : Unsigned_64; Microseconds : Unsigned_64)
+   is
+   begin
+      --  Setting the count starts the timer again, see LAPIC_Timer_Setup.
       LAPIC_Write (LAPIC_Timer_Init_Counter_Register,
          Unsigned_32 ((Microseconds * (Hz / 1000000) and 16#FFFFFFFF#)));
    exception

@@ -322,7 +322,8 @@ package body Arch.CPU with SPARK_Mode => Off is
           Current_Thread   => Scheduler.Error_TID,
           Current_Process  => Userland.Process.Error_PID,
           Retiring_Thread  => Scheduler.Error_TID,
-          Online           => True);
+          Online           => True,
+          Is_Timer_Set_Up  => False);
       APIC.LAPIC_Timer_Calibrate (Core_Locals (Core_Number).LAPIC_Timer_Hz);
 
       Snippets.Write_GS        (Locals_Addr);
