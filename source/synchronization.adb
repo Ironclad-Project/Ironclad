@@ -69,25 +69,45 @@ package body Synchronization with SPARK_Mode => Off is
    end Release;
    ----------------------------------------------------------------------------
    procedure Seize (Lock : aliased in out Mutex) is
-      Th : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
+      Th : constant Natural :=
+         Scheduler.Convert (Arch.Local.Get_Current_Thread);
+      Is_Queued : Boolean;
    begin
-      Synchronization.Seize (Lock.Pool_Mutex);
-      if Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
-         for ID of Lock.Thread_Pool loop
-            if ID = 0 then
-               ID := Scheduler.Convert (Th);
-               Scheduler.Mark_Suspend;
-               exit;
+      --  A release lets every waiter go, and those that do not get the lock
+      --  queue up and sleep again. One with no room in the queue, or no
+      --  thread to sleep as, can only yield.
+      loop
+         Synchronization.Seize (Lock.Pool_Mutex);
+         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
+            Synchronization.Release (Lock.Pool_Mutex);
+            exit;
+         end if;
+
+         Is_Queued := False;
+         if Th /= 0 then
+            for ID of Lock.Thread_Pool loop
+               if ID = Th then
+                  Is_Queued := True;
+                  exit;
+               end if;
+            end loop;
+            if not Is_Queued then
+               for ID of Lock.Thread_Pool loop
+                  if ID = 0 then
+                     ID        := Th;
+                     Is_Queued := True;
+                     exit;
+                  end if;
+               end loop;
             end if;
-         end loop;
+         end if;
+         if Is_Queued then
+            Scheduler.Mark_Suspend;
+         end if;
 
          Synchronization.Release (Lock.Pool_Mutex);
-         while Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) loop
-            Scheduler.Yield_If_Able;
-         end loop;
-      else
-         Synchronization.Release (Lock.Pool_Mutex);
-      end if;
+         Scheduler.Yield_If_Able;
+      end loop;
    end Seize;
 
    procedure Release (Lock : aliased in out Mutex) is
