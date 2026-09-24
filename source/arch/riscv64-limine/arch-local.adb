@@ -40,6 +40,27 @@ package body Arch.Local with SPARK_Mode => Off is
       end if;
    end Reschedule_ASAP;
 
+   procedure Reschedule_Core (Core : Positive) is
+   begin
+      --  Threads only run on the boot hart, as the others are parked.
+      if Core = Get_Core_Number then
+         Reschedule_ASAP;
+      end if;
+   end Reschedule_Core;
+
+   function Get_Core_Number return Positive is
+      Returned : Positive;
+      Is_Ints  : constant Boolean := Snippets.Interrupts_Enabled;
+   begin
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
+      Returned := CPU.Get_Local.Number;
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
+      return Returned;
+   exception
+      when Constraint_Error =>
+         return Positive'Last;
+   end Get_Core_Number;
+
    function Fetch_TCB return System.Address is
       Ret : System.Address;
    begin

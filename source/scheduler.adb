@@ -30,6 +30,7 @@ with Memory.Userland_Transfer;
 
 package body Scheduler with SPARK_Mode => Off is
    Fast_Reschedule_Micros : constant := 10_000;
+   Idle_Reschedule_Micros : constant := 100_000;  --  See Next_Wake.
    Removed_Wait_Seconds   : constant := 2;  --  See Wait_For_Removed.
    Removed_Poll_Micros    : constant := 1_000;
    type Thread_Stack is array (Natural range <>) of Unsigned_8;
@@ -69,6 +70,7 @@ package body Scheduler with SPARK_Mode => Off is
       Start_Time      : Time.Timestamp;
       Wake_Pending    : Boolean;  --  See Clear_Wake.
       Event_Waiting   : Boolean;  --  Sleeping in Wait_Event.
+      Core            : Natural;  --  Core it runs on, see Kick.
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
@@ -91,6 +93,11 @@ package body Scheduler with SPARK_Mode => Off is
    Waits      : Wait_Info_Arr_Acc;
    Wait_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
+
+   --  Cores waiting for an interrupt with nothing to run, see Kick.
+   Max_Cores  : constant := 256;
+   Is_Waiting : array (1 .. Max_Cores) of Boolean := [others => False]
+      with Atomic_Components;
 
    --  In order to keep statistics of usage, we keep a list of buckets of
    --  1 minute resolution, and calculate resolution on demand.
@@ -145,7 +152,8 @@ package body Scheduler with SPARK_Mode => Off is
              Start_Clock     => Time.Monotonic_Clock,
              Start_Time      => (0, 0),
              Wake_Pending    => False,
-             Event_Waiting   => False)];
+             Event_Waiting   => False,
+             Core            => 0)];
       Waits := new Wait_Info_Arr'
          [others => (Count => 0, Keys => [others => System.Null_Address])];
 
@@ -433,6 +441,7 @@ package body Scheduler with SPARK_Mode => Off is
           Start_Time      => (0, 0),
           Wake_Pending    => False,
           Event_Waiting   => False,
+          Core            => 0,
           System_Runtime  => (0, 0),
           User_Runtime    => (0, 0),
           System_Tmp      => (0, 0),
@@ -454,6 +463,7 @@ package body Scheduler with SPARK_Mode => Off is
       --  No lock: the flag is atomic, and Add_Thread calls this with the
       --  process's own lock held, which the scheduler's must never nest in.
       Thread_Pool (Thread).Is_Held := False;
+      Kick (Thread);
    exception
       when Constraint_Error =>
          null;
@@ -475,9 +485,13 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  A sleep in the kernel ends, for the thread to give up its wait and
-      --  leave at the edge of its syscall.
+      --  leave at the edge of its syscall. One asleep on its core is woken
+      --  there, see Kick.
       Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
       Thread_Pool (Thread).Start_Time  := (0, 0);
+      if Thread_Pool (Thread).Is_Running then
+         Kick (Thread);
+      end if;
 
       for T in Thread_Pool'Range loop
          if Thread_Pool (T).Watcher = Thread then
@@ -538,6 +552,9 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       if Is_Init and Curr_TID /= Error_TID then
          Arch.Local.Reschedule_ASAP;
+         if Arch.Snippets.Interrupts_Enabled then
+            Wait_If_Suspended (Curr_TID);
+         end if;
       end if;
    end Yield_If_Able;
 
@@ -666,6 +683,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
       Thread_Pool (Thread).Start_Time := (0, 0);
       Synchronization.Release (Scheduler_Mutex);
+      Kick (Thread);
    exception
       when Constraint_Error =>
          --  The index check fires with the lock held.
@@ -794,6 +812,7 @@ package body Scheduler with SPARK_Mode => Off is
    end End_Wait;
 
    procedure Wake_Event (Key : System.Address) is
+      Was_Waiting : Boolean;
    begin
       if Key = System.Null_Address or Waits = null then
          return;
@@ -806,11 +825,15 @@ package body Scheduler with SPARK_Mode => Off is
                --  Only lift sleeps in Wait_Event, not those of other kinds.
                Synchronization.Seize (Scheduler_Mutex);
                Thread_Pool (T).Wake_Pending := True;
-               if Thread_Pool (T).Event_Waiting then
+               Was_Waiting := Thread_Pool (T).Event_Waiting;
+               if Was_Waiting then
                   Thread_Pool (T).Start_Clock := Time.Monotonic_Clock;
                   Thread_Pool (T).Start_Time  := (0, 0);
                end if;
                Synchronization.Release (Scheduler_Mutex);
+               if Was_Waiting then
+                  Kick (T);
+               end if;
                exit;
             end if;
          end loop;
@@ -1156,6 +1179,7 @@ package body Scheduler with SPARK_Mode => Off is
          Delete_Locked (New_TID);
       end if;
       Synchronization.Release (Scheduler_Mutex);
+      Kick (New_TID);
 
       Begin_Wait;
       Add_Wait_Key (Thread_Pool (New_TID)'Address, Registered);
@@ -1224,6 +1248,7 @@ package body Scheduler with SPARK_Mode => Off is
    end Get_Load_Averages;
    ----------------------------------------------------------------------------
    procedure Scheduler_ISR (State : in out Arch.Context.GP_Context) is
+      Core        : constant Positive := Arch.Local.Get_Core_Number;
       Current_TID : constant TID := Arch.Local.Get_Current_Thread;
       Retiring    : constant TID := Arch.Local.Get_Retiring_Thread;
       Next_TID    :          TID := Error_TID;
@@ -1232,6 +1257,8 @@ package body Scheduler with SPARK_Mode => Off is
       Count       : Unsigned_32;
       Did_Seize : Boolean;
       Discard   : Boolean;
+      Can_Run   : Boolean;
+      Is_Asleep : Boolean;
    begin
       --  A switch leaves through a frame on the old thread's kernel stack, so
       --  the old thread stays running until the entry the switch asks for,
@@ -1241,6 +1268,13 @@ package body Scheduler with SPARK_Mode => Off is
       if Retiring /= Error_TID then
          Thread_Pool (Retiring).Is_Running := False;
          Arch.Local.Set_Retiring_Thread (Error_TID);
+
+         --  Waiting cores do not look for threads until their own time, so
+         --  one that could still run is given to them.
+         Evaluate_Runnable (Retiring, Can_Run);
+         if Can_Run then
+            Kick (Retiring);
+         end if;
          if Current_TID /= Error_TID and then
             not Thread_Pool (Current_TID).Is_Present
          then
@@ -1279,7 +1313,8 @@ package body Scheduler with SPARK_Mode => Off is
          Buckets (Buckets'First) := Count;
       end if;
 
-      --  Find the next thread.
+      --  Find the next thread. One that is gone or asleep is not kept on the
+      --  core by its policy while any other can run.
       if Current_TID = Error_TID then
          Next_From_Nothing (Timeout, Next_TID);
       else
@@ -1288,6 +1323,14 @@ package body Scheduler with SPARK_Mode => Off is
             when Policy_Other => Next_Other (Current_TID, Timeout, Next_TID);
             when Policy_RR    => Next_RR (Current_TID, Timeout, Next_TID);
          end case;
+         if Next_TID = Error_TID and
+            Thread_Pool (Current_TID).Pol /= Policy_Other
+         then
+            Evaluate_Suspended (Current_TID, Is_Asleep);
+            if Is_Asleep or not Thread_Pool (Current_TID).Is_Present then
+               Next_Other (Current_TID, Timeout, Next_TID);
+            end if;
+         end if;
       end if;
 
       --  We only get here if the thread search did not find anything, and we
@@ -1339,6 +1382,8 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
+      Thread_Pool (Next_TID).Core       := Core;
+      Set_Waiting (False);
       Arch.Local.Set_Stacks
          (Thread_Pool (Next_TID).Kernel_Stack.all'Address +
           Kernel_Stack'Length);
@@ -1411,7 +1456,7 @@ package body Scheduler with SPARK_Mode => Off is
          end if;
       end loop;
 
-      Timeout := Fast_Reschedule_Micros;
+      Next_Wake (Idle_Reschedule_Micros, Timeout);
       Next := Error_TID;
    exception
       when Constraint_Error =>
@@ -1585,10 +1630,135 @@ package body Scheduler with SPARK_Mode => Off is
    end Next_Other;
 
    procedure Waiting_Spot is
+      Micros : Natural;
    begin
-      Arch.Snippets.Enable_Interrupts;
-      loop Arch.Snippets.Wait_For_Interrupt; end loop;
+      --  As in Wait_If_Suspended, the core is marked waiting under the lock
+      --  a wake takes, and wakes for the threads that are due.
+      loop
+         Arch.Snippets.Disable_Interrupts;
+         Synchronization.Seize (Scheduler_Mutex);
+         Set_Waiting (True);
+         Next_Wake (Idle_Reschedule_Micros, Micros);
+         Synchronization.Release (Scheduler_Mutex);
+         Arch.Local.Reschedule_In (Micros);
+         Arch.Snippets.Enable_Interrupts_And_Wait;
+      end loop;
    end Waiting_Spot;
+
+   procedure Wait_If_Suspended (Thread : TID) is
+      Stop   : Boolean;
+      Curr   : Time.Timestamp;
+      Left   : Time.Timestamp;
+      Micros : Natural;
+   begin
+      --  The thread is checked and the core marked waiting under the lock a
+      --  wake takes, so a wake either ends the suspension before the check
+      --  or finds the core waiting and interrupts it, see Kick.
+      Arch.Snippets.Disable_Interrupts;
+      Synchronization.Seize (Scheduler_Mutex);
+      Time.Get_Time (Thread_Pool (Thread).Start_Clock, Curr);
+      Stop := Thread_Pool (Thread).Start_Time > Curr;
+      if Stop then
+         --  The core also wakes for the other threads, as an idle one does.
+         Next_Wake (Idle_Reschedule_Micros, Micros);
+         Left   := Thread_Pool (Thread).Start_Time - Curr;
+         if Left.Seconds = 0 and
+            Left.Nanoseconds < Unsigned_64 (Micros) * 1_000
+         then
+            Micros := Natural (Left.Nanoseconds / 1_000) + 1;
+         end if;
+         Set_Waiting (True);
+      end if;
+      Synchronization.Release (Scheduler_Mutex);
+
+      if Stop then
+         Arch.Local.Reschedule_In (Micros);
+         Arch.Snippets.Enable_Interrupts_And_Wait;
+         Arch.Snippets.Disable_Interrupts;
+         Set_Waiting (False);
+         Arch.Snippets.Enable_Interrupts;
+      else
+         Arch.Snippets.Enable_Interrupts;
+      end if;
+   exception
+      when Constraint_Error =>
+         --  The index check fires with the lock held.
+         Synchronization.Release (Scheduler_Mutex);
+         Arch.Snippets.Enable_Interrupts;
+   end Wait_If_Suspended;
+
+   procedure Next_Wake (Max_Micros : Natural; Micros : out Natural) is
+      Mono : Time.Timestamp;
+      Curr : Time.Timestamp;
+      Left : Time.Timestamp;
+   begin
+      Micros := Max_Micros;
+      Time.Get_Time (Time.Monotonic_Clock, Mono);
+      for T of Thread_Pool.all loop
+         if T.Is_Present and not T.Is_Running and not T.Is_Held then
+            if T.Start_Clock = Time.Monotonic_Clock then
+               Curr := Mono;
+            else
+               Time.Get_Time (T.Start_Clock, Curr);
+            end if;
+            if T.Start_Time > Curr then
+               Left := T.Start_Time - Curr;
+               if Left.Seconds = 0 and
+                  Left.Nanoseconds < Unsigned_64 (Micros) * 1_000
+               then
+                  Micros := Natural (Left.Nanoseconds / 1_000) + 1;
+               end if;
+            else
+               --  One made runnable since the last search for a thread,
+               --  which a kick may have missed, is due at once.
+               Micros := 1;
+            end if;
+         end if;
+      end loop;
+   exception
+      when Constraint_Error =>
+         Micros := Max_Micros;
+   end Next_Wake;
+
+   procedure Set_Waiting (Value : Boolean) is
+      Core : constant Positive := Arch.Local.Get_Core_Number;
+   begin
+      if Core in Is_Waiting'Range then
+         Is_Waiting (Core) := Value;
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Waiting;
+
+   procedure Kick (Thread : TID) is
+      Self : constant Positive := Arch.Local.Get_Core_Number;
+      Core : Natural := 0;
+   begin
+      --  A thread running on a waiting core is woken there, and one that is
+      --  not running is given to any waiting core. A kicked core counts as
+      --  waiting no more, so that the wakes of a burst go to several.
+      if Thread_Pool (Thread).Is_Running then
+         Core := Thread_Pool (Thread).Core;
+      else
+         for C in Is_Waiting'Range loop
+            if C /= Self and then Is_Waiting (C) then
+               Core := C;
+               exit;
+            end if;
+         end loop;
+      end if;
+
+      if Core in Is_Waiting'Range and then Core /= Self and then
+         Is_Waiting (Core)
+      then
+         Is_Waiting (Core) := False;
+         Arch.Local.Reschedule_Core (Core);
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Kick;
 
    procedure Evaluate_Runnable (T : TID; Can_Run : out Boolean) is
    begin

@@ -95,7 +95,8 @@ package Scheduler is
    procedure Wait_For_Removed (PID : Natural);
 
    --  If interruptible, give up the rest of our execution time and go back to
-   --  rescheduling, else just return.
+   --  rescheduling, else just return. A suspended thread that is given the
+   --  core back with nothing else to run waits for an interrupt first.
    procedure Yield_If_Able;
 
    --  Make the callee thread be dequeued.
@@ -269,6 +270,23 @@ private
    --  which leaves by itself.
    procedure Delete_Locked (Thread : TID);
 
+   --  Wait for an interrupt if the calling thread is suspended, see
+   --  Yield_If_Able.
+   procedure Wait_If_Suspended (Thread : TID);
+
+   --  Get a thread that was made runnable onto a core waiting for an
+   --  interrupt, if there is one to take it.
+   procedure Kick (Thread : TID);
+
+   --  Mark whether the calling core waits for an interrupt with nothing to
+   --  run. The calling thread must not change cores meanwhile.
+   procedure Set_Waiting (Value : Boolean);
+
+   --  Get the microseconds until the soonest end of the suspension of a
+   --  thread that is not running, with the scheduler lock held.
+   --  @param Max_Micros Microseconds to give at most.
+   --  @param Micros     The microseconds, at least 1.
+   procedure Next_Wake (Max_Micros : Natural; Micros : out Natural);
    procedure Evaluate_Runnable (T : TID; Can_Run : out Boolean);
    procedure Evaluate_Suspended (T : TID; Suspended : out Boolean);
 end Scheduler;

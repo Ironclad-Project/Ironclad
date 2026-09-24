@@ -50,6 +50,36 @@ package body Arch.Local with SPARK_Mode => Off is
          Panic.Hard_Panic ("Exception rescheduling");
    end Reschedule_ASAP;
 
+   procedure Reschedule_Core (Core : Positive) is
+      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
+   begin
+      if Core = CPU.Get_Local.Number then
+         Reschedule_ASAP;
+      elsif Core <= CPU.Core_Locals'Last and then CPU.Core_Locals (Core).Online
+      then
+         if Is_Ints then Snippets.Disable_Interrupts; end if;
+         APIC.LAPIC_Send_IPI
+            (CPU.Core_Locals (Core).LAPIC_ID, Interrupts.Scheduler_Interrupt);
+         if Is_Ints then Snippets.Enable_Interrupts; end if;
+      end if;
+   exception
+      when Constraint_Error =>
+         Panic.Hard_Panic ("Exception rescheduling");
+   end Reschedule_Core;
+
+   function Get_Core_Number return Positive is
+      Returned : Positive;
+      Is_Ints  : constant Boolean := Snippets.Interrupts_Enabled;
+   begin
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
+      Returned := CPU.Get_Local.Number;
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
+      return Returned;
+   exception
+      when Constraint_Error =>
+         return Positive'Last;
+   end Get_Core_Number;
+
    function Fetch_TCB return System.Address is
    begin
       return To_Address (Integer_Address (Snippets.Read_FS));

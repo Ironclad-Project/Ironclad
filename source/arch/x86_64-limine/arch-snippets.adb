@@ -45,6 +45,12 @@ package body Arch.Snippets with SPARK_Mode => Off is
       Asm ("hlt", Volatile => True);
    end Wait_For_Interrupt;
 
+   procedure Enable_Interrupts_And_Wait is
+   begin
+      --  No interrupt is taken on the instruction following STI.
+      Asm ("sti; hlt", Clobber => "memory", Volatile => True);
+   end Enable_Interrupts_And_Wait;
+
    function Interrupts_Enabled return Boolean is
       Flags : Unsigned_64;
    begin

@@ -51,6 +51,17 @@ package body Arch.Snippets with SPARK_Mode => Off is
       System.Machine_Code.Asm ("wfi", Volatile => True);
    end Wait_For_Interrupt;
 
+   procedure Enable_Interrupts_And_Wait is
+   begin
+      --  WFI resumes for a pending interrupt even with them disabled, which is
+      --  then taken once they are enabled.
+      System.Machine_Code.Asm
+         ("wfi; csrs sstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", INT_BIT),
+          Clobber  => "memory",
+          Volatile => True);
+   end Enable_Interrupts_And_Wait;
+
    function Interrupts_Enabled return Boolean is
       Value : Unsigned_64;
    begin

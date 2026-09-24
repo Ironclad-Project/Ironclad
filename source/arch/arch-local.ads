@@ -23,6 +23,14 @@ package Arch.Local is
    procedure Reschedule_In (Microseconds : Natural);
    procedure Reschedule_ASAP;
 
+   --  Force a reschedule on a core, as Reschedule_ASAP does on the calling
+   --  one.
+   --  @param Core Number of the core, 1 based.
+   procedure Reschedule_Core (Core : Positive);
+
+   --  Get the number of the calling core, 1 based.
+   function Get_Core_Number return Positive;
+
    --  Save and restore TCB pointer local storage.
    function Fetch_TCB return System.Address;
    procedure Load_TCB (Ctx : in out Context.GP_Context; TCB : System.Address);
