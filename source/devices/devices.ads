@@ -304,6 +304,19 @@ package Devices is
        Is_Error  : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
+   --  Set the key a device wakes its readers and pollers on, see
+   --  Scheduler.Wake_Event.
+   --  @param Handle Handle to operate on, must be valid.
+   --  @param Key    Key to wake on.
+   procedure Set_Wait_Key (Handle : Device_Handle; Key : System.Address)
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+
+   --  Get the key a device wakes its readers and pollers on.
+   --  @param Handle Handle to operate on, must be valid.
+   --  @return The key, or System.Null_Address if the device has to be polled.
+   function Get_Wait_Key (Handle : Device_Handle) return System.Address
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+
    --  Remove the device, this will deinitialize it if necessary.
    --  Some devices are not able to be removed, in that case, the function will
    --  always fail, no forced removals.
@@ -325,6 +338,7 @@ private
       Name_Len   : Natural range 0 .. Max_Name_Length;
       Contents   : Resource;
       Part_ID    : UUID;
+      Wait_Key   : System.Address;
    end record;
    type Device_Arr     is array (Device_Handle range 1 .. 50) of Device;
    type Device_Arr_Acc is access Device_Arr;

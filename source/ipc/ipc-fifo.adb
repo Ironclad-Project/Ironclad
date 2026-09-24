@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Conversion;
 with Ada.Unchecked_Deallocation;
 with Scheduler;
 
@@ -81,6 +82,7 @@ package body IPC.FIFO is
    begin
       Synchronization.Seize (To_Close.Mutex);
       To_Close.Reader_Closed := True;
+      Scheduler.Wake_Event (Wait_Key (To_Close));
       Common_Close (To_Close);
    end Close_Reader;
 
@@ -88,6 +90,7 @@ package body IPC.FIFO is
    begin
       Synchronization.Seize (To_Close.Mutex);
       To_Close.Writer_Closed := True;
+      Scheduler.Wake_Event (Wait_Key (To_Close));
       Common_Close (To_Close);
    end Close_Writer;
 
@@ -96,6 +99,7 @@ package body IPC.FIFO is
       Synchronization.Seize (To_Close.Mutex);
       To_Close.Reader_Closed := True;
       To_Close.Writer_Closed := True;
+      Scheduler.Wake_Event (Wait_Key (To_Close));
       Common_Close (To_Close);
    end Close;
 
@@ -133,6 +137,9 @@ package body IPC.FIFO is
          Success := False;
       end if;
       Synchronization.Release (P.Mutex);
+      if Success then
+         Scheduler.Wake_Event (Wait_Key (P));
+      end if;
 
       Free (Old_Buffer);
       Free (New_Buffer);
@@ -146,20 +153,29 @@ package body IPC.FIFO is
        Success     : out Pipe_Status)
    is
       Read_Count : Natural := 0;
+      Registered : Boolean;
    begin
       if Is_Blocking then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Wait_Key (To_Read), Registered);
          loop
+            Scheduler.Clear_Wake;
             Synchronization.Seize (To_Read.Mutex);
             exit when To_Read.Data_Count /= 0;
             if To_Read.Writer_Closed then
                Ret_Count := 0;
                Success   := Pipe_Success;
                Synchronization.Release (To_Read.Mutex);
+               Scheduler.End_Wait;
                return;
             end if;
             Synchronization.Release (To_Read.Mutex);
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       else
          Synchronization.Seize (To_Read.Mutex);
          if To_Read.Data_Count = 0 then
@@ -185,6 +201,9 @@ package body IPC.FIFO is
       Synchronization.Release (To_Read.Mutex);
       Ret_Count := Read_Count;
       Success   := Pipe_Success;
+      if Read_Count /= 0 then
+         Scheduler.Wake_Event (Wait_Key (To_Read));
+      end if;
    end Read;
 
    procedure Write
@@ -195,21 +214,30 @@ package body IPC.FIFO is
        Success     : out Pipe_Status)
    is
       Written_Count : Natural := 0;
+      Registered    : Boolean;
    begin
       if Is_Blocking then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Wait_Key (To_Write), Registered);
          loop
+            Scheduler.Clear_Wake;
             Synchronization.Seize (To_Write.Mutex);
             --  Check Reader_Closed inside lock to avoid TOCTOU race
             if To_Write.Reader_Closed then
                Synchronization.Release (To_Write.Mutex);
+               Scheduler.End_Wait;
                Ret_Count := 0;
                Success   := Broken_Failure;
                return;
             end if;
             exit when To_Write.Data_Count /= To_Write.Data'Length;
             Synchronization.Release (To_Write.Mutex);
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       else
          Synchronization.Seize (To_Write.Mutex);
          --  Check Reader_Closed inside lock to avoid TOCTOU race
@@ -238,7 +266,18 @@ package body IPC.FIFO is
       Synchronization.Release (To_Write.Mutex);
       Ret_Count := Written_Count;
       Success   := Pipe_Success;
+      if Written_Count /= 0 then
+         Scheduler.Wake_Event (Wait_Key (To_Write));
+      end if;
    end Write;
+   ----------------------------------------------------------------------------
+   function Wait_Key (P : Inner_Acc) return System.Address is
+      pragma SPARK_Mode (Off);
+      function To_Key is new Ada.Unchecked_Conversion
+         (Inner_Acc, System.Address);
+   begin
+      return To_Key (P);
+   end Wait_Key;
    ----------------------------------------------------------------------------
    procedure Advance_Index (P : Inner_Acc; Idx : in out Natural) is
    begin

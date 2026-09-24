@@ -710,10 +710,17 @@ package Userland.Process is
    --  @param Sig  Signal bitmap to mask, true means that signal will be mask.
    procedure Set_Masked_Signals (Proc : PID; Sig : Signal_Bitmap);
 
-   --  Signal that a signal was raised.
+   --  Signal that a signal was raised, and wake the threads waiting on the
+   --  wait key of the process.
    --  @param Proc Process to raise for.
    --  @param Sig  Signal to raise.
    procedure Raise_Signal (Proc : PID; Sig : Signal);
+
+   --  Get the key to wait on for signals raised to a process.
+   --  @param Proc Process to get the key of.
+   --  @return The key, see Scheduler.Add_Wait_Key, or System.Null_Address if
+   --          the process does not exist.
+   function Get_Wait_Key (Proc : PID) return System.Address;
 
    --  Raise a signal to a process group.
    --  @param Sig    Signal to raise.

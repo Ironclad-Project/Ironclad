@@ -38,6 +38,19 @@ package body IPC.Futex is
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
    Registry : Futex_Arr := [others => (System.Null_Address, 0, 0)];
 
+   --  Key the waiters of a registry entry wait on.
+   function Entry_Key (Index : Natural) return System.Address
+      with Global => null;
+
+   function Entry_Key (Index : Natural) return System.Address is
+      pragma SPARK_Mode (Off);
+   begin
+      return Registry (Index)'Address;
+   exception
+      when Constraint_Error =>
+         return System.Null_Address;
+   end Entry_Key;
+
    procedure Wait
       (Map         : Memory.MMU.Page_Table_Acc;
        Keys        : Element_Arr;
@@ -48,6 +61,7 @@ package body IPC.Futex is
       Curr, Final : Time.Timestamp;
       Value : Unsigned_32;
       Success2 : Boolean;
+      Registered : Boolean := True;
    begin
       if Keys'Length = 0 then
          Success := Wait_Success;
@@ -117,8 +131,15 @@ package body IPC.Futex is
          Arch.Clocks.Get_Monotonic_Time (Final);
          Final := Final + (Max_Seconds, Max_Nanos);
 
+         Scheduler.Begin_Wait;
+         for I in 1 .. Count loop
+            Scheduler.Add_Wait_Key (Entry_Key (Idx (I)), Success2);
+            Registered := Registered and Success2;
+         end loop;
+
          Success := Wait_Try_Again;
          loop
+            Scheduler.Clear_Wake;
             Synchronization.Seize (Registry_Mutex);
             for I in 1 .. Count loop
                if Registry (Idx (I)).Wakes /= Seen (I) then
@@ -130,10 +151,14 @@ package body IPC.Futex is
             if Success = Wait_Success or Curr >= Final then
                Leave;
                Synchronization.Release (Registry_Mutex);
+               Scheduler.End_Wait;
                return;
             end if;
             Synchronization.Release (Registry_Mutex);
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Final,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
       end;
    exception
@@ -152,6 +177,7 @@ package body IPC.Futex is
             then
                Registry (I).Wakes := Registry (I).Wakes + 1;
                Awoken_Count       := Awoken_Count + 1;
+               Scheduler.Wake_Event (Entry_Key (I));
             end if;
          end loop;
          Synchronization.Release (Registry_Mutex);

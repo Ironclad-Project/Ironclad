@@ -120,6 +120,52 @@ package Scheduler is
    --  Check whether a thread is suspended.
    procedure Is_Suspended (Thread : TID; Suspended : out Boolean);
    ----------------------------------------------------------------------------
+   --  Threads can wait on keys, the addresses of the objects they wait for,
+   --  and sleep until another thread calls Wake_Event with one of them or a
+   --  timeout expires. A wait looks like:
+   --
+   --     Begin_Wait, and Add_Wait_Key for every object;
+   --     loop
+   --        Clear_Wake, check the condition, and exit if it holds;
+   --        Wait_Event (Deadline, Max_Micros);
+   --     end loop;
+   --     End_Wait;
+   --
+   --  Wait_Event returns at once for wakes after Clear_Wake, so wakes that
+   --  come between the check and the sleep are not lost.
+
+   --  Start a wait for the calling thread, with no keys and no wakes.
+   procedure Begin_Wait;
+
+   --  Add a key to the wait of the calling thread.
+   --  @param Key     Key to be woken by.
+   --  @param Success False if there is no room for more keys, in which case
+   --                 the thread is not woken for Key and must poll.
+   procedure Add_Wait_Key (Key : System.Address; Success : out Boolean);
+
+   --  Forget the wakes received by the calling thread.
+   procedure Clear_Wake;
+
+   --  Sleep until the calling thread is woken or a timeout expires, returning
+   --  at once if it was woken since the last Clear_Wake.
+   --  @param Deadline   Monotonic time to sleep until at most.
+   --  @param Max_Micros Microseconds to sleep for at most.
+   procedure Wait_Event (Deadline : Time.Timestamp; Max_Micros : Natural);
+
+   --  Deadline for sleeps only bounded by Max_Micros.
+   No_Deadline : constant Time.Timestamp := (Unsigned_64'Last, 0);
+
+   --  Max_Micros for threads woken for every change they wait on, and for
+   --  those that have to look again on their own.
+   Woken_Sleep_Micros  : constant := 5_000_000;
+   Polled_Sleep_Micros : constant := 10_000;
+
+   --  End the wait of the calling thread, dropping its keys.
+   procedure End_Wait;
+
+   --  Wake the threads waiting on a key.
+   procedure Wake_Event (Key : System.Address);
+   ----------------------------------------------------------------------------
    --  Some scheduling algorithms allow priority, in those cases, it is
    --  interacted with using POSIX-compatible niceness.
    subtype Niceness is Integer range -20 .. 20;

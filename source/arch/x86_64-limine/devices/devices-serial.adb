@@ -145,7 +145,13 @@ package body Devices.Serial with SPARK_Mode => Off is
                Success := Dev_IO_Failure;
                return;
             end if;
-            Scheduler.Yield_If_Able;
+
+            --  Nothing wakes readers, so poll, often enough that the UART
+            --  does not fill its FIFO meanwhile, which 16 bytes at 115200
+            --  baud do in about 1.4 ms.
+            Scheduler.Begin_Wait;
+            Scheduler.Wait_Event (Scheduler.No_Deadline, 1_000);
+            Scheduler.End_Wait;
          end loop;
          exit when not Ready;
          Ret_Count := Ret_Count + 1;

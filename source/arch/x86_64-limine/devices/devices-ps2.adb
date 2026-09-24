@@ -70,6 +70,10 @@ package body Devices.PS2 with SPARK_Mode => Off is
    Ms_Queue_First  : Positive range 1 .. Ms_Queue_Length := 1;
    Ms_Queue_Count  : Natural  range 0 .. Ms_Queue_Length := 0;
 
+   --  Keys the readers and pollers of the devices wait on.
+   function Kb_Wait_Key return System.Address is (Kb_Data_Mutex'Address);
+   function Ms_Wait_Key return System.Address is (Ms_Data_Mutex'Address);
+
    --  Queue the packet in Ms_Return_Data, with Ms_Data_Mutex held. A full
    --  queue takes it into its last packet, keeping the motion and the latest
    --  buttons.
@@ -215,6 +219,13 @@ package body Devices.PS2 with SPARK_Mode => Off is
            Mmap        => null,
            Poll        => Ms_Poll'Access,
            Remove      => null), "ps2mouse", Success);
+      if not Success then
+         return;
+      end if;
+
+      --  The interrupt routines wake readers and pollers.
+      Devices.Set_Wait_Key (Devices.Fetch ("ps2keyboard"), Kb_Wait_Key);
+      Devices.Set_Wait_Key (Devices.Fetch ("ps2mouse"), Ms_Wait_Key);
    exception
       when Constraint_Error =>
          Success := False;
@@ -229,16 +240,24 @@ package body Devices.PS2 with SPARK_Mode => Off is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key, Offset);
-      Temp : Boolean;
+      Temp       : Boolean;
+      Registered : Boolean;
    begin
       if Is_Blocking then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Kb_Wait_Key, Registered);
          loop
+            Scheduler.Clear_Wake;
             Synchronization.Seize (Kb_Data_Mutex);
             Temp := Kb_Has_Data;
             exit when Temp;
             Synchronization.Release (Kb_Data_Mutex);
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       else
          Synchronization.Seize (Kb_Data_Mutex);
          Temp := Kb_Has_Data;
@@ -301,16 +320,24 @@ package body Devices.PS2 with SPARK_Mode => Off is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key, Offset);
-      Temp  : Boolean;
+      Temp       : Boolean;
+      Registered : Boolean;
    begin
       if Is_Blocking then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Ms_Wait_Key, Registered);
          loop
+            Scheduler.Clear_Wake;
             Synchronization.Seize (Ms_Data_Mutex);
             Temp := Ms_Queue_Count /= 0;
             exit when Temp;
             Synchronization.Release (Ms_Data_Mutex);
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       else
          Synchronization.Seize (Ms_Data_Mutex);
          Temp := Ms_Queue_Count /= 0;
@@ -528,6 +555,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
 
    <<Cleanup>>
       Synchronization.Release (Kb_Data_Mutex);
+      Scheduler.Wake_Event (Kb_Wait_Key);
       Arch.APIC.LAPIC_EOI;
    exception
       when Constraint_Error =>
@@ -536,7 +564,8 @@ package body Devices.PS2 with SPARK_Mode => Off is
    end Keyboard_Handler;
 
    procedure Mouse_Handler is
-      Data : Unsigned_8;
+      Data     : Unsigned_8;
+      Is_Whole : Boolean := False;
    begin
       Synchronization.Seize (Ms_Data_Mutex);
       case Ms_Current_Cycle is
@@ -577,6 +606,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
             else
                Ms_Current_Cycle := 1;
                Queue_Packet;
+               Is_Whole := True;
             end if;
          when 4 =>
             Data := Arch.Snippets.Port_In (16#60#);
@@ -598,9 +628,13 @@ package body Devices.PS2 with SPARK_Mode => Off is
 
             Ms_Current_Cycle := 1;
             Queue_Packet;
+            Is_Whole := True;
       end case;
 
       Synchronization.Release (Ms_Data_Mutex);
+      if Is_Whole then
+         Scheduler.Wake_Event (Ms_Wait_Key);
+      end if;
 
       Arch.APIC.LAPIC_EOI;
    exception

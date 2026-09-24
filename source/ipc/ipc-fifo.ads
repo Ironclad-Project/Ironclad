@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
 with Synchronization;
 with Devices; use Devices;
 
@@ -122,6 +123,11 @@ package IPC.FIFO is
        Ret_Count   : out Natural;
        Success     : out Pipe_Status)
       with Pre => Is_Valid (To_Write);
+
+   --  Get the key to wait on for changes to a pipe, shared by both ends.
+   --  @param P Pipe to get the key of.
+   --  @return The key, see Scheduler.Add_Wait_Key.
+   function Wait_Key (P : Inner_Acc) return System.Address;
 
    --  Ghost function for checking whether a FIFO is properly initialized.
    function Is_Valid (P : Inner_Acc) return Boolean with Ghost;

@@ -129,6 +129,11 @@ package VFS.Dev is
        Is_Error  : out Boolean)
       with Pre => Devices.Is_Initialized;
 
+   function Get_Wait_Key
+      (Data : System.Address;
+       Ino  : File_Inode_Number) return System.Address
+      with Pre => Devices.Is_Initialized;
+
    procedure Synchronize (Data : System.Address; Status : out FS_Status)
       with Pre => Devices.Is_Initialized;
 

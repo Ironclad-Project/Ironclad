@@ -16,6 +16,7 @@
 
 with Alignment;
 with Messages;
+with Ada.Unchecked_Conversion;
 with Ada.Unchecked_Deallocation;
 with Arch.Local;
 with Arch.Clocks;
@@ -1117,14 +1118,21 @@ package body Userland.Process with SPARK_Mode => Off is
    end Check_Children_Group_Exit;
 
    procedure Reassign_Parent_To_Init (Process : PID) is
+      Found : Boolean := False;
    begin
       for Proc of Registry.all loop
          if Proc /= null and then Proc.Parent = Process then
             Synchronization.Seize (Proc.Data_Mutex);
             Proc.Parent := 1;
             Synchronization.Release (Proc.Data_Mutex);
+            Found := True;
          end if;
       end loop;
+
+      --  Init may be waiting for children, and some of these may be done.
+      if Found then
+         Scheduler.Wake_Event (Get_Wait_Key (1));
+      end if;
    exception
       when Constraint_Error =>
          null;
@@ -1587,11 +1595,26 @@ package body Userland.Process with SPARK_Mode => Off is
             Registry (Proc).Raised_Signals (Sig) := True;
          end if;
          Synchronization.Release (Registry (Proc).Data_Mutex);
+         Scheduler.Wake_Event (Get_Wait_Key (Proc));
       end if;
    exception
       when Constraint_Error =>
          null;
    end Raise_Signal;
+
+   function Get_Wait_Key (Proc : PID) return System.Address is
+      function To_Key is new Ada.Unchecked_Conversion
+         (Process_Data_Acc, System.Address);
+   begin
+      if Registry (Proc) = null then
+         return System.Null_Address;
+      else
+         return To_Key (Registry (Proc));
+      end if;
+   exception
+      when Constraint_Error =>
+         return System.Null_Address;
+   end Get_Wait_Key;
 
    procedure Raise_Signal
       (Sig        : Signal;

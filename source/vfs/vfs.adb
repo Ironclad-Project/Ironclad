@@ -1282,6 +1282,19 @@ package body VFS is
       end case;
    end Poll;
 
+   function Get_Wait_Key
+      (Key : FS_Handle;
+       Ino : File_Inode_Number) return System.Address
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            return Dev.Get_Wait_Key (Mounts (Key).FS_Data, Ino);
+         when FS_FAT | FS_EXT =>
+            return System.Null_Address;
+      end case;
+   end Get_Wait_Key;
+
    procedure Synchronize (Key : FS_Handle; Status : out FS_Status) is
       pragma Annotate (GNATprove, False_Positive, "precondition might fail",
          "No it does not");

@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Conversion;
 with Ada.Unchecked_Deallocation;
 with Scheduler;
 with Networking.IPv4;
@@ -211,6 +212,18 @@ package body IPC.Socket is
       end case;
       Synchronization.Release (Sock.Mutex);
    end Poll;
+
+   function Wait_Key (Sock : Socket_Acc) return System.Address is
+      pragma SPARK_Mode (Off);
+      function To_Key is new Ada.Unchecked_Conversion
+         (Socket_Acc, System.Address);
+   begin
+      if Sock.Dom = UNIX then
+         return To_Key (Sock);
+      else
+         return System.Null_Address;
+      end if;
+   end Wait_Key;
 
    procedure Read
       (Sock        : Socket_Acc;
@@ -735,10 +748,17 @@ package body IPC.Socket is
        Success : out Boolean)
    is
       pragma SPARK_Mode (Off);
-      To_Connect : Socket_Acc;
+      To_Connect   : Socket_Acc;
+      Listener_Key : System.Address := System.Null_Address;
+      Registered, Registered_2 : Boolean;
    begin
+      --  The key of the listener is taken while the lock keeps it bound, as
+      --  it may be freed once it is not.
       Synchronization.Seize (UNIX_Bound_Mutex);
       To_Connect := Get_Bound (Path);
+      if To_Connect /= null then
+         Listener_Key := Wait_Key (To_Connect);
+      end if;
       Synchronization.Release (UNIX_Bound_Mutex);
 
       if To_Connect = null then
@@ -751,10 +771,16 @@ package body IPC.Socket is
             Sock.Connected := To_Connect;
 
             --  Offer to the listener and then wait for it to take us.
+            Scheduler.Begin_Wait;
+            Scheduler.Add_Wait_Key (Listener_Key, Registered);
+            Scheduler.Add_Wait_Key (Wait_Key (Sock), Registered_2);
+            Registered := Registered and Registered_2;
             loop
+               Scheduler.Clear_Wake;
                Synchronization.Seize (UNIX_Bound_Mutex);
                if Get_Bound (Path) /= To_Connect then
                   Synchronization.Release (UNIX_Bound_Mutex);
+                  Scheduler.End_Wait;
                   Sock.Connected := null;
                   Success        := False;
                   return;
@@ -764,24 +790,34 @@ package body IPC.Socket is
                   exit;
                end if;
                Synchronization.Release (UNIX_Bound_Mutex);
-               Scheduler.Yield_If_Able;
+               Scheduler.Wait_Event
+                  (Scheduler.No_Deadline,
+                   (if Registered then Scheduler.Woken_Sleep_Micros
+                    else Scheduler.Polled_Sleep_Micros));
             end loop;
+            Scheduler.Wake_Event (Listener_Key);
 
             --  Queued, and now waiting to be taken.
             loop
+               Scheduler.Clear_Wake;
                exit when Sock.Pending_Accept /= null;
                if Sock.Peer_Closed then
                   --  Only a listener that went while we sat in its queue is a
                   --  refusal, otherwise its EOF.
                   if Sock.Connected = null then
+                     Scheduler.End_Wait;
                      Sock.Peer_Closed := False;
                      Success          := False;
                      return;
                   end if;
                   exit;
                end if;
-               Scheduler.Yield_If_Able;
+               Scheduler.Wait_Event
+                  (Scheduler.No_Deadline,
+                   (if Registered then Scheduler.Woken_Sleep_Micros
+                    else Scheduler.Polled_Sleep_Micros));
             end loop;
+            Scheduler.End_Wait;
          when others =>
             Sock.Connected_Path (1 .. Path'Length) := Path;
             Sock.Connected_Len := Path'Length;
@@ -804,6 +840,7 @@ package body IPC.Socket is
    is
       pragma SPARK_Mode (Off);
       Tmp : Socket_Acc;
+      Registered : Boolean;
    begin
       Peer_Address        := [others => ' '];
       Peer_Address_Length := 0;
@@ -812,7 +849,10 @@ package body IPC.Socket is
       Synchronization.Seize (Sock.Mutex);
 
       if Sock.Is_Listener then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Wait_Key (Sock), Registered);
          loop
+            Scheduler.Clear_Wake;
             if Sock.Pending_Accept /= null then
                Result := Create
                   (Sock.Pending_Accept.Dom,
@@ -828,11 +868,19 @@ package body IPC.Socket is
                Result.Cred_GID := GID;
                Result.Cred_UID := UID;
                Result.Cred_PID := PID;
+
+               --  Wake the peer, and those waiting for room in the queue.
+               Scheduler.Wake_Event (Wait_Key (Tmp));
+               Scheduler.Wake_Event (Wait_Key (Sock));
                exit;
             end if;
             exit when not Is_Blocking;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       end if;
 
       Synchronization.Release (Sock.Mutex);
@@ -1077,12 +1125,17 @@ package body IPC.Socket is
          else
             To_Close.Pending_Accept.Pending_Accept := null;
          end if;
+         Scheduler.Wake_Event (Wait_Key (To_Close.Pending_Accept));
          To_Close.Pending_Accept := null;
       elsif To_Close.Kind /= Stream and then To_Close.Simple_Connected /= null
       then
          To_Close.Simple_Connected.Simple_Connected := null;
+         Scheduler.Wake_Event (Wait_Key (To_Close.Simple_Connected));
          To_Close.Simple_Connected := null;
       end if;
+
+      --  Wake those waiting to connect to it.
+      Scheduler.Wake_Event (Wait_Key (To_Close));
 
       Synchronization.Release (UNIX_Bound_Mutex);
    end Inner_UNIX_Close;
@@ -1094,16 +1147,25 @@ package body IPC.Socket is
        Ret_Count   : out Natural;
        Success     : out Socket_Status)
    is
-      Len : Natural := Data'Length;
+      Len        : Natural := Data'Length;
+      Registered : Boolean;
+      Writer_Key : System.Address := System.Null_Address;
    begin
       if Is_Blocking then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Wait_Key (Sock), Registered);
          loop
+            Scheduler.Clear_Wake;
             Synchronization.Seize (Sock.Mutex);
             exit when Sock.Data_Length /= 0 or else
                (Sock.Kind = Stream and then Sock.Peer_Closed);
             Synchronization.Release (Sock.Mutex);
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       else
          Synchronization.Seize (Sock.Mutex);
       end if;
@@ -1141,6 +1203,9 @@ package body IPC.Socket is
             Sock.Data_Length := Sock.Data_Length - Len;
             Ret_Count := Len;
             Success := Plain_Success;
+            if Sock.Pending_Accept /= null then
+               Writer_Key := Wait_Key (Sock.Pending_Accept);
+            end if;
          when others =>
             if Sock.Data_Length <= Data'Length then
                Data (1 .. Sock.Data_Length) :=
@@ -1156,6 +1221,9 @@ package body IPC.Socket is
 
    <<Cleanup>>
       Synchronization.Release (Sock.Mutex);
+
+      --  Wake the writer, as there is room now.
+      Scheduler.Wake_Event (Writer_Key);
    end Inner_UNIX_Read;
 
    procedure Inner_UNIX_Write
@@ -1165,9 +1233,11 @@ package body IPC.Socket is
        Ret_Count   : out Natural;
        Success     : out Socket_Status)
    is
-      Len    : Natural := Data'Length;
-      Final  : Natural;
-      Target : Socket_Acc;
+      Len        : Natural := Data'Length;
+      Final      : Natural;
+      Target     : Socket_Acc;
+      Registered : Boolean;
+      Reader_Key : System.Address;
    begin
       case Sock.Kind is
          when Stream =>
@@ -1182,8 +1252,12 @@ package body IPC.Socket is
             end if;
 
             if Is_Blocking then
+               Scheduler.Begin_Wait;
+               Scheduler.Add_Wait_Key (Wait_Key (Sock), Registered);
                loop
+                  Scheduler.Clear_Wake;
                   if Sock.Peer_Closed or else Sock.Pending_Accept = null then
+                     Scheduler.End_Wait;
                      Ret_Count := 0;
                      Success   := Is_Broken;
                      return;
@@ -1192,8 +1266,12 @@ package body IPC.Socket is
                   exit when Sock.Pending_Accept.Data_Length /=
                      Default_Socket_Size;
                   Synchronization.Release (Sock.Pending_Accept.Mutex);
-                  Scheduler.Yield_If_Able;
+                  Scheduler.Wait_Event
+                     (Scheduler.No_Deadline,
+                      (if Registered then Scheduler.Woken_Sleep_Micros
+                       else Scheduler.Polled_Sleep_Micros));
                end loop;
+               Scheduler.End_Wait;
             else
                Synchronization.Seize (Sock.Pending_Accept.Mutex);
             end if;
@@ -1223,7 +1301,11 @@ package body IPC.Socket is
             Ret_Count := Len;
             Success   := Plain_Success;
          <<Cleanup>>
+            Reader_Key := Wait_Key (Sock.Pending_Accept);
             Synchronization.Release (Sock.Pending_Accept.Mutex);
+            if Ret_Count /= 0 then
+               Scheduler.Wake_Event (Reader_Key);
+            end if;
          when others =>
             if Sock.Connected_Len /= 0 then
                Synchronization.Seize (UNIX_Bound_Mutex);
@@ -1244,6 +1326,7 @@ package body IPC.Socket is
        Ret_Count : out Natural;
        Success   : out Socket_Status)
    is
+      Target_Key : System.Address;
    begin
       if Target = null or else Target.Dom /= UNIX or else
          Target.Kind = Stream or else Data'Length > Default_Socket_Size
@@ -1263,7 +1346,11 @@ package body IPC.Socket is
          Ret_Count := 0;
          Success   := Would_Block;
       end if;
+      Target_Key := Wait_Key (Target);
       Synchronization.Release (Target.Mutex);
+      if Ret_Count /= 0 then
+         Scheduler.Wake_Event (Target_Key);
+      end if;
    end Deliver_Datagram;
 
    procedure Inner_UNIX_Poll

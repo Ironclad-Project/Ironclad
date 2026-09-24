@@ -158,6 +158,11 @@ package IPC.PTY is
        Usage   : out IO_Usage;
        Size    : out Natural);
 
+   --  Get the key to wait on for changes to a PTY, shared by both sides.
+   --  @param P PTY to get the key of.
+   --  @return The key, see Scheduler.Add_Wait_Key.
+   function Wait_Key (P : Inner_Acc) return System.Address;
+
    --  Ghost function for checking whether a PTY is properly initialized.
    function Is_Valid (P : Inner_Acc) return Boolean with Ghost;
 
@@ -189,12 +194,14 @@ private
 
    function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
 
+   --  Key is the Wait_Key of the PTY the end belongs to.
    procedure Read_From_End
       (End_Mutex   : aliased in out Synchronization.Binary_Semaphore;
        Inner_Len   : aliased in out Data_Length;
        Inner_Data  : aliased in out TTY_Data;
        Is_Blocking : Boolean;
        Is_Able_To  : Boolean;
+       Key         : System.Address;
        Data        : out Devices.Operation_Data;
        Ret_Count   : out Natural);
 
@@ -204,6 +211,7 @@ private
        Inner_Data    : aliased in out TTY_Data;
        Is_Blocking   : Boolean;
        Is_Able_To    : Boolean;
+       Key           : System.Address;
        Data          : Devices.Operation_Data;
        Termios       : Devices.TermIOs.Main_Data;
        Is_To_Primary : Boolean;

@@ -16,6 +16,7 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 with System.Address_To_Access_Conversions;
+with Ada.Unchecked_Conversion;
 with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
 with Scheduler;
@@ -119,6 +120,7 @@ package body IPC.PTY is
       else
          Closed.Was_Closed := True;
       end if;
+      Scheduler.Wake_Event (Wait_Key (Closed));
 
       --  Binary semaphores in ironclad keep track of interrupt state, so we
       --  must unlock to avoid interrupt deadlock even when freeing.
@@ -142,11 +144,14 @@ package body IPC.PTY is
       Read_From_End
          (To_Read.Primary_Mutex, To_Read.Primary_Length,
           To_Read.Primary_Data, Is_Blocking,
-          To_Read.Primary_Read, Data, Ret_Count);
+          To_Read.Primary_Read, Wait_Key (To_Read), Data, Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
+      end if;
+      if Ret_Count /= 0 then
+         Scheduler.Wake_Event (Wait_Key (To_Read));
       end if;
    end Read_Primary;
 
@@ -161,12 +166,15 @@ package body IPC.PTY is
       Write_To_End
          (To_Write.Secondary_Mutex, To_Write.Secondary_Length,
           To_Write.Secondary_Data, Is_Blocking,
-          To_Write.Primary_Transmit, Data, To_Write.Term_Info, False,
-          Ret_Count);
+          To_Write.Primary_Transmit, Wait_Key (To_Write), Data,
+          To_Write.Term_Info, False, Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
+      end if;
+      if Ret_Count /= 0 then
+         Scheduler.Wake_Event (Wait_Key (To_Write));
       end if;
    end Write_Primary;
 
@@ -181,11 +189,14 @@ package body IPC.PTY is
       Read_From_End
          (To_Read.Secondary_Mutex, To_Read.Secondary_Length,
           To_Read.Secondary_Data, Is_Blocking,
-          To_Read.Secondary_Read, Data, Ret_Count);
+          To_Read.Secondary_Read, Wait_Key (To_Read), Data, Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
+      end if;
+      if Ret_Count /= 0 then
+         Scheduler.Wake_Event (Wait_Key (To_Read));
       end if;
    end Read_Secondary;
 
@@ -200,12 +211,15 @@ package body IPC.PTY is
       Write_To_End
          (To_Write.Primary_Mutex, To_Write.Primary_Length,
           To_Write.Primary_Data, Is_Blocking,
-          To_Write.Secondary_Transmit, Data, To_Write.Term_Info, True,
-          Ret_Count);
+          To_Write.Secondary_Transmit, Wait_Key (To_Write), Data,
+          To_Write.Term_Info, True, Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
+      end if;
+      if Ret_Count /= 0 then
+         Scheduler.Wake_Event (Wait_Key (To_Write));
       end if;
    end Write_Secondary;
 
@@ -239,6 +253,14 @@ package body IPC.PTY is
       Synchronization.Release (P.Secondary_Mutex);
    end Poll_Secondary;
 
+   function Wait_Key (P : Inner_Acc) return System.Address is
+      pragma SPARK_Mode (Off);
+      function To_Key is new Ada.Unchecked_Conversion
+         (Inner_Acc, System.Address);
+   begin
+      return To_Key (P);
+   end Wait_Key;
+
    procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data) is
    begin
       Synchronization.Seize (P.Global_Data_Mutex);
@@ -252,6 +274,9 @@ package body IPC.PTY is
       P.Term_Info := T;
       P.Termios_Changed := True;
       Synchronization.Release (P.Global_Data_Mutex);
+
+      --  Wake the pollers of the primary, see Poll_Primary.
+      Scheduler.Wake_Event (Wait_Key (P));
    end Set_TermIOs;
 
    procedure Get_WinSize (P : Inner_Acc; W : out Devices.TermIOs.Win_Size) is
@@ -267,6 +292,9 @@ package body IPC.PTY is
       P.Term_Size := W;
       P.Termios_Changed := True;
       Synchronization.Release (P.Global_Data_Mutex);
+
+      --  Wake the pollers of the primary, see Poll_Primary.
+      Scheduler.Wake_Event (Wait_Key (P));
    end Set_WinSize;
 
    procedure Get_Name (P : Inner_Acc; Str : out String; Len : out Natural) is
@@ -294,6 +322,9 @@ package body IPC.PTY is
          P.Secondary_Length := 0;
          Synchronization.Release (P.Secondary_Mutex);
       end if;
+
+      --  Wake the writers, as there is room now.
+      Scheduler.Wake_Event (Wait_Key (P));
    end Flush_Primary;
 
    procedure Flush_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
@@ -310,6 +341,9 @@ package body IPC.PTY is
          P.Primary_Length := 0;
          Synchronization.Release (P.Primary_Mutex);
       end if;
+
+      --  Wake the writers, as there is room now.
+      Scheduler.Wake_Event (Wait_Key (P));
    end Flush_Secondary;
 
    procedure Start_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
@@ -493,9 +527,11 @@ package body IPC.PTY is
        Inner_Data  : aliased in out TTY_Data;
        Is_Blocking : Boolean;
        Is_Able_To  : Boolean;
+       Key         : System.Address;
        Data        : out Devices.Operation_Data;
        Ret_Count   : out Natural)
    is
+      Registered : Boolean;
    begin
       Data := [others => 0];
       if not Is_Able_To then
@@ -504,14 +540,21 @@ package body IPC.PTY is
       end if;
 
       if Is_Blocking then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Key, Registered);
          loop
+            Scheduler.Clear_Wake;
             if Inner_Len /= 0 then
                Synchronization.Seize (End_Mutex);
                exit when Inner_Len /= 0;
                Synchronization.Release (End_Mutex);
             end if;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       else
          Synchronization.Seize (End_Mutex);
          if Inner_Len = 0 then
@@ -552,12 +595,14 @@ package body IPC.PTY is
        Inner_Data    : aliased in out TTY_Data;
        Is_Blocking   : Boolean;
        Is_Able_To    : Boolean;
+       Key           : System.Address;
        Data          : Devices.Operation_Data;
        Termios       : Devices.TermIOs.Main_Data;
        Is_To_Primary : Boolean;
        Ret_Count     : out Natural)
    is
-      Final : Natural;
+      Final      : Natural;
+      Registered : Boolean;
    begin
       if Is_To_Primary                         and then
          (Termios.Output_Modes and OPOST) /= 0 and then
@@ -604,10 +649,17 @@ package body IPC.PTY is
                    Inner_Data    => Inner_Data,
                    Is_Blocking   => Is_Blocking,
                    Is_Able_To    => Is_Able_To,
+                   Key           => Key,
                    Data          => Expanded (1 .. Exp_Len),
                    Termios       => Plain,
                    Is_To_Primary => Is_To_Primary,
                    Ret_Count     => Written);
+
+               --  The readers are told of every piece, as the next one may
+               --  wait for them to make room.
+               if Written /= 0 then
+                  Scheduler.Wake_Event (Key);
+               end if;
 
                Taken := 0;
                for C of Data (First .. Last) loop
@@ -629,14 +681,21 @@ package body IPC.PTY is
       end if;
 
       if Is_Blocking then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Key, Registered);
          loop
+            Scheduler.Clear_Wake;
             if Inner_Len /= Inner_Data'Length then
                Synchronization.Seize (End_Mutex);
                exit when Inner_Len /= Inner_Data'Length;
                Synchronization.Release (End_Mutex);
             end if;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       else
          Synchronization.Seize (End_Mutex);
          if Inner_Len = Data'Length then

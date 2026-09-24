@@ -508,6 +508,28 @@ package body VFS.Dev is
       Is_Error  := True;
    end Poll;
 
+   function Get_Wait_Key
+      (Data : System.Address;
+       Ino  : File_Inode_Number) return System.Address
+   is
+      pragma Unreferenced (Data);
+
+      Handle : Device_Handle;
+   begin
+      if Ino = Root_Inode or else
+         not (Ino in 0 .. File_Inode_Number (Natural'Last))
+      then
+         return System.Null_Address;
+      end if;
+
+      Handle := From_Unique_ID (Natural (Ino));
+      if Handle /= Devices.Error_Handle then
+         return Devices.Get_Wait_Key (Handle);
+      else
+         return System.Null_Address;
+      end if;
+   end Get_Wait_Key;
+
    procedure Synchronize (Data : System.Address; Status : out FS_Status) is
       pragma Unreferenced (Data);
       Buffer     : Devices.Device_List (1 .. 30);

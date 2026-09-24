@@ -105,6 +105,7 @@ package body Devices is
             Devices_Data (I).Name (1 .. Name'Length) := Name;
             Devices_Data (I).Name_Len                := Name'Length;
             Devices_Data (I).Contents                := Dev;
+            Devices_Data (I).Wait_Key                := System.Null_Address;
             Success := True;
             exit;
          end if;
@@ -378,6 +379,16 @@ package body Devices is
          Success := False;
       end if;
    end Mmap;
+
+   procedure Set_Wait_Key (Handle : Device_Handle; Key : System.Address) is
+   begin
+      Devices_Data (Handle).Wait_Key := Key;
+   end Set_Wait_Key;
+
+   function Get_Wait_Key (Handle : Device_Handle) return System.Address is
+   begin
+      return Devices_Data (Handle).Wait_Key;
+   end Get_Wait_Key;
 
    procedure Poll
       (Handle    : Device_Handle;

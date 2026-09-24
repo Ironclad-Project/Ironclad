@@ -1223,7 +1223,12 @@ package body Userland.Syscall is
       Exit_Value  : Unsigned_32;
       Map         : Page_Table_Acc;
       Succ        : Boolean;
+      Registered  : Boolean;
    begin
+      --  Children exiting raise SIGCHLD, which wakes our wait key.
+      Scheduler.Begin_Wait;
+      Scheduler.Add_Wait_Key (Get_Wait_Key (Proc), Registered);
+
       --  If < -1: wait on the children in abs number as process group id.
       --  If = -1: wait on all children.
       --  If =  0: wait on children in the process group of caller.
@@ -1237,6 +1242,7 @@ package body Userland.Syscall is
          end if;
 
          loop
+            Scheduler.Clear_Wake;
             Check_Children_Group_Exit
                (Process     => Proc,
                 Group       => Group,
@@ -1252,10 +1258,14 @@ package body Userland.Syscall is
             end if;
 
             exit when Dont_Hang;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
       elsif Signed_Wait = -1 then
          loop
+            Scheduler.Clear_Wake;
             Check_Children_Exit
                (Process     => Proc,
                 Exited_Proc => Waited,
@@ -1270,7 +1280,10 @@ package body Userland.Syscall is
             end if;
 
             exit when Dont_Hang;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
       else
          Waited := Userland.Process.Convert (Natural (Signed_Wait));
@@ -1284,22 +1297,28 @@ package body Userland.Syscall is
          end if;
 
          loop
+            Scheduler.Clear_Wake;
             Check_Exit (Waited, Did_Exit, Error_Code, Was_Signal, Cause);
             if Did_Exit then
                goto Waited_Exited;
             end if;
             exit when Dont_Hang;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
       end if;
 
       --  If we get here, it means we are not blocking, and that the
       --  process has not exited, so lets return what we have to.
+      Scheduler.End_Wait;
       Errno    := Error_No_Error;
       Returned := 0;
       return;
 
    <<Waited_Exited>>
+      Scheduler.End_Wait;
       --  Set the return value if we are to.
       if Addr /= 0 then
          if Was_Signal then
@@ -1331,6 +1350,7 @@ package body Userland.Syscall is
       return;
 
    <<Child_Error>>
+      Scheduler.End_Wait;
       Errno    := Error_Child;
       Returned := Unsigned_64'Last;
    exception
@@ -4680,6 +4700,9 @@ package body Userland.Syscall is
       Mask_Set   : Boolean := False;
       Tim        : Time_Spec;
       Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
+      Wake_Key   : System.Address;
+      Registered : Boolean;
+      Is_Wired   : Boolean;
    begin
       if FDs_Count > Unsigned_64 (Max_File_Count) then
          Errno    := Error_Invalid_Value;
@@ -4717,12 +4740,19 @@ package body Userland.Syscall is
 
       --  If we have 0 items, we just eep.
       if FDs_Count = 0 then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Get_Wait_Key (Proc), Is_Wired);
          loop
+            Scheduler.Clear_Wake;
             Time.Get_Time (Time.Monotonic_Clock, Curr);
             Clear_Process_Signals (Proc, Handled);
             exit when Handled or else Curr >= Final;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Final,
+                (if Is_Wired then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
          goto Success_Return;
       end if;
 
@@ -4736,7 +4766,46 @@ package body Userland.Syscall is
             goto Would_Fault_Error;
          end if;
 
+         --  Wait on the polled descriptors and on signals. Descriptors with no
+         --  wait key, like most devices, are polled more often.
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Get_Wait_Key (Proc), Is_Wired);
+         for Polled of FDs loop
+            if (Polled.FD and Shift_Left (1, 31)) = 0 then
+               Get_File (Proc, Unsigned_64 (Polled.FD), File);
+               Wake_Key := System.Null_Address;
+               if File /= null then
+                  case File.Description is
+                     when Description_Reader_FIFO =>
+                        Wake_Key :=
+                           IPC.FIFO.Wait_Key (File.Inner_Reader_FIFO);
+                     when Description_Writer_FIFO =>
+                        Wake_Key :=
+                           IPC.FIFO.Wait_Key (File.Inner_Writer_FIFO);
+                     when Description_Primary_PTY =>
+                        Wake_Key :=
+                           IPC.PTY.Wait_Key (File.Inner_Primary_PTY);
+                     when Description_Secondary_PTY =>
+                        Wake_Key :=
+                           IPC.PTY.Wait_Key (File.Inner_Secondary_PTY);
+                     when Description_Socket =>
+                        Wake_Key := IPC.Socket.Wait_Key (File.Inner_Socket);
+                     when Description_Inode =>
+                        Wake_Key := VFS.Get_Wait_Key
+                           (File.Inner_Ino_FS, File.Inner_Ino);
+                  end case;
+                  if Wake_Key /= System.Null_Address then
+                     Scheduler.Add_Wait_Key (Wake_Key, Registered);
+                     Is_Wired := Is_Wired and Registered;
+                  else
+                     Is_Wired := False;
+                  end if;
+               end if;
+            end if;
+         end loop;
+
          loop
+            Scheduler.Clear_Wake;
             for Polled of FDs loop
                Polled.Out_Events := 0;
 
@@ -4808,8 +4877,12 @@ package body Userland.Syscall is
             Time.Get_Time (Time.Monotonic_Clock, Curr);
             Clear_Process_Signals (Proc, Handled);
             exit when Handled or else Count /= 0 or else Curr >= Final;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Final,
+                (if Is_Wired then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
 
          Trans_1.Paste_Into_Userland (Map, FDs, FSAddr, Success);
          if not Success then

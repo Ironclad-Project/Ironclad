@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
 with Synchronization;
 with Devices; use Devices;
 with Networking;
@@ -87,6 +88,13 @@ package IPC.Socket is
        Can_Write : out Boolean;
        Is_Broken : out Boolean;
        Is_Error  : out Boolean)
+      with Pre => Sock /= null;
+
+   --  Get the key to wait on for changes to a socket.
+   --  @param Sock Socket to get the key of.
+   --  @return The key, see Scheduler.Add_Wait_Key, or System.Null_Address if
+   --          the socket has none and has to be polled.
+   function Wait_Key (Sock : Socket_Acc) return System.Address
       with Pre => Sock /= null;
 
    --  Read from a socket.

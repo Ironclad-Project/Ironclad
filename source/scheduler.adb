@@ -64,12 +64,29 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Disabled     : Boolean;
       Start_Clock     : Time.Clock_Type;
       Start_Time      : Time.Timestamp;
+      Wake_Pending    : Boolean;  --  See Clear_Wake.
+      Event_Waiting   : Boolean;  --  Sleeping in Wait_Event.
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
 
    Thread_Pool     : Thread_Info_Arr_Acc;
    Scheduler_Mutex : aliased Synchronization.Binary_Semaphore :=
+      Synchronization.Unlocked_Semaphore;
+
+   --  Keys each thread waits on. Wait_Mutex must be taken before
+   --  Scheduler_Mutex, never while holding it.
+   Max_Wait_Keys : constant := 64;
+   type Wait_Key_Arr is array (1 .. Max_Wait_Keys) of System.Address;
+   type Wait_Info is record
+      Count : Natural range 0 .. Max_Wait_Keys;
+      Keys  : Wait_Key_Arr;
+   end record;
+   type Wait_Info_Arr     is array (TID range 1 .. TID'Last) of Wait_Info;
+   type Wait_Info_Arr_Acc is access Wait_Info_Arr;
+
+   Waits      : Wait_Info_Arr_Acc;
+   Wait_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
 
    --  In order to keep statistics of usage, we keep a list of buckets of
@@ -122,7 +139,11 @@ package body Scheduler with SPARK_Mode => Off is
              User_Stack_Used => False,
              Is_Disabled     => True,
              Start_Clock     => Time.Monotonic_Clock,
-             Start_Time      => (0, 0))];
+             Start_Time      => (0, 0),
+             Wake_Pending    => False,
+             Event_Waiting   => False)];
+      Waits := new Wait_Info_Arr'
+         [others => (Count => 0, Keys => [others => System.Null_Address])];
 
       Is_Initialized := True;
       Synchronization.Release (Scheduler_Mutex);
@@ -403,6 +424,8 @@ package body Scheduler with SPARK_Mode => Off is
           Is_Disabled     => True,
           Start_Clock     => Time.Monotonic_Clock,
           Start_Time      => (0, 0),
+          Wake_Pending    => False,
+          Event_Waiting   => False,
           System_Runtime  => (0, 0),
           User_Runtime    => (0, 0),
           System_Tmp      => (0, 0),
@@ -581,6 +604,148 @@ package body Scheduler with SPARK_Mode => Off is
       Evaluate_Suspended (Thread, Suspended);
       Synchronization.Release (Scheduler_Mutex);
    end Is_Suspended;
+   ----------------------------------------------------------------------------
+   procedure Begin_Wait is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      if Thread = Error_TID or Waits = null then
+         return;
+      end if;
+      Synchronization.Seize (Wait_Mutex);
+      Waits (Thread).Count := 0;
+      Synchronization.Release (Wait_Mutex);
+      Clear_Wake;
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Wait_Mutex);
+   end Begin_Wait;
+
+   procedure Add_Wait_Key (Key : System.Address; Success : out Boolean) is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      Success := False;
+      if Thread = Error_TID or Waits = null then
+         return;
+      end if;
+
+      Synchronization.Seize (Wait_Mutex);
+      for I in 1 .. Waits (Thread).Count loop
+         if Waits (Thread).Keys (I) = Key then
+            Success := True;
+            goto Done;
+         end if;
+      end loop;
+      if Waits (Thread).Count < Max_Wait_Keys then
+         Waits (Thread).Count := Waits (Thread).Count + 1;
+         Waits (Thread).Keys (Waits (Thread).Count) := Key;
+         Success := True;
+      end if;
+   <<Done>>
+      Synchronization.Release (Wait_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Wait_Mutex);
+         Success := False;
+   end Add_Wait_Key;
+
+   procedure Clear_Wake is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      if Thread = Error_TID then
+         return;
+      end if;
+      Synchronization.Seize (Scheduler_Mutex);
+      Thread_Pool (Thread).Wake_Pending := False;
+      Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Scheduler_Mutex);
+   end Clear_Wake;
+
+   procedure Wait_Event (Deadline : Time.Timestamp; Max_Micros : Natural) is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
+      Until_Time : Time.Timestamp;
+      Stop   : Boolean;
+   begin
+      if Thread = Error_TID then
+         return;
+      end if;
+
+      Arch.Clocks.Get_Monotonic_Time (Until_Time);
+      Until_Time := Until_Time + (0, Unsigned_64 (Max_Micros) * 1_000);
+      if Until_Time > Deadline then
+         Until_Time := Deadline;
+      end if;
+
+      --  Wake_Event sets the flag with the lock held, so wakes are either
+      --  seen here or lift the sleep below.
+      Synchronization.Seize (Scheduler_Mutex);
+      if not Thread_Pool (Thread).Wake_Pending then
+         Thread_Pool (Thread).Event_Waiting := True;
+         Thread_Pool (Thread).Start_Clock   := Time.Monotonic_Clock;
+         Thread_Pool (Thread).Start_Time    := Until_Time;
+      end if;
+      Synchronization.Release (Scheduler_Mutex);
+
+      loop
+         Synchronization.Seize (Scheduler_Mutex);
+         Evaluate_Suspended (Thread, Stop);
+         Synchronization.Release (Scheduler_Mutex);
+         exit when not Stop;
+         Yield_If_Able;
+         exit when Is_Doomed;
+      end loop;
+
+      Synchronization.Seize (Scheduler_Mutex);
+      Thread_Pool (Thread).Event_Waiting := False;
+      Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         --  The index check fires with the lock held.
+         Synchronization.Release (Scheduler_Mutex);
+   end Wait_Event;
+
+   procedure End_Wait is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      if Thread = Error_TID or Waits = null then
+         return;
+      end if;
+      Synchronization.Seize (Wait_Mutex);
+      Waits (Thread).Count := 0;
+      Synchronization.Release (Wait_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Wait_Mutex);
+   end End_Wait;
+
+   procedure Wake_Event (Key : System.Address) is
+   begin
+      if Key = System.Null_Address or Waits = null then
+         return;
+      end if;
+
+      Synchronization.Seize (Wait_Mutex);
+      for T in Waits'Range loop
+         for I in 1 .. Waits (T).Count loop
+            if Waits (T).Keys (I) = Key then
+               --  Only lift sleeps in Wait_Event, not those of other kinds.
+               Synchronization.Seize (Scheduler_Mutex);
+               Thread_Pool (T).Wake_Pending := True;
+               if Thread_Pool (T).Event_Waiting then
+                  Thread_Pool (T).Start_Clock := Time.Monotonic_Clock;
+                  Thread_Pool (T).Start_Time  := (0, 0);
+               end if;
+               Synchronization.Release (Scheduler_Mutex);
+               exit;
+            end if;
+         end loop;
+      end loop;
+      Synchronization.Release (Wait_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Wait_Mutex);
+   end Wake_Event;
 
    function Get_Niceness (Thread : TID) return Niceness is
    begin

@@ -557,6 +557,16 @@ package VFS is
        Is_Error  : out Boolean)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
+   --  Get the key a thread waits on for a file to change, see
+   --  Scheduler.Add_Wait_Key.
+   --  @param Key FS Handle to operate on.
+   --  @param Ino Inode to operate on.
+   --  @return The key, or System.Null_Address if the file has to be polled.
+   function Get_Wait_Key
+      (Key : FS_Handle;
+       Ino : File_Inode_Number) return System.Address
+      with Pre => Is_Initialized and Key /= Error_Handle;
+
    --  Synchronize the whole FS driver-specific caches and used device.
    --  @param Key FS Handle to open.
    --  @return Status for the operation.
