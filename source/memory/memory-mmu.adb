@@ -22,6 +22,7 @@ with Panic;
 with Messages;
 with Arch.MMU; use Arch.MMU;
 with Arch; use Arch;
+with Scheduler;
 
 package body Memory.MMU with SPARK_Mode => Off is
    --  Global statistics.
@@ -522,6 +523,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Frame   : Integer_Address;
       User    : Boolean;
       Perms   : Arch.MMU.Clean_Result;
+      Count   : Natural := 0;
       Changed : Boolean := False;
       Locked  : Boolean := False;
       Fill    : constant Boolean := Permissions.Can_Read or
@@ -533,6 +535,21 @@ package body Memory.MMU with SPARK_Mode => Off is
       Locked := True;
       Success := True;
       while Virt < Final loop
+         --  Interrupts are let in every batch of pages, as the space lock
+         --  keeps the map as it is meanwhile. A thread deleted meanwhile
+         --  gives up the rest, to leave at the edge of its syscall before
+         --  its map goes, see Scheduler.Wait_For_Removed.
+         if Count = Batch_Size then
+            Synchronization.Release (Map.Mutex);
+            Synchronization.Seize (Map.Mutex);
+            Count := 0;
+            if Scheduler.Is_Doomed then
+               Success := False;
+               exit;
+            end if;
+         end if;
+         Count := Count + 1;
+
          Get_Page (Map, Virt, Fill, Addr);
 
          declare
