@@ -1148,11 +1148,11 @@ package body Userland.Process with SPARK_Mode => Off is
       --  Remove all state but the return value and keep the zombie around
       --  until we are waited, the process's virtual machines first. The
       --  caller leaves the thread list with the others, so a thread exiting
-      --  meanwhile never takes itself for the last.
+      --  meanwhile never takes itself for the last. The emptied descriptor
+      --  table stays until then, as the other threads may still look at it.
       Flush_Threads (Process);
       Destroy_Machines (Process);
       Flush_Files   (Process);
-      Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);
 
       --  A vforked child that has not called exec runs on its parent's table,
@@ -1198,11 +1198,11 @@ package body Userland.Process with SPARK_Mode => Off is
       --  Remove all state but the return value and keep the zombie around
       --  until we are waited, the process's virtual machines first. The
       --  caller leaves the thread list with the others, so a thread exiting
-      --  meanwhile never takes itself for the last.
+      --  meanwhile never takes itself for the last. The emptied descriptor
+      --  table stays until then, as the other threads may still look at it.
       Flush_Threads (Process);
       Destroy_Machines (Process);
       Flush_Files   (Process);
-      Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);
 
       --  A vforked child that has not called exec runs on its parent's table,
