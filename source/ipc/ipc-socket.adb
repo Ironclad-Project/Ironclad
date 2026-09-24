@@ -839,7 +839,8 @@ package body IPC.Socket is
        Result              : out Socket_Acc)
    is
       pragma SPARK_Mode (Off);
-      Tmp : Socket_Acc;
+      Tmp        : Socket_Acc;
+      Peer_Key   : System.Address;
       Registered : Boolean;
    begin
       Peer_Address        := [others => ' '];
@@ -853,6 +854,7 @@ package body IPC.Socket is
          Scheduler.Add_Wait_Key (Wait_Key (Sock), Registered);
          loop
             Scheduler.Clear_Wake;
+            Synchronization.Seize (UNIX_Bound_Mutex);
             if Sock.Pending_Accept /= null then
                Result := Create
                   (Sock.Pending_Accept.Dom,
@@ -869,11 +871,15 @@ package body IPC.Socket is
                Result.Cred_UID := UID;
                Result.Cred_PID := PID;
 
+               Peer_Key := Wait_Key (Tmp);
+               Synchronization.Release (UNIX_Bound_Mutex);
+
                --  Wake the peer, and those waiting for room in the queue.
-               Scheduler.Wake_Event (Wait_Key (Tmp));
+               Scheduler.Wake_Event (Peer_Key);
                Scheduler.Wake_Event (Wait_Key (Sock));
                exit;
             end if;
+            Synchronization.Release (UNIX_Bound_Mutex);
             exit when not Is_Blocking or Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
@@ -937,8 +943,8 @@ package body IPC.Socket is
       else
          Synchronization.Seize (UNIX_Bound_Mutex);
          Target := Get_Bound (Path);
-         Synchronization.Release (UNIX_Bound_Mutex);
          Deliver_Datagram (Target, Data, Ret_Count, Success);
+         Synchronization.Release (UNIX_Bound_Mutex);
       end if;
    end Write;
 
@@ -961,16 +967,16 @@ package body IPC.Socket is
       end if;
 
       Synchronization.Seize (Sock.Mutex);
-      if Sock.Pending_Accept /= null then
-         Synchronization.Seize (Sock.Pending_Accept.Mutex);
-         if Sock.Pending_Accept.Has_Credentials then
-            PID := Sock.Pending_Accept.Cred_PID;
-            UID := Sock.Pending_Accept.Cred_UID;
-            GID := Sock.Pending_Accept.Cred_GID;
-            Success := Plain_Success;
-         end if;
-         Synchronization.Release (Sock.Pending_Accept.Mutex);
+      Synchronization.Seize (UNIX_Bound_Mutex);
+      if Sock.Pending_Accept /= null and then
+         Sock.Pending_Accept.Has_Credentials
+      then
+         PID := Sock.Pending_Accept.Cred_PID;
+         UID := Sock.Pending_Accept.Cred_UID;
+         GID := Sock.Pending_Accept.Cred_GID;
+         Success := Plain_Success;
       end if;
+      Synchronization.Release (UNIX_Bound_Mutex);
       Synchronization.Release (Sock.Mutex);
    end Get_Peer_Credentials;
 
@@ -1156,11 +1162,11 @@ package body IPC.Socket is
          Scheduler.Add_Wait_Key (Wait_Key (Sock), Registered);
          loop
             Scheduler.Clear_Wake;
-            Synchronization.Seize (Sock.Mutex);
+            Synchronization.Seize (UNIX_Bound_Mutex);
             exit when Sock.Data_Length /= 0 or else
                (Sock.Kind = Stream and then Sock.Peer_Closed) or else
                Scheduler.Is_Doomed;
-            Synchronization.Release (Sock.Mutex);
+            Synchronization.Release (UNIX_Bound_Mutex);
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1168,7 +1174,7 @@ package body IPC.Socket is
          end loop;
          Scheduler.End_Wait;
       else
-         Synchronization.Seize (Sock.Mutex);
+         Synchronization.Seize (UNIX_Bound_Mutex);
       end if;
 
       case Sock.Kind is
@@ -1221,7 +1227,7 @@ package body IPC.Socket is
       end case;
 
    <<Cleanup>>
-      Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (UNIX_Bound_Mutex);
 
       --  Wake the writer, as there is room now.
       Scheduler.Wake_Event (Writer_Key);
@@ -1257,16 +1263,17 @@ package body IPC.Socket is
                Scheduler.Add_Wait_Key (Wait_Key (Sock), Registered);
                loop
                   Scheduler.Clear_Wake;
+                  Synchronization.Seize (UNIX_Bound_Mutex);
                   if Sock.Peer_Closed or else Sock.Pending_Accept = null then
+                     Synchronization.Release (UNIX_Bound_Mutex);
                      Scheduler.End_Wait;
                      Ret_Count := 0;
                      Success   := Is_Broken;
                      return;
                   end if;
-                  Synchronization.Seize (Sock.Pending_Accept.Mutex);
                   exit when Sock.Pending_Accept.Data_Length /=
                      Default_Socket_Size or Scheduler.Is_Doomed;
-                  Synchronization.Release (Sock.Pending_Accept.Mutex);
+                  Synchronization.Release (UNIX_Bound_Mutex);
                   Scheduler.Wait_Event
                      (Scheduler.No_Deadline,
                       (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1274,7 +1281,13 @@ package body IPC.Socket is
                end loop;
                Scheduler.End_Wait;
             else
-               Synchronization.Seize (Sock.Pending_Accept.Mutex);
+               Synchronization.Seize (UNIX_Bound_Mutex);
+               if Sock.Peer_Closed or else Sock.Pending_Accept = null then
+                  Synchronization.Release (UNIX_Bound_Mutex);
+                  Ret_Count := 0;
+                  Success   := Is_Broken;
+                  return;
+               end if;
             end if;
 
             if not Is_Blocking and
@@ -1303,21 +1316,21 @@ package body IPC.Socket is
             Success   := Plain_Success;
          <<Cleanup>>
             Reader_Key := Wait_Key (Sock.Pending_Accept);
-            Synchronization.Release (Sock.Pending_Accept.Mutex);
+            Synchronization.Release (UNIX_Bound_Mutex);
             if Ret_Count /= 0 then
                Scheduler.Wake_Event (Reader_Key);
             end if;
          when others =>
+            Synchronization.Seize (UNIX_Bound_Mutex);
             if Sock.Connected_Len /= 0 then
-               Synchronization.Seize (UNIX_Bound_Mutex);
                Target := Get_Bound
                   (Sock.Connected_Path (1 .. Sock.Connected_Len));
-               Synchronization.Release (UNIX_Bound_Mutex);
                Deliver_Datagram (Target, Data, Ret_Count, Success);
             else
                Deliver_Datagram
                   (Sock.Simple_Connected, Data, Ret_Count, Success);
             end if;
+            Synchronization.Release (UNIX_Bound_Mutex);
       end case;
    end Inner_UNIX_Write;
 
@@ -1327,7 +1340,6 @@ package body IPC.Socket is
        Ret_Count : out Natural;
        Success   : out Socket_Status)
    is
-      Target_Key : System.Address;
    begin
       if Target = null or else Target.Dom /= UNIX or else
          Target.Kind = Stream or else Data'Length > Default_Socket_Size
@@ -1337,7 +1349,6 @@ package body IPC.Socket is
          return;
       end if;
 
-      Synchronization.Seize (Target.Mutex);
       if Target.Data_Length = 0 then
          Target.Data (1 .. Data'Length) := Data;
          Target.Data_Length := Data'Length;
@@ -1347,10 +1358,8 @@ package body IPC.Socket is
          Ret_Count := 0;
          Success   := Would_Block;
       end if;
-      Target_Key := Wait_Key (Target);
-      Synchronization.Release (Target.Mutex);
       if Ret_Count /= 0 then
-         Scheduler.Wake_Event (Target_Key);
+         Scheduler.Wake_Event (Wait_Key (Target));
       end if;
    end Deliver_Datagram;
 
@@ -1362,6 +1371,7 @@ package body IPC.Socket is
        Is_Error  : out Boolean)
    is
    begin
+      Synchronization.Seize (UNIX_Bound_Mutex);
       case Sock.Kind is
          when Stream =>
             if Sock.Is_Listener then
@@ -1384,6 +1394,7 @@ package body IPC.Socket is
             Is_Broken := False;
             Is_Error  := False;
       end case;
+      Synchronization.Release (UNIX_Bound_Mutex);
    end Inner_UNIX_Poll;
 
    procedure Inner_UNIX_Shutdown

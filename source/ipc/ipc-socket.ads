@@ -485,6 +485,9 @@ private
       Path_Len : Natural range 1 .. Bind_Path_Max;
    end record;
 
+   --  UNIX_Bound_Mutex guards the bound sockets, and the data and links of
+   --  connected ones, which reach into each other's buffers. The lock of a
+   --  socket may be held when taking it, never the other way around.
    UNIX_Bound_Mutex   : aliased Synchronization.Mutex :=
       Synchronization.Unlocked_Mutex;
    UNIX_Bound_Sockets : array (1 .. 10) of Bound_Socket :=
@@ -508,7 +511,8 @@ private
        Ret_Count   : out Natural;
        Success     : out Socket_Status);
 
-   --  Put a datagram in the buffer of Target, a datagram socket or null.
+   --  Put a datagram in the buffer of Target, a datagram socket or null,
+   --  with UNIX_Bound_Mutex held.
    procedure Deliver_Datagram
       (Target    : Socket_Acc;
        Data      : Devices.Operation_Data;
