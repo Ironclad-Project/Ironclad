@@ -48,10 +48,10 @@ package body Devices.PS2 with SPARK_Mode => Off is
    type Signed_8 is range -128 .. 127 with Size => 8;
    function To_Signed is new Ada.Unchecked_Conversion (Unsigned_8, Signed_8);
 
-   --  Globals to communicate with the mouse interrupt routine.
+   --  Globals to communicate with the mouse interrupt routine, which puts
+   --  a packet together in Ms_Return_Data and queues it once it is whole.
    Ms_Data_Mutex : aliased Synchronization.Binary_Semaphore
       := Synchronization.Unlocked_Semaphore;
-   Ms_Has_Returned      : Boolean    with Volatile;
    Ms_Current_Flags     : Unsigned_8;
    Ms_Has_4th_Packet    : Boolean := False;
    Ms_Has_Extra_Buttons : Boolean := False;
@@ -61,6 +61,45 @@ package body Devices.PS2 with SPARK_Mode => Off is
        Y_Variation => 0,
        Z_Variation => 0,
        others      => False) with Volatile;
+   Ms_Queue_Length : constant := 64;
+   Ms_Queue        : array (1 .. Ms_Queue_Length) of Mouse_Data :=
+      [others => (X_Variation => 0,
+                  Y_Variation => 0,
+                  Z_Variation => 0,
+                  others      => False)];
+   Ms_Queue_First  : Positive range 1 .. Ms_Queue_Length := 1;
+   Ms_Queue_Count  : Natural  range 0 .. Ms_Queue_Length := 0;
+
+   --  Queue the packet in Ms_Return_Data, with Ms_Data_Mutex held. A full
+   --  queue takes it into its last packet, keeping the motion and the latest
+   --  buttons.
+   procedure Queue_Packet is
+      Last : Positive range 1 .. Ms_Queue_Length;
+   begin
+      if Ms_Queue_Count = Ms_Queue_Length then
+         Last := (Ms_Queue_First + Ms_Queue_Count - 2) mod Ms_Queue_Length + 1;
+         Ms_Queue (Last) :=
+            (X_Variation     => Ms_Queue (Last).X_Variation +
+                                Ms_Return_Data.X_Variation,
+             Y_Variation     => Ms_Queue (Last).Y_Variation +
+                                Ms_Return_Data.Y_Variation,
+             Z_Variation     => Ms_Queue (Last).Z_Variation +
+                                Ms_Return_Data.Z_Variation,
+             Is_Left_Click   => Ms_Return_Data.Is_Left_Click,
+             Is_Right_Click  => Ms_Return_Data.Is_Right_Click,
+             Is_Middle_Click => Ms_Return_Data.Is_Middle_Click,
+             Is_4th_Button   => Ms_Return_Data.Is_4th_Button,
+             Is_5th_Button   => Ms_Return_Data.Is_5th_Button);
+      else
+         Ms_Queue
+            ((Ms_Queue_First + Ms_Queue_Count - 1) mod Ms_Queue_Length + 1) :=
+            Ms_Return_Data;
+         Ms_Queue_Count := Ms_Queue_Count + 1;
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Queue_Packet;
 
    procedure Init (Success : out Boolean) is
       Index        : Arch.IDT.IRQ_Index;
@@ -215,8 +254,8 @@ package body Devices.PS2 with SPARK_Mode => Off is
          Data (Data'First .. Data'First + Ret_Count - 1) :=
             Operation_Data (Kb_Scancodes (1 .. Ret_Count));
          if Ret_Count < Kb_Scan_Count then
-            Kb_Scancodes (1 .. Ret_Count) :=
-               Kb_Scancodes (Ret_Count + 1 .. Ret_Count * 2);
+            Kb_Scancodes (1 .. Kb_Scan_Count - Ret_Count) :=
+               Kb_Scancodes (Ret_Count + 1 .. Kb_Scan_Count);
             Kb_Scan_Count := Kb_Scan_Count - Ret_Count;
          else
             Kb_Scan_Count := 0;
@@ -267,25 +306,26 @@ package body Devices.PS2 with SPARK_Mode => Off is
       if Is_Blocking then
          loop
             Synchronization.Seize (Ms_Data_Mutex);
-            Temp := Ms_Has_Returned;
+            Temp := Ms_Queue_Count /= 0;
             exit when Temp;
             Synchronization.Release (Ms_Data_Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
          Synchronization.Seize (Ms_Data_Mutex);
-         Temp := Ms_Has_Returned;
+         Temp := Ms_Queue_Count /= 0;
       end if;
 
-      if Temp then
+      if Temp and Data'Length >= Ms_Return_Data'Size / 8 then
          declare
             Data2 : Mouse_Data
                with Import, Address => Data (Data'First)'Address;
          begin
-            Data2           := Ms_Return_Data;
-            Ret_Count       := Ms_Return_Data'Size / 8;
-            Success         := Dev_Success;
-            Ms_Has_Returned := False;
+            Data2          := Ms_Queue (Ms_Queue_First);
+            Ret_Count      := Ms_Return_Data'Size / 8;
+            Success        := Dev_Success;
+            Ms_Queue_First := Ms_Queue_First mod Ms_Queue_Length + 1;
+            Ms_Queue_Count := Ms_Queue_Count - 1;
          end;
       else
          Ret_Count := 0;
@@ -396,7 +436,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
       pragma Unreferenced (Data);
    begin
       Synchronization.Seize (Ms_Data_Mutex);
-      Can_Read  := Ms_Has_Returned;
+      Can_Read  := Ms_Queue_Count /= 0;
       Can_Write := False;
       Is_Error  := False;
       Synchronization.Release (Ms_Data_Mutex);
@@ -536,7 +576,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
                Ms_Current_Cycle := 4;
             else
                Ms_Current_Cycle := 1;
-               Ms_Has_Returned  := True;
+               Queue_Packet;
             end if;
          when 4 =>
             Data := Arch.Snippets.Port_In (16#60#);
@@ -544,7 +584,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
             --  GNAT (maybe Ada?) doesnt support 4 bit integers, so we have to
             --  improvise to take the last 4 bits of the z variation.
             if (Data and 2#1000#) /= 0 then
-               Ms_Return_Data.Z_Variation := -(Integer (Data and 2#111#) + 1);
+               Ms_Return_Data.Z_Variation := Integer (Data and 2#1111#) - 16;
             else
                Ms_Return_Data.Z_Variation := Integer (Data and 2#111#);
             end if;
@@ -557,7 +597,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
             end if;
 
             Ms_Current_Cycle := 1;
-            Ms_Has_Returned := True;
+            Queue_Packet;
       end case;
 
       Synchronization.Release (Ms_Data_Mutex);

@@ -42,6 +42,8 @@ private
        Success     : out Dev_Status;
        Is_Blocking : Boolean);
 
+   procedure Queue_Packet;
+
    procedure Ms_IO_Control
       (Key      : System.Address;
        Request  : Unsigned_64;
