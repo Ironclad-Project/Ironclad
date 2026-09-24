@@ -253,6 +253,12 @@ private
    procedure Next_Other (Curr : TID; Timeout : out Natural; Next : out TID);
 
    procedure Waiting_Spot with No_Return;
+
+   --  Delete a thread with the scheduler lock held, and the signal thread it
+   --  watches with it, see Launch_Signal_Thread, but for the calling thread,
+   --  which leaves by itself.
+   procedure Delete_Locked (Thread : TID);
+
    procedure Evaluate_Runnable (T : TID; Can_Run : out Boolean);
    procedure Evaluate_Suspended (T : TID; Suspended : out Boolean);
 end Scheduler;

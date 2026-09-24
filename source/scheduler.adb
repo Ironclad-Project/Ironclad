@@ -42,6 +42,7 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Present      : Boolean with Atomic;
       Is_Running      : Boolean with Atomic;
       Is_Held         : Boolean with Atomic;  --  See Create_User_Thread.
+      Watcher         : TID with Atomic;  --  See Launch_Signal_Thread.
       Path            : String (1 .. 20);
       Path_Len        : Natural range 0 .. 20;
       Pol             : Policy;
@@ -118,6 +119,7 @@ package body Scheduler with SPARK_Mode => Off is
             (Is_Present      => False,
              Is_Running      => False,
              Is_Held         => False,
+             Watcher         => Error_TID,
              Path            => [others => ' '],
              Path_Len        => 0,
              RR_Micro_Inter  => Default_RR_NS_Interval / 1000,
@@ -386,7 +388,9 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Find a new TID.
       for I in Thread_Pool'Range loop
-         if not Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
+         if not Thread_Pool (I).Is_Present and
+            not Thread_Pool (I).Is_Running and
+            Thread_Pool (I).Watcher = Error_TID
          then
             New_TID := I;
             goto Found_TID;
@@ -406,6 +410,7 @@ package body Scheduler with SPARK_Mode => Off is
          (Is_Present     => True,
           Is_Running     => False,
           Is_Held        => True,
+          Watcher        => Error_TID,
           Path           => [others => ' '],
           Path_Len       => 0,
           RR_Micro_Inter => Default_RR_NS_Interval / 1000,
@@ -455,15 +460,30 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Delete_Thread (Thread : TID) is
    begin
       Synchronization.Seize (Scheduler_Mutex);
+      Delete_Locked (Thread);
+      Synchronization.Release (Scheduler_Mutex);
+   end Delete_Thread;
+
+   procedure Delete_Locked (Thread : TID) is
+      Self : constant TID := Arch.Local.Get_Current_Thread;
+   begin
       if Thread_Pool (Thread).Is_Present then
          Thread_Pool (Thread).Is_Present := False;
          Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
       end if;
-      Synchronization.Release (Scheduler_Mutex);
+
+      for T in Thread_Pool'Range loop
+         if Thread_Pool (T).Watcher = Thread then
+            if T /= Self then
+               Delete_Locked (T);
+            end if;
+            Thread_Pool (T).Watcher := Error_TID;
+         end if;
+      end loop;
    exception
       when Constraint_Error =>
-         Synchronization.Release (Scheduler_Mutex);
-   end Delete_Thread;
+         null;
+   end Delete_Locked;
 
    procedure Yield_If_Able is
       Curr_TID : constant     TID := Arch.Local.Get_Current_Thread;
@@ -487,6 +507,9 @@ package body Scheduler with SPARK_Mode => Off is
          Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
       end if;
       Synchronization.Release (Scheduler_Mutex);
+      if Thread_Pool (Thread).Watcher /= Error_TID then
+         Wake_Event (Thread_Pool (Thread)'Address);
+      end if;
       Arch.Local.Reschedule_ASAP;
       Waiting_Spot;
    exception
@@ -885,6 +908,7 @@ package body Scheduler with SPARK_Mode => Off is
       Use_Altsk : Boolean;
       Killed    : Boolean := False;
       Discard   : Boolean;
+      Registered : Boolean;
       Th        : constant TID := Arch.Local.Get_Current_Thread;
       Proc : constant Userland.Process.PID := Arch.Local.Get_Current_Process;
    begin
@@ -1068,19 +1092,36 @@ package body Scheduler with SPARK_Mode => Off is
          goto Give_Back_Stack;
       end if;
 
-      --  A signal thread is listed in no process, so it is let go here.
-      Release_Thread (New_TID);
+      --  A signal thread is listed in no process, so it is let go here. Its
+      --  slot is watched until it is done, so that it is not taken by a new
+      --  thread meanwhile, and its end wakes the watcher, see Bail. It goes
+      --  with the thread it interrupted, as nothing else would take it down,
+      --  see Delete_Locked, and at once if that one is gone already.
+      Synchronization.Seize (Scheduler_Mutex);
+      Thread_Pool (New_TID).Watcher := Th;
+      if Thread_Pool (Th).Is_Present then
+         Thread_Pool (New_TID).Is_Held := False;
+      else
+         Delete_Locked (New_TID);
+      end if;
+      Synchronization.Release (Scheduler_Mutex);
 
-      --  It is taken down with the thread it interrupted, as nothing else
-      --  would take it down.
-      while Thread_Pool (New_TID).Is_Present loop
-         if Is_Doomed then
-            Delete_Thread (New_TID);
-            Killed := True;
-         else
-            Yield_If_Able;
-         end if;
+      Begin_Wait;
+      Add_Wait_Key (Thread_Pool (New_TID)'Address, Registered);
+      loop
+         Clear_Wake;
+         Killed := Is_Doomed;
+         exit when Killed or not Thread_Pool (New_TID).Is_Present;
+         Wait_Event
+            (No_Deadline,
+             (if Registered then Woken_Sleep_Micros else Polled_Sleep_Micros));
       end loop;
+      End_Wait;
+      Synchronization.Seize (Scheduler_Mutex);
+      if Thread_Pool (New_TID).Watcher = Th then
+         Thread_Pool (New_TID).Watcher := Error_TID;
+      end if;
+      Synchronization.Release (Scheduler_Mutex);
 
    <<Give_Back_Stack>>
       --  The stack goes once the handler is done with it. One taken down may
