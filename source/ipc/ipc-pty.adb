@@ -544,9 +544,9 @@ package body IPC.PTY is
          Scheduler.Add_Wait_Key (Key, Registered);
          loop
             Scheduler.Clear_Wake;
-            if Inner_Len /= 0 then
+            if Inner_Len /= 0 or Scheduler.Is_Doomed then
                Synchronization.Seize (End_Mutex);
-               exit when Inner_Len /= 0;
+               exit when Inner_Len /= 0 or Scheduler.Is_Doomed;
                Synchronization.Release (End_Mutex);
             end if;
             Scheduler.Wait_Event
@@ -685,9 +685,9 @@ package body IPC.PTY is
          Scheduler.Add_Wait_Key (Key, Registered);
          loop
             Scheduler.Clear_Wake;
-            if Inner_Len /= Inner_Data'Length then
+            if Inner_Len /= Inner_Data'Length or Scheduler.Is_Doomed then
                Synchronization.Seize (End_Mutex);
-               exit when Inner_Len /= Inner_Data'Length;
+               exit when Inner_Len /= Inner_Data'Length or Scheduler.Is_Doomed;
                Synchronization.Release (End_Mutex);
             end if;
             Scheduler.Wait_Event

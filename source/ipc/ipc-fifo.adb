@@ -161,7 +161,7 @@ package body IPC.FIFO is
          loop
             Scheduler.Clear_Wake;
             Synchronization.Seize (To_Read.Mutex);
-            exit when To_Read.Data_Count /= 0;
+            exit when To_Read.Data_Count /= 0 or Scheduler.Is_Doomed;
             if To_Read.Writer_Closed then
                Ret_Count := 0;
                Success   := Pipe_Success;
@@ -230,7 +230,8 @@ package body IPC.FIFO is
                Success   := Broken_Failure;
                return;
             end if;
-            exit when To_Write.Data_Count /= To_Write.Data'Length;
+            exit when To_Write.Data_Count /= To_Write.Data'Length or
+               Scheduler.Is_Doomed;
             Synchronization.Release (To_Write.Mutex);
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,

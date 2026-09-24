@@ -778,7 +778,7 @@ package body IPC.Socket is
             loop
                Scheduler.Clear_Wake;
                Synchronization.Seize (UNIX_Bound_Mutex);
-               if Get_Bound (Path) /= To_Connect then
+               if Get_Bound (Path) /= To_Connect or Scheduler.Is_Doomed then
                   Synchronization.Release (UNIX_Bound_Mutex);
                   Scheduler.End_Wait;
                   Sock.Connected := null;
@@ -800,7 +800,7 @@ package body IPC.Socket is
             --  Queued, and now waiting to be taken.
             loop
                Scheduler.Clear_Wake;
-               exit when Sock.Pending_Accept /= null;
+               exit when Sock.Pending_Accept /= null or Scheduler.Is_Doomed;
                if Sock.Peer_Closed then
                   --  Only a listener that went while we sat in its queue is a
                   --  refusal, otherwise its EOF.
@@ -874,7 +874,7 @@ package body IPC.Socket is
                Scheduler.Wake_Event (Wait_Key (Sock));
                exit;
             end if;
-            exit when not Is_Blocking;
+            exit when not Is_Blocking or Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1158,7 +1158,8 @@ package body IPC.Socket is
             Scheduler.Clear_Wake;
             Synchronization.Seize (Sock.Mutex);
             exit when Sock.Data_Length /= 0 or else
-               (Sock.Kind = Stream and then Sock.Peer_Closed);
+               (Sock.Kind = Stream and then Sock.Peer_Closed) or else
+               Scheduler.Is_Doomed;
             Synchronization.Release (Sock.Mutex);
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
@@ -1264,7 +1265,7 @@ package body IPC.Socket is
                   end if;
                   Synchronization.Seize (Sock.Pending_Accept.Mutex);
                   exit when Sock.Pending_Accept.Data_Length /=
-                     Default_Socket_Size;
+                     Default_Socket_Size or Scheduler.Is_Doomed;
                   Synchronization.Release (Sock.Pending_Accept.Mutex);
                   Scheduler.Wait_Event
                      (Scheduler.No_Deadline,

@@ -472,6 +472,11 @@ package body Scheduler with SPARK_Mode => Off is
          Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
       end if;
 
+      --  A sleep in the kernel ends, for the thread to give up its wait and
+      --  leave at the edge of its syscall.
+      Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
+      Thread_Pool (Thread).Start_Time  := (0, 0);
+
       for T in Thread_Pool'Range loop
          if Thread_Pool (T).Watcher = Thread then
             if T /= Self then
@@ -576,9 +581,12 @@ package body Scheduler with SPARK_Mode => Off is
       Thread : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
       Stop : Boolean;
    begin
+      --  A deleted thread does not sleep, see Delete_Thread.
       Synchronization.Seize (Scheduler_Mutex);
-      Thread_Pool (Thread).Start_Clock := Clock;
-      Thread_Pool (Thread).Start_Time := Start_Time;
+      if Thread_Pool (Thread).Is_Present then
+         Thread_Pool (Thread).Start_Clock := Clock;
+         Thread_Pool (Thread).Start_Time := Start_Time;
+      end if;
       Synchronization.Release (Scheduler_Mutex);
 
       loop

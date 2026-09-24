@@ -76,6 +76,11 @@ package body Devices.Loopback is
       end if;
 
       while Dev.Len = 0 loop
+         if Scheduler.Is_Doomed then
+            Ret_Count := 0;
+            Success   := Dev_IO_Failure;
+            return;
+         end if;
          Scheduler.Yield_If_Able;
       end loop;
 
@@ -111,6 +116,11 @@ package body Devices.Loopback is
       end if;
 
       while Dev.Len /= 0 loop
+         if Scheduler.Is_Doomed then
+            Ret_Count := 0;
+            Success   := Dev_IO_Failure;
+            return;
+         end if;
          Scheduler.Yield_If_Able;
       end loop;
 

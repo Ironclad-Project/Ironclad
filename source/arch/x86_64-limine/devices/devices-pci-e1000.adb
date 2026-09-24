@@ -331,6 +331,11 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          loop
             exit when (CD.RX_Descriptors (CD.RX_Next).Status and
                RX_STATUS_DD) /= 0;
+            if Scheduler.Is_Doomed then
+               Ret_Count := 0;
+               Success := Dev_IO_Failure;
+               return;
+            end if;
             Scheduler.Yield_If_Able;
          end loop;
       end if;

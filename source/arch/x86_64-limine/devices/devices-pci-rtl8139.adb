@@ -319,6 +319,10 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
                Ret_Count := 0;
                Success   := Dev_Success;
                return;
+            elsif Scheduler.Is_Doomed then
+               Ret_Count := 0;
+               Success   := Dev_IO_Failure;
+               return;
             end if;
             Scheduler.Yield_If_Able;
          end loop;

@@ -250,7 +250,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
             Scheduler.Clear_Wake;
             Synchronization.Seize (Kb_Data_Mutex);
             Temp := Kb_Has_Data;
-            exit when Temp;
+            exit when Temp or Scheduler.Is_Doomed;
             Synchronization.Release (Kb_Data_Mutex);
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
@@ -330,7 +330,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
             Scheduler.Clear_Wake;
             Synchronization.Seize (Ms_Data_Mutex);
             Temp := Ms_Queue_Count /= 0;
-            exit when Temp;
+            exit when Temp or Scheduler.Is_Doomed;
             Synchronization.Release (Ms_Data_Mutex);
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,

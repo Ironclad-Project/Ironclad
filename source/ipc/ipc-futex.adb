@@ -148,7 +148,8 @@ package body IPC.Futex is
             end loop;
 
             Arch.Clocks.Get_Monotonic_Time (Curr);
-            if Success = Wait_Success or Curr >= Final then
+            if Success = Wait_Success or Curr >= Final or Scheduler.Is_Doomed
+            then
                Leave;
                Synchronization.Release (Registry_Mutex);
                Scheduler.End_Wait;

@@ -126,13 +126,16 @@ package Scheduler is
    --
    --     Begin_Wait, and Add_Wait_Key for every object;
    --     loop
-   --        Clear_Wake, check the condition, and exit if it holds;
+   --        Clear_Wake, check the condition, and exit if it holds or the
+   --        thread is doomed;
    --        Wait_Event (Deadline, Max_Micros);
    --     end loop;
    --     End_Wait;
    --
    --  Wait_Event returns at once for wakes after Clear_Wake, so wakes that
-   --  come between the check and the sleep are not lost.
+   --  come between the check and the sleep are not lost. A doomed thread
+   --  gives up the wait to leave at the edge of its syscall, and deleting a
+   --  thread ends its sleep, see Delete_Thread.
 
    --  Start a wait for the calling thread, with no keys and no wakes.
    procedure Begin_Wait;

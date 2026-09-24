@@ -622,7 +622,7 @@ package body Networking.Stack with SPARK_Mode => Off is
          Synchronization.Release (Conn.Mutex);
 
          --  If non-blocking, return immediately.
-         exit when not Is_Blocking;
+         exit when not Is_Blocking or Scheduler.Is_Doomed;
 
          --  Check for timeout.
          if Timeout > (0, 0) then
@@ -965,7 +965,7 @@ package body Networking.Stack with SPARK_Mode => Off is
             Process_Received_Frame (Dev, Recv_Buf (1 .. Recv_Cnt));
          end if;
 
-         exit when not Is_Blocking;
+         exit when not Is_Blocking or Scheduler.Is_Doomed;
          Scheduler.Yield_If_Able;
       end loop;
    exception

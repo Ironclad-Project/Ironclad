@@ -1195,7 +1195,7 @@ package body Userland.Syscall is
          loop
             Scheduler.Clear_Wake;
             Get_Common_Map (Child, Table);
-            exit when Table /= Map;
+            exit when Table /= Map or Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1274,7 +1274,7 @@ package body Userland.Syscall is
                goto Child_Error;
             end if;
 
-            exit when Dont_Hang;
+            exit when Dont_Hang or Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1296,7 +1296,7 @@ package body Userland.Syscall is
                goto Child_Error;
             end if;
 
-            exit when Dont_Hang;
+            exit when Dont_Hang or Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1319,7 +1319,7 @@ package body Userland.Syscall is
             if Did_Exit then
                goto Waited_Exited;
             end if;
-            exit when Dont_Hang;
+            exit when Dont_Hang or Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -4763,7 +4763,8 @@ package body Userland.Syscall is
             Scheduler.Clear_Wake;
             Time.Get_Time (Time.Monotonic_Clock, Curr);
             Clear_Process_Signals (Proc, Handled);
-            exit when Handled or else Curr >= Final;
+            exit when Handled or else Curr >= Final or else
+               Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Final,
                 (if Is_Wired then Scheduler.Woken_Sleep_Micros
@@ -4893,7 +4894,8 @@ package body Userland.Syscall is
 
             Time.Get_Time (Time.Monotonic_Clock, Curr);
             Clear_Process_Signals (Proc, Handled);
-            exit when Handled or else Count /= 0 or else Curr >= Final;
+            exit when Handled or else Count /= 0 or else Curr >= Final or else
+               Scheduler.Is_Doomed;
             Scheduler.Wait_Event
                (Final,
                 (if Is_Wired then Scheduler.Woken_Sleep_Micros
@@ -9357,7 +9359,7 @@ package body Userland.Syscall is
          then
             loop
                Is_Empty (File.Inner_Writer_FIFO, Is_Traced);
-               exit when Is_Traced;
+               exit when Is_Traced or Scheduler.Is_Doomed;
                Scheduler.Yield_If_Able;
             end loop;
             declare
