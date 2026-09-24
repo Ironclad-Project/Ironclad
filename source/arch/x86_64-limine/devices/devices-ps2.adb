@@ -18,10 +18,12 @@ with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Snippets;
+with Arch.Clocks;
 with Scheduler;
 with Synchronization;
 with Ada.Unchecked_Conversion;
 with Messages;
+with Time; use Time;
 
 package body Devices.PS2 with SPARK_Mode => Off is
    --  Globals to communicate with the keyboard interrupt routine.
@@ -106,13 +108,15 @@ package body Devices.PS2 with SPARK_Mode => Off is
    end Queue_Packet;
 
    procedure Init (Success : out Boolean) is
-      Index        : Arch.IDT.IRQ_Index;
-      Data, Unused : Unsigned_8;
+      Index                : Arch.IDT.IRQ_Index;
+      Config, Data, Unused : Unsigned_8;
    begin
       --  Take the chance for initializing the PS2 controller.
-      --  Disable primary and secondary PS/2 ports
+      --  Disable primary and secondary PS/2 ports, and drop what the
+      --  controller still holds.
       Arch.Snippets.Port_Out (16#64#, 16#AD#);
       Arch.Snippets.Port_Out (16#64#, 16#A7#);
+      Flush_PS2;
 
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index, Success);
@@ -136,35 +140,20 @@ package body Devices.PS2 with SPARK_Mode => Off is
          return;
       end if;
 
-      --  Enable keyboard interrupt and keyboard scancode translation.
-      Read_PS2_Config (Data);
-      Data := Data or Shift_Left (1, 0) or Shift_Left (1, 6);
-
-      --  Enable mouse interrupt if any
-      if (Data and Shift_Left (1, 5)) /= 0 then
-         Data := Data or Shift_Left (1, 1);
-      end if;
-
-      --  Write changes, enable keyboard port, and enable mouse port if any.
-      Write_PS2_Config (Data);
-      Write_PS2 (16#64#, 16#AE#);
-      if (Data and Shift_Left (1, 5)) /= 0 then
-         Write_PS2 (16#64#, 16#A8#);
-      end if;
+      --  Enable keyboard scancode translation. Until the controller is set up
+      --  its interrupts stay off, as it raises them for its own replies too,
+      --  and the keyboard port stays disabled, so that no scancode comes among
+      --  the replies of the mouse.
+      Read_PS2_Config (Config);
+      Config := Config or Shift_Left (1, 6);
+      Config := Config and (not (Shift_Left (1, 0) or Shift_Left (1, 1)));
+      Write_PS2_Config (Config);
       -------------------------------------------------------------------------
-      --  Init the mouse.
+      --  Init the mouse, which reports nothing until the end, so that no
+      --  packet comes among its replies either.
       Write_PS2 (16#64#, 16#A8#);
-      Write_PS2 (16#64#, 16#20#);
-      Read_PS2 (Data);
-      Read_PS2 (Unused);
-      Data   := Data or  Shift_Left (1, 1);
-      Data   := Data and (not Shift_Left (1, 5));
-      Write_PS2 (16#64#, 16#60#);
-      Write_PS2 (16#60#, Data);
-      Read_PS2 (Unused);
+      Flush_PS2;
       Mouse_Write (16#F6#);
-      Read_PS2 (Unused);
-      Mouse_Write (16#F4#);
       Read_PS2 (Unused);
 
       --  Try to enable scrollwheel and 4th/5th buttons.
@@ -187,6 +176,18 @@ package body Devices.PS2 with SPARK_Mode => Off is
 
       --  Restore sample rate to the highest (POWER!!!).
       Set_Sample_Rate (200);
+
+      --  Enable the interrupts of both ports, and only then the reports of
+      --  the mouse, so that the controller raises one for every byte of
+      --  them. The reply read here raises one too, for which the interrupt
+      --  routine finds nothing. The keyboard port goes last, so that no
+      --  scancode is taken for the reply.
+      Config := Config or Shift_Left (1, 0) or Shift_Left (1, 1);
+      Config := Config and (not Shift_Left (1, 5));
+      Write_PS2_Config (Config);
+      Mouse_Write (16#F4#);
+      Read_PS2 (Unused);
+      Write_PS2 (16#64#, 16#AE#);
       -------------------------------------------------------------------------
       Register
          ((Data        => System.Null_Address,
@@ -484,33 +485,50 @@ package body Devices.PS2 with SPARK_Mode => Off is
       Discard : Unsigned_8;
    begin
       Write_PS2 (16#64#, 16#D4#);
-      Write_PS2 (16#60#, 16#F5#);
-      Read_PS2 (Discard);
-      Write_PS2 (16#64#, 16#D4#);
       Write_PS2 (16#60#, 16#F2#);
       Read_PS2 (Discard);
       Read_PS2 (ID);
-      Write_PS2 (16#64#, 16#D4#);
-      Write_PS2 (16#60#, 16#F4#);
    end Identify_Mouse;
    ----------------------------------------------------------------------------
+   --  How long to wait for the controller before giving up.
+   PS2_Timeout : constant Time.Timestamp := (0, 100_000_000);
+
    procedure Read_PS2 (Value : out Unsigned_8) is
+      Final, Curr : Time.Timestamp;
    begin
-      for I in 1 .. 100_000 loop
+      Arch.Clocks.Get_Monotonic_Time (Final);
+      Final := Final + PS2_Timeout;
+      loop
          exit when (Arch.Snippets.Port_In (16#64#) and 1) /= 0;
+         Arch.Clocks.Get_Monotonic_Time (Curr);
+         exit when Curr >= Final;
          Scheduler.Yield_If_Able;
       end loop;
       Value := Arch.Snippets.Port_In (16#60#);
    end Read_PS2;
 
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8) is
+      Final, Curr : Time.Timestamp;
    begin
-      for I in 1 .. 100_000 loop
+      Arch.Clocks.Get_Monotonic_Time (Final);
+      Final := Final + PS2_Timeout;
+      loop
          exit when (Arch.Snippets.Port_In (16#64#) and 2) = 0;
+         Arch.Clocks.Get_Monotonic_Time (Curr);
+         exit when Curr >= Final;
          Scheduler.Yield_If_Able;
       end loop;
       Arch.Snippets.Port_Out (Port, Value);
    end Write_PS2;
+
+   procedure Flush_PS2 is
+      Discard : Unsigned_8;
+   begin
+      for I in 1 .. 16 loop
+         exit when (Arch.Snippets.Port_In (16#64#) and 1) = 0;
+         Discard := Arch.Snippets.Port_In (16#60#);
+      end loop;
+   end Flush_PS2;
 
    procedure Read_PS2_Config (Value : out Unsigned_8) is
    begin
@@ -531,8 +549,16 @@ package body Devices.PS2 with SPARK_Mode => Off is
    end Mouse_Write;
    ----------------------------------------------------------------------------
    procedure Keyboard_Handler is
-      Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
+      Input : Unsigned_8;
    begin
+      --  The interrupt may be one raised for a reply read already, see Init,
+      --  so only a byte from the keyboard waiting to be read is taken.
+      if (Arch.Snippets.Port_In (16#64#) and 16#21#) /= 16#01# then
+         Arch.APIC.LAPIC_EOI;
+         return;
+      end if;
+      Input := Arch.Snippets.Port_In (16#60#);
+
       Synchronization.Seize (Kb_Data_Mutex);
 
       if Kb_Scan_Count < Kb_Scancodes'Length then
@@ -568,6 +594,15 @@ package body Devices.PS2 with SPARK_Mode => Off is
       Is_Whole : Boolean := False;
    begin
       Synchronization.Seize (Ms_Data_Mutex);
+
+      --  Only a byte from the mouse waiting to be read is taken, see
+      --  Keyboard_Handler.
+      if (Arch.Snippets.Port_In (16#64#) and 16#21#) /= 16#21# then
+         Synchronization.Release (Ms_Data_Mutex);
+         Arch.APIC.LAPIC_EOI;
+         return;
+      end if;
+
       case Ms_Current_Cycle is
          when 1 =>
             Data                := Arch.Snippets.Port_In (16#60#);

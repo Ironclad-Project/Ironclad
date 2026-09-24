@@ -68,6 +68,9 @@ private
    ----------------------------------------------------------------------------
    procedure Read_PS2 (Value : out Unsigned_8);
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8);
+
+   --  Drop the bytes the controller holds for the system.
+   procedure Flush_PS2;
    procedure Read_PS2_Config (Value : out Unsigned_8);
    procedure Write_PS2_Config (Value : Unsigned_8);
    procedure Mouse_Write (Data : Unsigned_8);
