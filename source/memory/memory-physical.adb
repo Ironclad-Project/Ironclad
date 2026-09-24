@@ -290,6 +290,12 @@ package body Memory.Physical with SPARK_Mode => Off is
             Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
          end loop;
 
+         --  Search from the freed blocks next, so that memory is reused before
+         --  memory that was never touched.
+         if Real_Block < Bitmap_Last_Used then
+            Bitmap_Last_Used := Real_Block;
+         end if;
+
          Synchronization.Release (Alloc_Mutex);
       end;
    exception
