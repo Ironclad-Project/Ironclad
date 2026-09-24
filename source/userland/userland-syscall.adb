@@ -1161,6 +1161,7 @@ package body Userland.Syscall is
       else
          Fork_Table (Map, Table);
          if Table = null then
+            Userland.Process.Delete_Process (Child);
             goto Block_Error;
          end if;
          Duplicate_SHM_Attachments (Proc, Child);

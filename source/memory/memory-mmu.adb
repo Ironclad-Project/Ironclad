@@ -177,7 +177,7 @@ package body Memory.MMU with SPARK_Mode => Off is
           Target => Forked,
           Success => Success);
       if not Success then
-         F (Forked);
+         Destroy_Table (Forked);
       end if;
 
       Synchronization.Release (Map.Mutex);
@@ -916,6 +916,10 @@ package body Memory.MMU with SPARK_Mode => Off is
                      Addr := Idx_To_Addr (Idx_5, Idx_4, Idx_3, Idx_2, I);
                      Perms := Arch.MMU.Clean_Entry_Perms (L);
                      Get_Page (Target, Addr, True, Addr2);
+                     if Addr2 = Memory.Null_Address then
+                        Success := False;
+                        return;
+                     end if;
                      declare
                         Res : Unsigned_64 with
                            Import, Address => To_Address (Addr2);
@@ -945,6 +949,9 @@ package body Memory.MMU with SPARK_Mode => Off is
                      end;
                      Success := True;
                end case;
+               if not Success then
+                  return;
+               end if;
             end if;
          end;
       end loop;
