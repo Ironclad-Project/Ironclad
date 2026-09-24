@@ -910,7 +910,7 @@ Limit of files a process can open on top of other system limits, by default
 -1 (max value).
 
 @item RLIMIT_STACK
-Limit of stack size for a process, by default 4 MiB.
+Limit of stack size for a process, by default 8 MiB.
 
 @item RLIMIT_AS
 Limit of maximum address size space used by a process, by default
