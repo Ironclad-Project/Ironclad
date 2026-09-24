@@ -189,6 +189,10 @@ private
    procedure Ensure_Initialized (Success : out Boolean);
    function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64;
    procedure Check_Function (Bus, Slot, Func : Unsigned_8);
+
+   --  Register the functions of a bus, and mark the buses behind its bridges
+   --  to be scanned, see Init.
+   procedure Scan_Bus (Bus : Unsigned_8);
    procedure Fetch_Device
       (Bus     : Unsigned_8;
        Slot    : Unsigned_8;

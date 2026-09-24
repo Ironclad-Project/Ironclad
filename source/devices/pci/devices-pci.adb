@@ -28,7 +28,6 @@ with Messages;
 
 package body Devices.PCI with SPARK_Mode => Off is
    --  Maximum number of different PCI entities.
-   PCI_Max_Bus      : constant Unsigned_8 := 255;
    PCI_Max_Function : constant Unsigned_8 := 7;
    PCI_Max_Slot     : constant Unsigned_8 := 31;
 
@@ -36,22 +35,30 @@ package body Devices.PCI with SPARK_Mode => Off is
    PCIe_ECAM_Start : Unsigned_64;
    PCI_Registry    : PCI_Registry_Entry_Acc := null;
 
+   --  Buses to scan, see Init.
+   Reachable_Buses : Arch.PCI.Bus_Set := [others => False];
+
    procedure Init (Success : out Boolean) is
-      Root_Bus, Host_Bridge : PCI_Device;
-      Val : Unsigned_32;
+      Count : Natural;
    begin
       Ensure_Initialized (Success);
       if not Success then
          return;
       end if;
 
-      Messages.Put_Line ("Brute-force scanning PCI instead of using ACPI");
-      for Bus in 0 .. PCI_Max_Bus loop
-         for Slot in 0 .. PCI_Max_Slot loop
-            for Func in 0 .. PCI_Max_Function loop
-               Check_Function (Bus, Slot, Func);
-            end loop;
-         end loop;
+      --  Scan the root buses of the host bridges, or bus 0 when ACPI
+      --  describes none, and the buses behind their bridges. Those are
+      --  numbered above the buses of their bridges, so going up the numbers
+      --  reaches them all, and registers functions in address order.
+      Arch.PCI.Find_Root_Buses (Reachable_Buses, Count);
+      if Count = 0 then
+         Messages.Put_Line ("No PCI host bridge in ACPI, scanning from bus 0");
+         Reachable_Buses (0) := True;
+      end if;
+      for Bus in Unsigned_8 loop
+         if Reachable_Buses (Bus) then
+            Scan_Bus (Bus);
+         end if;
       end loop;
 
       Success := True;
@@ -647,6 +654,47 @@ package body Devices.PCI with SPARK_Mode => Off is
           (Unsigned_64 (Slot) * 8) +
           (Unsigned_64 (Func))) * 4096);
    end Get_ECAM_Addr;
+
+   procedure Scan_Bus (Bus : Unsigned_8) is
+      Dev       : PCI_Device;
+      Config0   : Unsigned_32;
+      Header    : Unsigned_8;
+      Secondary : Unsigned_8;
+      Last_Func : Unsigned_8;
+   begin
+      for Slot in 0 .. PCI_Max_Slot loop
+         Dev.Bus  := Bus;
+         Dev.Slot := Slot;
+         Dev.Func := 0;
+         Read32 (Dev, 0, Config0);
+
+         --  Empty slots have no function 0, and only multi-function devices
+         --  have functions past it.
+         if (Config0 and 16#FFFF#) /= 16#FFFF# then
+            Read8 (Dev, 16#0E#, Header);
+            Last_Func :=
+               (if (Header and 16#80#) /= 0 then PCI_Max_Function else 0);
+
+            for Func in 0 .. Last_Func loop
+               Dev.Func := Func;
+               Read32 (Dev, 0, Config0);
+               if (Config0 and 16#FFFF#) /= 16#FFFF# then
+                  Check_Function (Bus, Slot, Func);
+
+                  --  PCI-to-PCI bridges lead to their secondary buses, which
+                  --  firmware numbers above their own.
+                  Read8 (Dev, 16#0E#, Header);
+                  if (Header and 16#7F#) = 1 then
+                     Read8 (Dev, 16#19#, Secondary);
+                     if Secondary > Bus then
+                        Reachable_Buses (Secondary) := True;
+                     end if;
+                  end if;
+               end if;
+            end loop;
+         end if;
+      end loop;
+   end Scan_Bus;
 
    procedure Check_Function (Bus, Slot, Func : Unsigned_8) is
       Success : Boolean;

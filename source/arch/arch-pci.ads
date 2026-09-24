@@ -15,8 +15,17 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Interfaces; use Interfaces;
 
 package Arch.PCI is
    --  Fetch the system's ECAM address.
    procedure Fetch_ECAM_Address (ECAM : out System.Address);
+
+   --  A set of PCI bus numbers.
+   type Bus_Set is array (Unsigned_8) of Boolean;
+
+   --  Find the root buses of the PCI host bridges ACPI describes on segment 0.
+   --  @param Roots Where to mark the buses found.
+   --  @param Count Number of buses found, 0 if ACPI describes no bridges.
+   procedure Find_Root_Buses (Roots : out Bus_Set; Count : out Natural);
 end Arch.PCI;
