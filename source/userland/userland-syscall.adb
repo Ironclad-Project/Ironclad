@@ -906,6 +906,7 @@ package body Userland.Syscall is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
       Th         : constant TID := Arch.Local.Get_Current_Thread;
       Proc       : constant PID := Arch.Local.Get_Current_Process;
+      Parent     : PID;
       Map, Orig  : Memory.MMU.Page_Table_Acc;
       Success    : Boolean;
       Success3   : Boolean;
@@ -1087,6 +1088,12 @@ package body Userland.Syscall is
             if not Success then
                Detach_All_SHM (Proc);
                Memory.MMU.Destroy_Table (Orig);
+            else
+               --  The parent waits for its table back, see Fork.
+               Get_Parent (Proc, Parent);
+               if Parent /= Error_PID then
+                  Scheduler.Wake_Event (Get_Wait_Key (Parent));
+               end if;
             end if;
             Free (Envp);
             Free (Argv);
@@ -1123,6 +1130,7 @@ package body Userland.Syscall is
       Id      : String (1 .. Process.Max_Name_Length);
       Id_Len  : Natural;
       Success : Boolean;
+      Registered : Boolean;
       Map, Table : Memory.MMU.Page_Table_Acc;
       Do_VFORK : constant Boolean := (Flags and FORK_VFORK) /= 0;
    begin
@@ -1179,12 +1187,21 @@ package body Userland.Syscall is
          goto Block_Error;
       end if;
 
+      --  The child gives the table back once it calls exec or exits, and
+      --  wakes us then.
       if Do_VFORK then
+         Scheduler.Begin_Wait;
+         Scheduler.Add_Wait_Key (Get_Wait_Key (Proc), Registered);
          loop
+            Scheduler.Clear_Wake;
             Get_Common_Map (Child, Table);
             exit when Table /= Map;
-            Scheduler.Yield_If_Able;
+            Scheduler.Wait_Event
+               (Scheduler.No_Deadline,
+                (if Registered then Scheduler.Woken_Sleep_Micros
+                 else Scheduler.Polled_Sleep_Micros));
          end loop;
+         Scheduler.End_Wait;
       end if;
 
       Errno    := Error_No_Error;
