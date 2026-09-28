@@ -1874,7 +1874,7 @@ package body Userland.Syscall is
             goto Cleanup;
          when Devices.IO_No_Memory =>
             null;
-         when Devices.IO_Read | Devices.IO_Write =>
+         when Devices.IO_Read | Devices.IO_Write | Devices.IO_Read_Write =>
             --  What the handler is to read is copied in, and where it is to
             --  write is checked before the request runs.
             Buffer := new Operation_Data'[1 .. Size => 0];
@@ -1883,9 +1883,11 @@ package body Userland.Syscall is
                subtype Arg_Data is Operation_Data (1 .. Arg_Size);
                package Arg_Trans is new Memory.Userland_Transfer (Arg_Data);
             begin
-               if Usage = Devices.IO_Read then
+               Succ := True;
+               if Usage /= Devices.IO_Write then
                   Arg_Trans.Take_From_Userland (Map, Buffer.all, S_Arg, Succ);
-               else
+               end if;
+               if Succ and Usage /= Devices.IO_Read then
                   Arg_Trans.Check_Access (Map, S_Arg, True, Succ);
                end if;
             end;
@@ -1929,7 +1931,7 @@ package body Userland.Syscall is
       end if;
 
       --  What the handler wrote goes out to userland.
-      if Succ and Usage = Devices.IO_Write then
+      if Succ and Usage in Devices.IO_Write | Devices.IO_Read_Write then
          declare
             Arg_Size : constant Natural := Size;
             subtype Arg_Data is Operation_Data (1 .. Arg_Size);

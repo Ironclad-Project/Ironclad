@@ -47,10 +47,11 @@ package Devices is
    --  How an IO_Control request uses its argument, so that the memory it
    --  names can be checked before the request runs.
    type IO_Usage is
-      (IO_Unknown,   --  Not a request of the device, it must not be run.
-       IO_No_Memory, --  The argument is not used as an address.
-       IO_Read,      --  Size bytes are read at the argument.
-       IO_Write);    --  Size bytes are written at the argument.
+      (IO_Unknown,     --  Not a request of the device, it must not be run.
+       IO_No_Memory,   --  The argument is not used as an address.
+       IO_Read,        --  Size bytes are read at the argument.
+       IO_Write,       --  Size bytes are written at the argument.
+       IO_Read_Write); --  Size bytes are read, then written, at the argument.
 
    --  Data that defines a device.
    type Resource is record
