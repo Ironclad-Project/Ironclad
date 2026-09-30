@@ -357,9 +357,5 @@ package body Devices.Mixer is
          Extra := 0;
          Success := False;
       end if;
-   exception
-      when Constraint_Error =>
-         Extra   := 0;
-         Success := False;
    end IO_Control;
 end Devices.Mixer;
