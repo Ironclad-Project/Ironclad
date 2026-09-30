@@ -20,6 +20,7 @@ with Devices.FB;
 with Devices.PS2;
 with Devices.PC_Speaker;
 with Devices.PCI.E1000;
+with Devices.PCI.HDA;
 with Devices.PCI.RTL8139;
 with Devices.Serial;
 with Arch.Snippets; use Arch.Snippets;
@@ -34,13 +35,14 @@ with Arch.MMU;
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook (Success : out Boolean) is
       type Callback is not null access procedure (Success : out Boolean);
-      Drivers : constant array (1 .. 6) of Callback :=
+      Drivers : constant array (1 .. 7) of Callback :=
          [Devices.PC_Speaker.Init'Access,
           Devices.Serial.Init'Access,
           Devices.PS2.Init'Access,
           Devices.FB.Init'Access,
           Devices.PCI.RTL8139.Init'Access,
-          Devices.PCI.E1000.Init'Access];
+          Devices.PCI.E1000.Init'Access,
+          Devices.PCI.HDA.Init'Access];
    begin
       for Driver of Drivers loop
          Driver.all (Success);
