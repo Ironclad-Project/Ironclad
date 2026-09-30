@@ -47,6 +47,7 @@ cryptic and scary Ada code.
 * Security and integrity facilities::  Ironclad-specific security facilities.
 * Debugging facilities::               Ironclad-specific debugging facilities.
 * Syscalls::                           Listings and explanation of syscalls.
+* Open Sound System (OSS) support::    Sound support in Ironclad and quirks.
 * Networking::                         Networking support and details.
 * Virtualization::                     VM virtualization inside Ironclad.
 * Filesystem support and interfaces::  VFS details and supported filesystems.
@@ -226,6 +227,11 @@ Syscalls
 * nvmm_vcpu_dump::          Dump VCPU state.
 * nvmm_vcpu_stop::          Stop a VCPU.
 * pci_read/pci_write::      PCI device read/write.
+
+Open Sound System (OSS) Support
+
+* Specification::                 Specification of OSS and formal details.
+* Ironclad-specific OSS details:: Ironclad-specific quirks.
 
 Networking
 
@@ -5406,6 +5412,28 @@ failure. errno is to be set to:
 @code{EINVAL}: The passed device coordinates dont relate to a device.
 @end itemize
 
+@node Open Sound System (OSS) support
+@chapter Open Sound System (OSS) support
+
+This chapter gives all the details on how Ironclad handles sound.
+
+@node Specification
+@section Specification
+
+Ironclad implements OSS 4, which has a specification that can be found
+@url{http://manuals.opensound.com/developer/, here}.
+
+@node Ironclad-specific OSS details
+@section Ironclad-specific OSS details
+
+Devices start as 8 bit unsigned mono at 8 kHz, or the closest rate supported,
+as OSS mandates, but they are not notified of being opened or closed. This is
+due to limitations in Ironclad's device handling and devfs. Thus, settings are
+kept from one use to the next, and what was written plays out after the device
+is closed. This should not cause issues as devices should not be used without
+checking those first (at least by any sane app, a user piping data to
+@code{/dev/dsp} from the command line could get a nasty surprise).
+
 @node Networking
 @chapter Networking
 
@@ -5923,6 +5951,11 @@ int main() @{
 	return 0;
 @}
 @end example
+
+@subsection dsp[0..x]/mixer[0..x]
+
+Open Sound System (OSS) pseudodevices. See
+@ref{Open Sound System (OSS) Support}.
 
 @node riscv64-limine devices
 @section riscv64-limine devices

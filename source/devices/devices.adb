@@ -22,7 +22,9 @@ with Devices.PCI.VirtioRNG;
 with Devices.PCI.VirtioNet;
 with Devices.PCI;
 with Devices.Console;
+with Devices.DSP;
 with Devices.Loopback;
+with Devices.Mixer;
 with Devices.Streams;
 with Devices.TTY;
 with Devices.Power_Buttons;
@@ -36,9 +38,11 @@ package body Devices is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
 
       type Driver_Callback is access procedure (Success : out Boolean);
-      Drivers : constant array (1 .. 5) of Driver_Callback :=
+      Drivers : constant array (1 .. 7) of Driver_Callback :=
          [Console.Init'Access,
+          DSP.Init'Access,
           Loopback.Init'Access,
+          Mixer.Init'Access,
           Streams.Init'Access,
           TTY.Init'Access,
           Power_Buttons.Init'Access];

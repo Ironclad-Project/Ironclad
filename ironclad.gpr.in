@@ -37,6 +37,7 @@ project Ironclad is
       "@SRCDIR@/source/ipc",
       "@SRCDIR@/source/memory",
       "@SRCDIR@/source/networking",
+      "@SRCDIR@/source/sound",
       "@SRCDIR@/source/userland",
       "@SRCDIR@/source/vfs",
       "@SRCDIR@/source/virtualization",
