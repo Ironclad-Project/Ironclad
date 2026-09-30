@@ -47,7 +47,7 @@ cryptic and scary Ada code.
 * Security and integrity facilities::  Ironclad-specific security facilities.
 * Debugging facilities::               Ironclad-specific debugging facilities.
 * Syscalls::                           Listings and explanation of syscalls.
-* Open Sound System (OSS) support::    Sound support in Ironclad and quirks.
+* Open Sound System (OSS) Support::    Sound support in Ironclad and quirks.
 * Networking::                         Networking support and details.
 * Virtualization::                     VM virtualization inside Ironclad.
 * Filesystem support and interfaces::  VFS details and supported filesystems.
@@ -5412,8 +5412,8 @@ failure. errno is to be set to:
 @code{EINVAL}: The passed device coordinates dont relate to a device.
 @end itemize
 
-@node Open Sound System (OSS) support
-@chapter Open Sound System (OSS) support
+@node Open Sound System (OSS) Support
+@chapter Open Sound System (OSS) Support
 
 This chapter gives all the details on how Ironclad handles sound.
 
