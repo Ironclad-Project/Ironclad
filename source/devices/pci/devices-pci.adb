@@ -335,12 +335,14 @@ package body Devices.PCI with SPARK_Mode => Off is
       Has_MSIX := Dev.MSIX_Support;
    end Get_MSI_Support;
 
-   procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8) is
+   procedure Set_MSI_Vector
+      (Dev         : PCI_Device;
+       Vector      : Unsigned_8;
+       Destination : Unsigned_32)
+   is
       MSI_Off         : constant Unsigned_16 := Unsigned_16 (Dev.MSI_Offset);
       Message_Control : Unsigned_16;
-      Reg0            : Unsigned_16;
-      Reg1            : Unsigned_16;
-      Addr            : Unsigned_32;
+      Data_Reg        : Unsigned_16;
    begin
       --  XXX: Support MSI-X, this so far only uses MSI.
       if not Dev.MSI_Support then
@@ -348,15 +350,16 @@ package body Devices.PCI with SPARK_Mode => Off is
       end if;
 
       Read16 (Dev, MSI_Off + 2, Message_Control);
-      Reg0 := 4;
-      Reg1 := (if (Shift_Right (Message_Control, 7) and 1) = 1 then 12 else 8);
+      if (Shift_Right (Message_Control, 7) and 1) = 1 then
+         Write32 (Dev, MSI_Off + 8, 0);
+         Data_Reg := 12;
+      else
+         Data_Reg := 8;
+      end if;
 
-      --  FIXME: This "1" should be the BSP's LAPIC/Hart ID, we hardcode 1
-      --  since we dont have yet an architectural way to abstract this.
-      Addr := Shift_Left (16#FEE#, 20) or Shift_Left (1, 12);
-
-      Write32 (Dev, MSI_Off + Reg0, Addr);
-      Write32 (Dev, MSI_Off + Reg1, Unsigned_32 (Vector));
+      Write32 (Dev, MSI_Off + 4, Shift_Left (16#FEE#, 20) or
+               Shift_Left (Destination and 16#FF#, 12));
+      Write16 (Dev, MSI_Off + Data_Reg, Unsigned_16 (Vector));
 
       Message_Control := (Message_Control or 1) and not Shift_Left (2#111#, 4);
       Write16 (Dev, MSI_Off + 2, Message_Control);

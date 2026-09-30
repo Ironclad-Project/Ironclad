@@ -115,7 +115,12 @@ package Devices.PCI is
       (Dev               : PCI_Device;
        Has_MSI, Has_MSIX : out Boolean);
 
-   procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8);
+   --  Enable MSI with a single message, sent to a destination as the system
+   --  interrupt controller of the architecture identifies CPUs.
+   procedure Set_MSI_Vector
+      (Dev         : PCI_Device;
+       Vector      : Unsigned_8;
+       Destination : Unsigned_32);
 
    type Capability_Id is (Cap_MSI, Cap_Vendor_Specific, Cap_MSIX);
    for Capability_Id use (
