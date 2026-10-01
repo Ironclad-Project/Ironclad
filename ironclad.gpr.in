@@ -21,9 +21,11 @@ project Ironclad is
    );
 
    type Proving_State is ("false", "true");
+   type Linker_No_PIE_State is ("false", "true");
 
    Arch : Arch_Name := "@host_cpu@-@PLATFORM@";
    Proving : Proving_State := external ("IRONCLAD_PROVING", "false");
+   Linker_No_PIE : Linker_No_PIE_State := "@LD_HAS_NO_PIE@";
    Ada_Flags        := "@ADAFLAGS@";
    C_Flags          := "@CFLAGS@";
    Asm_Flags        := "@ASFLAGS@";
@@ -106,7 +108,10 @@ project Ironclad is
 
    case Arch is
       when "riscv64-limine" =>
+         --  Unlike on x86_64, control-flow protection is not used, and a
+         --  toolchain enabling it by default would reject the -march below.
          Common_Compiler_Flags := Common_Compiler_Flags & (
+            "-fcf-protection=none",
             "-march=rv64imac_zicsr_zifencei",
             "-mabi=lp64",
             "-mcmodel=medlow",
@@ -138,7 +143,13 @@ project Ironclad is
          "-ffreestanding",
          "-I@SRCDIR@/uacpi/include"
       );
-      Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags;
+
+      --  GCC before 13 passes the prefix maps on to the assembler only in
+      --  this form.
+      Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags & (
+         "-fdebug-prefix-map=" & "@SRCDIR@" & "=.",
+         "-fdebug-prefix-map=" & "@BUILDDIR@" & "=."
+      );
 
       for Default_Switches ("Ada") use Base_Ada_Switches;
       for Default_Switches ("C") use Base_C_Switches;
@@ -151,17 +162,24 @@ project Ironclad is
    end Compiler;
 
    package Linker is
-      Base_Link_Switches := Split (Linker_Flags, " ") & Common_Compiler_Flags & (
+      --  The kernel needs its runtime and the runtime needs cc-runtime, which
+      --  is part of the kernel, so search their archives as a group.
+      for Leading_Switches ("Ada") use ("-Wl,--start-group");
+      Base_Link_Switches := ("rtsdir/adalib/libgnat.a", "-Wl,--end-group");
+
+      --  Always ask for a build ID, naming its style, as compilers and
+      --  linkers differ on both. Comes before LDFLAGS, which can override it.
+      Base_Link_Switches := Base_Link_Switches & ("-Wl,--build-id=sha1") &
+        Split (Linker_Flags, " ");
+
+      Base_Link_Switches := Base_Link_Switches & Common_Compiler_Flags & (
          "-nostdlib",
          "-static",
          "-no-pie",
-         "-Wl,-no-pie",
          "-Wl,-z,max-page-size=0x1000",
          "-Wl,-z,noexecstack",
          "-Wl,--gc-sections",
-         "-Wl,--build-id=sha1",
-         "-T@SRCDIR@/source/arch/" & Arch & "/linker.ld",
-         "rtsdir/adalib/libgnat.a"
+         "-T@SRCDIR@/source/arch/" & Arch & "/linker.ld"
       );
 
       case Arch is
@@ -174,6 +192,16 @@ project Ironclad is
             Base_Link_Switches := Base_Link_Switches & (
                "-Wl,-m,elf_x86_64"
             );
+      end case;
+
+      --  Tell the linker as well, as the compiler does not always pass this
+      --  on, if configure found it to have the flag, which GNU ld only has
+      --  from 2.37 on.
+      case Linker_No_PIE is
+         when "true" =>
+            Base_Link_Switches := Base_Link_Switches & ("-Wl,-no-pie");
+         when "false" =>
+            null;
       end case;
 
       for Switches ("Ada") use Base_Link_Switches;

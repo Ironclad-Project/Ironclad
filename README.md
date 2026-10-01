@@ -29,14 +29,15 @@ reporting, and development guides, check https://ironclad-os.org
 
 The tools needed are:
 
-- standard *nix tools including `find` and GNU make.
-- git, autoconf and automake when not using a tarball (for `./bootstrap`).
-- gprbuild for compilation, along with a compatible Ada compiler and assembler.
-  gprconfig is needed as well, which some distributions package separately.
-- GNU Info for building the documentation.
+- standard *nix tools including `find` and GNU make 3.78.1 or later.
+- git, autoconf 2.63 or later and automake 1.13 or later when not using a
+  tarball (for `./bootstrap`).
+- gprbuild for compilation, along with GNAT from GCC 12 or later and a
+  compatible assembler. gprconfig is needed as well, which some distributions
+  package separately.
+- GNU Texinfo for building the documentation, and TeX for its DVI version.
 - highlight for syntax highlighting when building the HTML documentation.
 - gnatprove for formal verification, if desired.
-- typos for spell-checking, if desired.
 
 If checking out Git sources instead of building from a tarball, run
 `./bootstrap` first.
@@ -47,18 +48,19 @@ enough, like the following:
 ```bash
 ./configure
 make
-make check # If desired, will need gnatprove and perl.
+make check # If desired, will need gnatprove.
 make install
 ```
 
 (Replace `make` with `gmake` or similar if necessary, on systems where GNU make
 is not the default `make`).
 
-Several flags are provided in configure for customizing kernel settings, one
-can check them with `./configure --help`.
+Several options and variables are provided in configure for customizing the
+build, one can check them with `./configure --help`.
 
 The above would build Ironclad for the architecture of the host system; so for
-example it would be built for x86_64 on an x86_64 host.
+example it would be built for x86_64 on an x86_64 host. The supported
+architectures are x86_64 and riscv64.
 In order to cross compile Ironclad for a different architecture, one can use
 the standard autoconf option `--host=` for `./configure`. For example:
 `./configure --host=riscv64-linux-gnu` would build Ironclad for RISC-V 64-bit,

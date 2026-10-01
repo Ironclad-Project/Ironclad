@@ -70,7 +70,10 @@ library project RTS is
 
       case Arch is
          when "riscv64-limine" =>
+            --  Unlike on x86_64, control-flow protection is not used, and a
+            --  toolchain enabling it by default would reject the -march below.
             Base_Ada_Switches := Base_Ada_Switches & (
+               "-fcf-protection=none",
                "-march=rv64imac_zicsr_zifencei",
                "-mabi=lp64",
                "-mcmodel=medlow",

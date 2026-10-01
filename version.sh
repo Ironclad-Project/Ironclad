@@ -12,9 +12,6 @@
 # OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-LC_ALL=C
-export LC_ALL
-
 srcdir="$(dirname "$0")"
 test -z "$srcdir" && srcdir=.
 
@@ -32,8 +29,8 @@ fi
 
 tmpfile="$(mktemp)"
 
-if ! git describe --exact-match --tags $(git log -n1 --pretty='%h') >"$tmpfile" 2>/dev/null; then
-    echo g$(git log -n1 --pretty='%h') >"$tmpfile"
+if ! git describe --exact-match --tags $(git -c log.showSignature=false log -n1 --pretty='%h') >"$tmpfile" 2>/dev/null; then
+    echo g$(git -c log.showSignature=false log -n1 --pretty='%h') >"$tmpfile"
 fi
 
 printf '%s' "$(sed 's/^v//g' <"$tmpfile")"
