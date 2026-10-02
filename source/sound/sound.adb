@@ -115,12 +115,14 @@ package body Sound is
    begin
       for I in Mixer_Devs'Range loop
          if Mixer_Devs (I) = null then
-            Mixer_Devs (I) := new Mixer_Info;
+            Mixer_Devs (I) := new Mixer_Info'
+               (ID       => [others => ' '],
+                ID_Len   => ID'Length,
+                Name     => [others => ' '],
+                Name_Len => Name'Length,
+                Card_Idx => Card_Idx);
             Mixer_Devs (I).ID (1 .. ID'Length) := ID;
-            Mixer_Devs (I).ID_Len := ID'Length;
             Mixer_Devs (I).Name (1 .. Name'Length) := Name;
-            Mixer_Devs (I).Name_Len := Name'Length;
-            Mixer_Devs (I).Card_Idx := Card_Idx;
             Idx := I;
             Devices.Register (Res, "mixer" & Natural (I)'Image, Success);
             return;
@@ -178,23 +180,24 @@ package body Sound is
    begin
       for I in Audio_Devs'Range loop
          if Audio_Devs (I) = null then
-            Audio_Devs (I) := new Device_Info;
+            Audio_Devs (I) := new Device_Info'
+               (Name         => [others => ' '],
+                Name_Len     => Name'Length,
+                Mixer_Idx    => Mixer_Idx,
+                Card_Idx     => Card_Idx,
+                Can_Read     => Res.Read /= null,
+                Can_Write    => Res.Write /= null,
+                Label        => [others => ' '],
+                Label_Len    => 0,
+                Song         => [others => ' '],
+                Song_Len     => 0,
+                Formats      => 0,
+                Min_Rate     => 0,
+                Max_Rate     => 0,
+                Min_Channels => 0,
+                Max_Channels => 0,
+                Caps         => 0);
             Audio_Devs (I).Name (1 .. Name'Length) := Name;
-            Audio_Devs (I).Name_Len := Name'Length;
-            Audio_Devs (I).Mixer_Idx := Mixer_Idx;
-            Audio_Devs (I).Card_Idx := Card_Idx;
-            Audio_Devs (I).Can_Read := Res.Read /= null;
-            Audio_Devs (I).Can_Write := Res.Write /= null;
-            Audio_Devs (I).Label := [others => ' '];
-            Audio_Devs (I).Label_Len := 0;
-            Audio_Devs (I).Song := [others => ' '];
-            Audio_Devs (I).Song_Len := 0;
-            Audio_Devs (I).Formats := 0;
-            Audio_Devs (I).Min_Rate := 0;
-            Audio_Devs (I).Max_Rate := 0;
-            Audio_Devs (I).Min_Channels := 0;
-            Audio_Devs (I).Max_Channels := 0;
-            Audio_Devs (I).Caps := 0;
             Idx := I;
             Devices.Register (Res, "dsp" & Natural (I)'Image, Success);
             return;
@@ -324,13 +327,16 @@ package body Sound is
    begin
       for I in Cards'Range loop
          if Cards (I) = null then
-            Cards (I) := new Card_Info;
+            Cards (I) := new Card_Info'
+               (Short_Name => [others => ' '],
+                Long_Name  => [others => ' '],
+                HW_Info    => [others => ' '],
+                Short_Len  => Name_Short'Length,
+                Long_Len   => Name_Long'Length,
+                Info_Len   => HW_Info'Length);
             Cards (I).Short_Name (1 .. Name_Short'Length) := Name_Short;
             Cards (I).Long_Name (1 .. Name_Long'Length) := Name_Long;
             Cards (I).HW_Info (1 .. HW_Info'Length) := HW_Info;
-            Cards (I).Short_Len := Name_Short'Length;
-            Cards (I).Long_Len := Name_Long'Length;
-            Cards (I).Info_Len := HW_Info'Length;
             Idx := I;
             Success := True;
             return;

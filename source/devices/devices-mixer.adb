@@ -20,6 +20,7 @@ with Sound.OSS_IOCTL; use Sound.OSS_IOCTL;
 
 package body Devices.Mixer is
    procedure Init (Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
       Device : Resource;
    begin
       Device :=

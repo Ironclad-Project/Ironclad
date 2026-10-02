@@ -18,6 +18,7 @@ with Devices.Mixer;
 
 package body Devices.DSP is
    procedure Init (Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
       Device : Resource;
    begin
       Device :=
