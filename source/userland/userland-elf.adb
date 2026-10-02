@@ -37,6 +37,10 @@ package body Userland.ELF is
       Header_Bytes : constant Natural := ELF_Header'Size / 8;
       Header_Data  : Devices.Operation_Data (1 .. Header_Bytes)
          with Import, Address => Header'Address;
+      PHDR         : Program_Header;
+      PHDR_Bytes   : constant Natural := Program_Header'Size / 8;
+      PHDR_Data    : Devices.Operation_Data (1 .. PHDR_Bytes)
+         with Import, Address => PHDR'Address;
 
       Ret_Count : Natural;
       Pos       : Unsigned_64 := 0;
@@ -90,49 +94,42 @@ package body Userland.ELF is
       Result.Vector.Program_Header_Count :=
          Unsigned_64 (Header.Program_Header_Count);
 
-      --  Loop the program headers and either load them, or get info.
-      declare
-         Hdr_Cnt : constant Unsigned_16 := Header.Program_Header_Count;
-         PHDRs : array (1 .. Hdr_Cnt) of Program_Header;
-         HSize : constant Unsigned_64 :=
-            Unsigned_64 (Header.Program_Header_Size);
-         RSize : constant Unsigned_64 := HSize * PHDRs'Length;
-         PHDRs_Data : Devices.Operation_Data (1 .. Natural (RSize))
-            with Import, Address => PHDRs'Address;
-      begin
-         if HSize = 0 or PHDRs'Length = 0 then
-            return;
-         end if;
+      --  Loop the program headers and either load them, or get info. They are
+      --  read one at a time, so they have to be of the size we know.
+      if Natural (Header.Program_Header_Size) /= PHDR_Bytes or
+         Header.Program_Header_Count = 0
+      then
+         return;
+      end if;
 
-         Pos := Header.Program_Header_List;
-         VFS.Read (FS, Ino, Pos, PHDRs_Data, Ret_Count, True, Success);
+      Pos := Header.Program_Header_List;
+      for I in 1 .. Header.Program_Header_Count loop
+         VFS.Read (FS, Ino, Pos, PHDR_Data, Ret_Count, True, Success);
          Pos := Pos + Unsigned_64 (Ret_Count);
-         if Success /= FS_Success or Ret_Count /= Natural (RSize) then
+         if Success /= FS_Success or Ret_Count /= PHDR_Bytes then
             return;
          end if;
 
-         for HDR of PHDRs loop
-            case HDR.Segment_Type is
-               when Program_Loadable_Segment =>
-                  Load_Header (FS, Ino, HDR, Map, Base, Success2);
-                  if not Success2 then
-                     return;
-                  end if;
-               when Program_Header_Table_Segment =>
-                  Result.Vector.Program_Headers := Base + HDR.Virt_Address;
-               when Program_Interpreter_Segment =>
-                  Get_Linker (FS, Ino, HDR, Result.Linker_Path,
-                     Result.Linker_Len);
-               when Program_GNU_Stack =>
-                  Result.Exec_Stack := (HDR.Flags and Flags_Executable) /= 0;
-               when others =>
-                  null;
-            end case;
-         end loop;
+         case PHDR.Segment_Type is
+            when Program_Loadable_Segment =>
+               Load_Header (FS, Ino, PHDR, Map, Base, Success2);
+               if not Success2 then
+                  return;
+               end if;
+            when Program_Header_Table_Segment =>
+               Result.Vector.Program_Headers := Base + PHDR.Virt_Address;
+            when Program_Interpreter_Segment =>
+               Get_Linker (FS, Ino, PHDR, Result.Linker_Path,
+                  Result.Linker_Len);
+            when Program_GNU_Stack =>
+               Result.Exec_Stack := (PHDR.Flags and Flags_Executable) /= 0;
+            when others =>
+               null;
+         end case;
+      end loop;
 
-         --  Return success.
-         Result.Was_Loaded := True;
-      end;
+      --  Return success.
+      Result.Was_Loaded := True;
    exception
       when Constraint_Error =>
          Result.Was_Loaded := False;

@@ -122,9 +122,12 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Init (Success : out Boolean) is
    begin
-      --  Initialize registries.
-      Thread_Pool := new Thread_Info_Arr'
-         [others =>
+      --  Initialize registries. GNAT before 15 can build an array aggregate on
+      --  the stack first, and we still run on the bootloader's small one, so
+      --  the thread table is filled one entry at a time.
+      Thread_Pool := new Thread_Info_Arr;
+      for Thread of Thread_Pool.all loop
+         Thread :=
             (Is_Present      => False,
              Is_Running      => False,
              Is_Held         => False,
@@ -153,7 +156,8 @@ package body Scheduler with SPARK_Mode => Off is
              Start_Time      => (0, 0),
              Wake_Pending    => False,
              Event_Waiting   => False,
-             Core            => 0)];
+             Core            => 0);
+      end loop;
       Waits := new Wait_Info_Arr'
          [others => (Count => 0, Keys => [others => System.Null_Address])];
 

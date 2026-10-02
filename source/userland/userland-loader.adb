@@ -351,42 +351,42 @@ package body Userland.Loader is
       --  executable path instead of whatever the user invoked with, so we must
       --  overwrite the first argument with the raw original path.
       --  This relies on the first arg being the path to the program.
+      --  The arguments can be many, so they are put together on the heap.
       declare
-         Touched_Arguments : Argument_Arr (Arguments'First .. Arguments'Last);
+         procedure Free is new Ada.Unchecked_Deallocation
+            (Argument_Arr, Argument_Arr_Acc);
+
+         Extra : constant Natural := (if Arg_Len /= 0 then 2 else 1);
+         Touched_Arguments : Argument_Arr_Acc :=
+            new Argument_Arr (1 .. Extra + Arguments'Length);
       begin
-         for I in Touched_Arguments'Range loop
-            Touched_Arguments (I) := new String'(Arguments (I).all);
-         end loop;
-         if Touched_Arguments'Length /= 0 then
-            Free (Touched_Arguments (Arguments'First));
-            Touched_Arguments (Arguments'First) := new String'(Exec_Path);
-         end if;
-
+         Touched_Arguments (1) := Path_Acc;
          if Arg_Len /= 0 then
-            Start_Program
-               (Exec_Path   => Exec_Path,
-                FS          => Banged_FS,
-                Ino         => Banged_Ino,
-                Arguments   => [Path_Acc, Arg_Acc] & Touched_Arguments,
-                Environment => Environment,
-                Proc        => Proc,
-                Success     => Success,
-                Depth       => Depth + 1);
-         else
-            Start_Program
-               (Exec_Path   => Exec_Path,
-                FS          => Banged_FS,
-                Ino         => Banged_Ino,
-                Arguments   => (Path_Acc) & Touched_Arguments,
-                Environment => Environment,
-                Proc        => Proc,
-                Success     => Success,
-                Depth       => Depth + 1);
+            Touched_Arguments (2) := Arg_Acc;
+         end if;
+         for I in Arguments'Range loop
+            Touched_Arguments (Extra + 1 + (I - Arguments'First)) :=
+               new String'(Arguments (I).all);
+         end loop;
+         if Arguments'Length /= 0 then
+            Free (Touched_Arguments (Extra + 1));
+            Touched_Arguments (Extra + 1) := new String'(Exec_Path);
          end if;
 
-         for I in Touched_Arguments'Range loop
+         Start_Program
+            (Exec_Path   => Exec_Path,
+             FS          => Banged_FS,
+             Ino         => Banged_Ino,
+             Arguments   => Touched_Arguments.all,
+             Environment => Environment,
+             Proc        => Proc,
+             Success     => Success,
+             Depth       => Depth + 1);
+
+         for I in Extra + 1 .. Touched_Arguments'Last loop
             Free (Touched_Arguments (I));
          end loop;
+         Free (Touched_Arguments);
       end;
 
       Free (Path_Acc);
