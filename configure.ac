@@ -33,16 +33,18 @@ AC_SUBST([BUILDDIR])
 # The source path is re-evaluated by config.status and names make
 # prerequisites, while the build path reaches the project files' string
 # literals and gprconfig's comma separated command line. '&' otherwise yields
-# an empty GNUmakefile with configure still exiting 0.
+# an empty GNUmakefile with configure still exiting 0. The assembler splits a
+# prefix map at its first '=', so either path containing one stays in the
+# debug information.
 AC_MSG_CHECKING([whether the source and build directory paths are usable])
-for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|'; do
+for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
     AS_CASE(["$SRCDIR"],
         [*"$bad_char"*],
         [AC_MSG_RESULT([no])
          AC_MSG_ERROR([the source directory path contains '$bad_char'; move the source tree])])
 done
 
-for bad_char in '"' "'" ':' '&' ','; do
+for bad_char in '"' "'" ':' '&' ',' '='; do
     AS_CASE(["$BUILDDIR"],
         [*"$bad_char"*],
         [AC_MSG_RESULT([no])
@@ -209,7 +211,12 @@ AC_SUBST([CC_DIR])
 AC_ARG_VAR([STRIP], [strip command])
 GET_PROG([STRIP], [strip], [tool])
 
+# Clang answers -dumpversion with its own version, so tell it apart by the
+# target it prints with its version, which GCC does not.
 AC_MSG_CHECKING([whether $CC is GCC 12 or later])
+AS_IF([$CC --version 2>/dev/null | $GREP -q '^Target: '],
+    [AC_MSG_RESULT([no])
+     AC_MSG_ERROR([$CC is Clang, but GCC version 12 or greater is required to build Ironclad])])
 GCC_VERSION="$($CC -dumpversion)"
 AS_VERSION_COMPARE([$GCC_VERSION], [12],
     [AC_MSG_RESULT([no])
@@ -242,6 +249,19 @@ AS_IF([LC_ALL=C $CC $LDFLAGS -Wl,--help 2>/dev/null | $EGREP -q '(^|[[[:space:]]
     [AC_MSG_RESULT([no])
      LD_HAS_NO_PIE="false"])
 AC_SUBST([LD_HAS_NO_PIE])
+
+# Keep linker relaxation away from gp, which nothing sets up, with the flag
+# GNU ld has from 2.41 on. Linkers without it only use gp if the script
+# defines __global_pointer$.
+LD_HAS_NO_RELAX_GP="false"
+AS_IF([test "x$host_cpu" = "xriscv64"], [
+    AC_MSG_CHECKING([whether the linker accepts --no-relax-gp])
+    AS_IF([LC_ALL=C $CC $LDFLAGS -Wl,--help 2>/dev/null | $EGREP -q '(^|[[[:space:]]])-?-no-relax-gp([[[:space:],=@<:@]]|$)'],
+        [AC_MSG_RESULT([yes])
+         LD_HAS_NO_RELAX_GP="true"],
+        [AC_MSG_RESULT([no])])
+])
+AC_SUBST([LD_HAS_NO_RELAX_GP])
 ###############################################################################
 # A ton of tools use source date epoch in order to not use date in the effort
 # of doing reproducible builds.

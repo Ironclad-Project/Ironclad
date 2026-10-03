@@ -76,8 +76,7 @@ library project RTS is
                "-fcf-protection=none",
                "-march=rv64imac_zicsr_zifencei",
                "-mabi=lp64",
-               "-mcmodel=medlow",
-               "-mno-relax"
+               "-mcmodel=medlow"
             );
          when "x86_64-limine" =>
             Base_Ada_Switches := Base_Ada_Switches & (

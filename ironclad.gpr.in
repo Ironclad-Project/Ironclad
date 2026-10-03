@@ -22,10 +22,12 @@ project Ironclad is
 
    type Proving_State is ("false", "true");
    type Linker_No_PIE_State is ("false", "true");
+   type Linker_No_Relax_GP_State is ("false", "true");
 
    Arch : Arch_Name := "@host_cpu@-@PLATFORM@";
    Proving : Proving_State := external ("IRONCLAD_PROVING", "false");
    Linker_No_PIE : Linker_No_PIE_State := "@LD_HAS_NO_PIE@";
+   Linker_No_Relax_GP : Linker_No_Relax_GP_State := "@LD_HAS_NO_RELAX_GP@";
    Ada_Flags        := "@ADAFLAGS@";
    C_Flags          := "@CFLAGS@";
    Asm_Flags        := "@ASFLAGS@";
@@ -114,8 +116,7 @@ project Ironclad is
             "-fcf-protection=none",
             "-march=rv64imac_zicsr_zifencei",
             "-mabi=lp64",
-            "-mcmodel=medlow",
-            "-mno-relax"
+            "-mcmodel=medlow"
          );
       when "x86_64-limine" =>
          Common_Compiler_Flags := Common_Compiler_Flags & (
@@ -185,8 +186,7 @@ project Ironclad is
       case Arch is
          when "riscv64-limine" =>
             Base_Link_Switches := Base_Link_Switches & (
-               "-Wl,-m,elf64lriscv",
-               "-Wl,--no-relax"
+               "-Wl,-m,elf64lriscv"
             );
          when "x86_64-limine" =>
             Base_Link_Switches := Base_Link_Switches & (
@@ -200,6 +200,15 @@ project Ironclad is
       case Linker_No_PIE is
          when "true" =>
             Base_Link_Switches := Base_Link_Switches & ("-Wl,-no-pie");
+         when "false" =>
+            null;
+      end case;
+
+      --  Keep riscv64 linker relaxation away from gp, which nothing sets up,
+      --  if configure found the linker to have the flag.
+      case Linker_No_Relax_GP is
+         when "true" =>
+            Base_Link_Switches := Base_Link_Switches & ("-Wl,--no-relax-gp");
          when "false" =>
             null;
       end case;

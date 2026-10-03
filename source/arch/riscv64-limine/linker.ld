@@ -71,6 +71,8 @@ SECTIONS
     /DISCARD/ : {
         *(.eh_frame*)
         *(.note .note.*)
+        /* Nothing in the kernel needs a GOT, but some linkers create one. */
+        *(.got .got.*)
         *(.riscv.attributes)
     }
 }
