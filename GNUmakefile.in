@@ -199,6 +199,7 @@ dist:
 	rm -rf "$(DIST_OUTPUT)"/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/.mailmap
 	rm -rf "$(DIST_OUTPUT)"/.forgejo
+	rm -rf "$(DIST_OUTPUT)"/RELEASE_PROCEDURE.md
 	rm -rf "$(DIST_OUTPUT)"/autom4te.cache
 	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.git
 	rm -rf "$(DIST_OUTPUT)"/freestanding-c-hdrs/.git
