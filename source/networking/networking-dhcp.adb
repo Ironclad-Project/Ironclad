@@ -21,7 +21,6 @@ with Networking.IPv4;
 with Networking.UDP;
 
 package body Networking.DHCP is
-   use type Devices.Operation_Data;
    use type Devices.Dev_Status;
 
    --  DHCP packet size (fixed header + options).
@@ -449,6 +448,8 @@ package body Networking.DHCP is
          Frame_Len : constant Natural :=
             Ethernet.Header_Size + IP_Hdr_Size + UDP_Hdr_Size + Len;
          Frame     : Devices.Operation_Data (1 .. Frame_Len);
+         Packet    : Devices.Operation_Data
+            (1 .. IP_Hdr_Size + UDP_Hdr_Size + Len);
       begin
          --  UDP header.
          UDP_Hdr.Source_Port := DHCP_Client_Port;
@@ -461,10 +462,14 @@ package body Networking.DHCP is
             (Zero_IP, Broadcast_IP, UDP_Hdr_Size + Len, IPv4.Protocol_UDP);
 
          --  Build Ethernet frame.
+         Packet (1 .. IP_Hdr_Size) := IP_Hdr_Bytes;
+         Packet (IP_Hdr_Size + 1 .. IP_Hdr_Size + UDP_Hdr_Size) :=
+            UDP_Hdr_Bytes;
+         Packet (IP_Hdr_Size + UDP_Hdr_Size + 1 .. Packet'Last) :=
+            Payload (1 .. Len);
          Ethernet.Create_Frame
-            (Broadcast_MAC, Src_MAC, Ethernet.EtherType_IPv4,
-             IP_Hdr_Bytes & UDP_Hdr_Bytes & Payload (1 .. Len),
-             Frame, Eth_Len);
+            (Broadcast_MAC, Src_MAC, Ethernet.EtherType_IPv4, Packet, Frame,
+             Eth_Len);
 
          --  Send.
          Devices.Write (Dev, 0, Frame (1 .. Eth_Len), Ret_Count, Status);
