@@ -69,7 +69,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/osdev0/cc-runtime.git \
         cc-runtime \
-        dae79833b57a01b9fd3e359ee31def69f5ae899b
+        9891629daf3703d0ddecd295772df7da82ab25b9
 
     # 3.1.2
     clone_repo_commit \
