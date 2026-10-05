@@ -118,7 +118,7 @@ $(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES)
 info: ironclad.info
 
 ironclad.info: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi $(call MKESCAPE,$(SRCDIR))/docs/fdl.texi GNUmakefile
-	$(MAKEINFO) '$(call SHESCAPE,$(SRCDIR))/docs/ironclad.texi' -o $@
+	$(MAKEINFO) --no-split '$(call SHESCAPE,$(SRCDIR))/docs/ironclad.texi' -o $@
 
 .PHONY: html
 html: ironclad.html
