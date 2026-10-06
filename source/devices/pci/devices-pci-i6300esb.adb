@@ -104,11 +104,11 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Offset, Data, Is_Blocking);
+      pragma Unreferenced (Offset, Is_Blocking);
       D : constant Dog_Data_Acc := Dog_Data_Acc (Con.To_Pointer (Key));
    begin
       Keep_Alive (D.Base_Addr);
-      Ret_Count := 0;
+      Ret_Count := Data'Length;
       Success   := Dev_Success;
    exception
       when Constraint_Error =>
@@ -144,7 +144,7 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
             when WDOG_STOP =>
                Devices.PCI.Write8 (D.PCI_Data, LOCK, 0);
                Devices.PCI.Read8 (D.PCI_Data, LOCK, Val);
-               Success := Val /= 0;
+               Success := (Val and DOG_ENABLE) = 0;
             when WDOG_HEARTBEAT =>
                Unlock_Registers (D.Base_Addr);
                TIMER1_Reg := Shift_Left (Timeout, 9);

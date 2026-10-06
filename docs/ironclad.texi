@@ -5773,6 +5773,12 @@ devctl(wdog, WDOG_STOP, NULL, 0, NULL);  // Enable 1:1 scaling.
 devctl(wdog, WDOG_HEARTBEAT, pointer_to_uint32_t, 0, NULL);
 @end example
 
+A write keeps the count alive and answers as if all the data passed was
+written, as to make user writes appear successful.
+
+A @code{WDOG_STOP} can be ignored by the hardware under certain circumstances,
+thus, the user should check for success and resubmit the command if failed.
+
 There is no default heartbeat count, so be sure to configure it if you do not
 want mayhem. Access to reset and configuration can be restricted by using
 MAC.
