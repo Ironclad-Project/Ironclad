@@ -139,13 +139,15 @@ package body Devices.Drive_Cache is
        Success  : out Boolean)
    is
       pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
+      Written : Boolean;
    begin
       Success := True;
       for Cache of Registry.Caches loop
          Synchronization.Seize (Cache.Mutex);
          if Cache.Is_Used and Cache.Is_Dirty then
             Registry.Write_Proc
-               (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data, Success);
+               (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data, Written);
+            Success := Success and Written;
             Cache.Is_Dirty := False;
          end if;
          Synchronization.Release (Cache.Mutex);
@@ -163,7 +165,10 @@ package body Devices.Drive_Cache is
    is
       package Align is new Alignment (Unsigned_64);
       First_LBA, LBAs, Idx, Current_LBA : Unsigned_64;
+      Written : Boolean;
    begin
+      --  Every dirty sector of the range is written, the ones after a
+      --  failure included, and one that could not be is not tried again.
       Success := True;
       First_LBA := Offset / Unsigned_64 (Sector_Size);
       LBAs := Align.Divide_Round_Up (Count, Unsigned_64 (Sector_Size)) + 1;
@@ -180,7 +185,8 @@ package body Devices.Drive_Cache is
                (Registry.Drive_Arg,
                 Registry.Caches (Idx).LBA_Offset,
                 Registry.Caches (Idx).Data,
-                Success);
+                Written);
+            Success := Success and Written;
             Registry.Caches (Idx).Is_Dirty := False;
          end if;
          Synchronization.Release (Registry.Caches (Idx).Mutex);

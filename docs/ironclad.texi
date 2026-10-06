@@ -2893,7 +2893,13 @@ int fsync(int fd, int flags);
 @end example
 
 The syscall does the same as @code{sync}, just only applied to @code{fd}. If
-the passed file is a device, the device will flush its internal caches.
+@code{fd} is a device, it will flush its internal caches. What the flushing
+procedure and what a success or failure means depends is device specific.
+
+In the case of the passed @code{fd} being a data drive with an associated drive
+cache, every block it holds is written, the call then failing with @code{EIO}
+if any one of the sectors fails to be written. A sector that could not be
+written is not tried again.
 
 If the file was just created, one might considering synchronizing the parent
 directory as well, as, depending on the FS and FS driver, parent directory
