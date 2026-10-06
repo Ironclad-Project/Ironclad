@@ -4328,7 +4328,7 @@ package body Userland.Syscall is
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
       elsif Get_Type (File.Inner_Socket) /= IPC.Socket.Stream then
-         Errno    := Error_Not_Supported;
+         Errno    := Error_Op_Not_Supported;
          Returned := Unsigned_64'Last;
       else
          IPC.Socket.Listen (File.Inner_Socket, Natural (Backlog), Succ);
@@ -4378,7 +4378,7 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          return;
       elsif Get_Type (File.Inner_Socket) /= IPC.Socket.Stream then
-         Errno    := Error_Not_Supported;
+         Errno    := Error_Op_Not_Supported;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -5801,8 +5801,14 @@ package body Userland.Syscall is
          Execute_MAC_Failure ("clock_nanosleep", Proc);
          Returned := Unsigned_64'Last;
          return;
-      elsif not Is_Valid_Clock (Clock_ID) then
+      elsif not Is_Valid_Clock (Clock_ID) or else
+            Clock_ID = CLOCK_THREAD_CPUTIME_ID
+      then
          Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Clock_ID = CLOCK_PROCESS_CPUTIME_ID then
+         Errno := Error_Not_Supported;
          Returned := Unsigned_64'Last;
          return;
       end if;

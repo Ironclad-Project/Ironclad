@@ -64,8 +64,9 @@ package Userland.Syscall is
        Error_Not_Connected,   --  ENOTCONN
        Error_Not_Directory,   --  ENOTDIR
        Error_Not_Empty,       --  ENOTEMPTY
+       Error_Not_Supported,   --  ENOTSUP
        Error_Not_A_TTY,       --  ENOTTY
-       Error_Not_Supported,   --  ENOTSUPP
+       Error_Op_Not_Supported, --  EOPNOTSUPP
        Error_Bad_Permissions, --  EPERM
        Error_Broken_Pipe,     --  EPIPE
        Error_Read_Only_FS,    --  EROFS
@@ -101,6 +102,7 @@ package Userland.Syscall is
        Error_Not_Connected   => 1052,
        Error_Not_Directory   => 1053,
        Error_Not_Empty       => 1054,
+       Error_Unsupported     => 1057,
        Error_Not_A_TTY       => 1058,
        Error_Not_Supported   => 1060,
        Error_Bad_Permissions => 1063,

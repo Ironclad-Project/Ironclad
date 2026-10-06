@@ -1362,6 +1362,9 @@ An operation only for directories was issued for a non-directory.
 @item ENOTEMPTY (1054)
 A non-empty directory was attempted to be removed.
 
+@item ENOTSUP (1057)
+The operation is not supported.
+
 @item ENOTTY (1058)
 The passed argument is not a TTY.
 
@@ -3714,7 +3717,11 @@ following errno:
 @code{time} or @code{remaining} point to non accessible memory.
 
 @item EINVAL
-One of the passed values is not valid.
+One of the passed values is not valid, or @code{clock_id} is
+@code{CLOCK_THREAD_CPUTIME_ID}.
+
+@item ENOTSUP
+@code{clock_id} is @code{CLOCK_PROCESS_CPUTIME_ID}, which is not supported.
 
 @item EPERM
 MAC did not allow this.
