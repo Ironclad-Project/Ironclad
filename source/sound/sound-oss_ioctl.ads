@@ -25,38 +25,38 @@ package Sound.OSS_IOCTL is
    SNDCTL_ENGINEINFO   : constant := 16#C49C580C#;
 
    --  DSP IOCTLs.
-   SNDCTL_DSP_BIND_CHANNEL      : constant := 16#C0045015#;
+   SNDCTL_DSP_BIND_CHANNEL      : constant := 16#C0045041#;
    SNDCTL_DSP_CHANNELS          : constant := 16#C0045006#;
-   SNDCTL_DSP_COOKEDMODE        : constant := 16#4004500D#;
+   SNDCTL_DSP_COOKEDMODE        : constant := 16#4004501E#;
    SNDCTL_DSP_CURRENT_IPTR      : constant := 16#80905023#;
    SNDCTL_DSP_CURRENT_OPTR      : constant := 16#80905024#;
    SNDCTL_DSP_GETBLKSIZE        : constant := 16#C0045004#;
    SNDCTL_DSP_GETCAPS           : constant := 16#8004500F#;
    SNDCTL_DSP_GETCHANNELMASK    : constant := 16#C0045040#;
    SNDCTL_DSP_GET_CHNORDER      : constant := 16#8008502A#;
-   SNDCTL_DSP_GETERROR          : constant := 16#80605039#;
+   SNDCTL_DSP_GETERROR          : constant := 16#80685019#;
    SNDCTL_DSP_GETFMTS           : constant := 16#8004500B#;
    SNDCTL_DSP_GETIPEAKS         : constant := 16#8100502B#;
    SNDCTL_DSP_GETIPTR           : constant := 16#800C5011#;
-   SNDCTL_DSP_GETISPACE         : constant := 16#800C500D#;
+   SNDCTL_DSP_GETISPACE         : constant := 16#8010500D#;
    SNDCTL_DSP_GETODELAY         : constant := 16#80045017#;
    SNDCTL_DSP_GETOPEAKS         : constant := 16#8100502C#;
    SNDCTL_DSP_GETOPTR           : constant := 16#800C5012#;
-   SNDCTL_DSP_GETOSPACE         : constant := 16#800C500C#;
-   SNDCTL_DSP_GET_PLAYTGT_NAMES : constant := 16#81005027#;
+   SNDCTL_DSP_GETOSPACE         : constant := 16#8010500C#;
+   SNDCTL_DSP_GET_PLAYTGT_NAMES : constant := 16#8DC85027#;
    SNDCTL_DSP_GETPLAYVOL        : constant := 16#80045018#;
-   SNDCTL_DSP_GET_RECSRC_NAMES  : constant := 16#81005025#;
+   SNDCTL_DSP_GET_RECSRC_NAMES  : constant := 16#8DC85025#;
    SNDCTL_DSP_GET_RECSRC        : constant := 16#80045026#;
    SNDCTL_DSP_GETRECVOL         : constant := 16#80045029#;
    SNDCTL_DSP_GETTRIGGER        : constant := 16#80045010#;
-   SNDCTL_DSP_HALT_INPUT        : constant := 16#5011#;
-   SNDCTL_DSP_HALT_OUTPUT       : constant := 16#5012#;
+   SNDCTL_DSP_HALT_INPUT        : constant := 16#5021#;
+   SNDCTL_DSP_HALT_OUTPUT       : constant := 16#5022#;
    SNDCTL_DSP_HALT              : constant := 16#5000#;
    SNDCTL_DSP_LOW_WATER         : constant := 16#40045022#;
    SNDCTL_DSP_NONBLOCK          : constant := 16#500E#;
    SNDCTL_DSP_POLICY            : constant := 16#4004502D#;
    SNDCTL_DSP_POST              : constant := 16#5008#;
-   SNDCTL_DSP_READCTL           : constant := 16#C080500A#;
+   SNDCTL_DSP_READCTL           : constant := 16#C11C501A#;
    SNDCTL_DSP_SETDUPLEX         : constant := 16#5016#;
    SNDCTL_DSP_SETFMT            : constant := 16#C0045005#;
    SNDCTL_DSP_SETFRAGMENT       : constant := 16#C004500A#;
@@ -66,23 +66,23 @@ package Sound.OSS_IOCTL is
    SNDCTL_DSP_SETRECVOL         : constant := 16#C0045029#;
    SNDCTL_DSP_SETSYNCRO         : constant := 16#5015#;
    SNDCTL_DSP_SETTRIGGER        : constant := 16#40045010#;
-   SNDCTL_DSP_SILENCE           : constant := 16#500F#;
-   SNDCTL_DSP_SKIP              : constant := 16#5010#;
+   SNDCTL_DSP_SILENCE           : constant := 16#501F#;
+   SNDCTL_DSP_SKIP              : constant := 16#5020#;
    SNDCTL_DSP_SPEED             : constant := 16#C0045002#;
    SNDCTL_DSP_SUBDIVIDE         : constant := 16#C0045009#;
-   SNDCTL_DSP_SYNCGROUP         : constant := 16#C080503C#;
+   SNDCTL_DSP_SYNCGROUP         : constant := 16#C048501C#;
    SNDCTL_DSP_SYNC              : constant := 16#5001#;
    SNDCTL_DSP_SYNCSTART         : constant := 16#4004501D#;
-   SNDCTL_DSP_WRITECTL          : constant := 16#C080500B#;
+   SNDCTL_DSP_WRITECTL          : constant := 16#C11C501B#;
    SNDCTL_DSP_PROFILE           : constant := 16#40045017#;
    SNDCTL_SETSONG               : constant := 16#40405902#;
    SNDCTL_DSP_STEREO            : constant := 16#C0045003#;
 
    --  MIDI IOCTLs.
-   SNDCTL_MIDI_INFO     : constant := 16#C050510C#;
-   SNDCTL_MIDI_MTCINPUT : constant := 16#C0045103#;
-   SNDCTL_MIDI_PRETIME  : constant := 16#C0045100#;
-   SNDCTL_MIDI_SETMODE  : constant := 16#C0045106#;
+   SNDCTL_MIDI_INFO     : constant := 16#C074510C#;
+   SNDCTL_MIDI_MTCINPUT : constant := 16#C0046D03#;
+   SNDCTL_MIDI_PRETIME  : constant := 16#C0046D00#;
+   SNDCTL_MIDI_SETMODE  : constant := 16#C0046D06#;
 
    --  Mixer IOCTLs.
    SNDCTL_MIX_READ_VOLUME     : constant := 16#80044D00#;
