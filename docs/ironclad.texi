@@ -178,7 +178,7 @@ Syscalls
 * utimes::                  Modify timestamps for a file.
 * get/set_scheduler::       Get and set scheduling details for a process.
 * get_priority_limits::     Get the minimum and maximum scheduler priorities.
-* sigprogmask::             Fetch and change a process' blocked signal.
+* sigprocmask::             Fetch and change a process' blocked signal.
 * sigaction::               Fetch and change a signal's action.
 * send_signal::             Send a signal to a process.
 * getprio/setprio::         Get / Set the niceness of some entities.
@@ -1137,7 +1137,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{get/set_scheduler, set_scheduler}.
 @item
-@ref{sigprogmask}.
+@ref{sigprocmask}.
 @item
 @ref{sigaction}.
 @item
@@ -3928,8 +3928,8 @@ It never fails.
 If @code{min_or_max} is not zero, the maximum priority is returned, otherwise,
 the minimum.
 
-@node sigprogmask
-@section sigprogmask
+@node sigprocmask
+@section sigprocmask
 
 @example c
 #define SIG_BLOCK   1
