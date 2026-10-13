@@ -1593,4 +1593,14 @@ package body VFS is
          Status := FS_Success;
       end if;
    end Open_Parent;
+
+   function Is_Read_Only_FS (Key : FS_Handle) return Boolean is
+   begin
+      --  devfs keeps nothing on a device, and the FAT driver writes nothing.
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => return EXT.Is_Read_Only (Mounts (Key).FS_Data);
+         when FS_FAT => return True;
+         when FS_DEV => return False;
+      end case;
+   end Is_Read_Only_FS;
 end VFS;

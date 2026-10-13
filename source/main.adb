@@ -171,7 +171,7 @@ begin
       end if;
 
       --  Mount /dev.
-      Mount ("zero", "/dev/", VFS.FS_DEV, False, Relative_Update, Success);
+      Mount ("zero", "/dev", VFS.FS_DEV, False, Relative_Update, Success);
       if Success /= FS_Success then
          Panic.Hard_Panic
             ("Failed to mount /dev (" & VFS.FS_Status'Image (Success) & ")");

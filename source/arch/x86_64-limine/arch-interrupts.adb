@@ -426,6 +426,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             PCI_Read
                (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                 State.R9, Returned, Errno);
+         when 145 =>
+            Stat_VFS (State.RDI, State.RSI, State.RDX, State.R12,
+                      State.R8, Returned, Errno);
          when 140 =>
             PCI_Write
                (State.RDI, State.RSI, State.RDX, State.R12, State.R8,

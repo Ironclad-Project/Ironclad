@@ -46,6 +46,24 @@ with Memory.Userland_Transfer;
 with Userland.MAC;
 
 package body Userland.Syscall is
+   --  Error value shared by some functions.
+   Nameless_Mount : constant Mount_Info :=
+      (FS_Type       => 0,
+       Flags         => 0,
+       Source        => [others => ' '],
+       Source_Len    => 0,
+       Location      => [others => ' '],
+       Location_Len  => 0,
+       Block_Size    => 512,
+       Fragment_Size => 512,
+       Size_In_Frags => 0,
+       Free_Blocks   => 0,
+       Free_BlocksU  => 0,
+       Inode_Count   => 0,
+       Free_Inodes   => 0,
+       Free_InodesU  => 0,
+       Max_File_Name => 0);
+
    --  Copies of a value that stop at the length the caller gives, as socket
    --  addresses are copied: done on the value's bytes.
    generic
@@ -2307,29 +2325,7 @@ package body Userland.Syscall is
          List_All (KMnts, Ret);
          Filled := Natural'Min (Ret, Slots);
          for I in 1 .. Filled loop
-            case Get_Backing_FS (KMnts (I)) is
-               when FS_DEV => Mnts (I).FS_Type := MNT_DEV;
-               when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
-               when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
-            end case;
-            Mnts (I).Flags := 0;
-            Fetch_Name
-               (Get_Backing_Device (KMnts (I)),
-                Mnts (I).Source,
-                Natural (Mnts (I).Source_Len));
-            Get_Mount_Point
-               (KMnts (I),
-                Mnts (I).Location,
-                Natural (Mnts (I).Location_Len));
-            Get_Block_Size (KMnts (I), Mnts (I).Block_Size);
-            Get_Fragment_Size (KMnts (I), Mnts (I).Fragment_Size);
-            Get_Size (KMnts (I), Mnts (I).Size_In_Frags);
-            Get_Inode_Count (KMnts (I), Mnts (I).Inode_Count);
-            Get_Max_Length (KMnts (I), Mnts (I).Max_File_Name);
-            Get_Free_Blocks
-               (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
-            Get_Free_Inodes
-               (KMnts (I), Mnts (I).Free_Inodes, Mnts (I).Free_InodesU);
+            Fill_Mount_Info (KMnts (I), Mnts (I));
          end loop;
 
          declare
@@ -2353,6 +2349,123 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_Mounts;
+
+   procedure Stat_VFS
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Info_Addr : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      package Trans is new Memory.Userland_Transfer (Mount_Info);
+
+      Proc       : constant             PID := Arch.Local.Get_Current_Process;
+      Info_IAddr : constant Integer_Address := Integer_Address (Info_Addr);
+      Info_SAddr : constant  System.Address := To_Address (Info_IAddr);
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
+      File_Desc  : File_Description_Acc;
+      Rel_FS, FS : VFS.FS_Handle := VFS.Error_Handle;
+      D_Ino, Ino : VFS.File_Inode_Number := 0;
+      Success    : VFS.FS_Status;
+      Success2   : Boolean;
+      Info       : Mount_Info;
+      User       : Unsigned_32;
+      Map        : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      Userland.Process.Get_Effective_UID (Proc, User);
+
+      if (Flags and not AT_EMPTY_PATH) /= 0 then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Invalid_Value;
+         return;
+      elsif (Flags and AT_EMPTY_PATH) /= 0 then
+         Get_File (Proc, Dir_FD, File_Desc);
+         if File_Desc = null then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_File;
+            return;
+         end if;
+
+         --  A pipe, a socket or a PTY end is on no mount, and leaves FS unset.
+         case File_Desc.Description is
+            when Description_Inode =>
+               FS  := File_Desc.Inner_Ino_FS;
+               Ino := File_Desc.Inner_Ino;
+            when Description_Reader_FIFO | Description_Writer_FIFO |
+                 Description_Primary_PTY | Description_Secondary_PTY |
+                 Description_Socket =>
+               null;
+         end case;
+      else
+         if Path_Len > Path_Max_Len then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_String_Too_Long;
+            return;
+         end if;
+
+         declare
+            subtype Path_String is String (1 .. Natural (Path_Len));
+            package Trans2 is new Memory.Userland_Transfer (Path_String);
+            Path : Path_String;
+         begin
+            Trans2.Take_From_Userland (Map, Path, Path_SAddr, Success2);
+            if not Success2 then
+               goto Would_Fault_Error;
+            end if;
+
+            Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
+            if Rel_FS = VFS.Error_Handle then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Bad_File;
+               return;
+            end if;
+
+            VFS.Open
+               (Key        => Rel_FS,
+                Relative   => D_Ino,
+                Path       => Path,
+                Final_Key  => FS,
+                Ino        => Ino,
+                Success    => Success,
+                User       => User,
+                Want_Read  => False,
+                Want_Write => False,
+                Do_Follow  => True);
+            if Success /= VFS.FS_Success then
+               Translate_Status (Success, 0, Returned, Errno);
+               return;
+            end if;
+         end;
+      end if;
+
+      if FS = VFS.Error_Handle then
+         Info := Nameless_Mount;
+      else
+         Fill_Mount_Info (FS, Info);
+      end if;
+
+      Trans.Paste_Into_Userland (Map, Info, Info_SAddr, Success2);
+      if not Success2 then
+         goto Would_Fault_Error;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Would_Fault_Error>>
+      Returned := Unsigned_64'Last;
+      Errno    := Error_Would_Fault;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Stat_VFS");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Stat_VFS;
 
    procedure Uname
       (Addr     : Unsigned_64;
@@ -9919,4 +10032,38 @@ package body Userland.Syscall is
          Offset := Offset + Memory.MMU.Page_Size;
       end loop;
    end Unmap_Segment;
+
+   procedure Fill_Mount_Info (FS : VFS.FS_Handle; Info : out Mount_Info) is
+      Name     : String (1 .. Devices.Max_Name_Length);
+      Path     : String (1 .. VFS.Path_Buffer_Length);
+      Name_Len : Natural;
+      Path_Len : Natural;
+   begin
+      case Get_Backing_FS (FS) is
+         when FS_DEV => Info.FS_Type := MNT_DEV;
+         when FS_EXT => Info.FS_Type := MNT_EXT;
+         when FS_FAT => Info.FS_Type := MNT_FAT;
+      end case;
+      Info.Flags := (if Is_Read_Only_FS (FS) then MS_RDONLY else 0);
+
+      Fetch_Name (Get_Backing_Device (FS), Name, Name_Len);
+      Get_Mount_Point (FS, Path, Path_Len);
+      Info.Source := Name (1 .. Info.Source'Length);
+      Info.Source_Len :=
+         Unsigned_32 (Natural'Min (Name_Len, Info.Source'Length));
+      Info.Location := Path (1 .. Info.Location'Length);
+      Info.Location_Len :=
+         Unsigned_32 (Natural'Min (Path_Len, Info.Location'Length));
+
+      Get_Block_Size (FS, Info.Block_Size);
+      Get_Fragment_Size (FS, Info.Fragment_Size);
+      Get_Size (FS, Info.Size_In_Frags);
+      Get_Inode_Count (FS, Info.Inode_Count);
+      Get_Max_Length (FS, Info.Max_File_Name);
+      Get_Free_Blocks (FS, Info.Free_Blocks, Info.Free_BlocksU);
+      Get_Free_Inodes (FS, Info.Free_Inodes, Info.Free_InodesU);
+   exception
+      when Constraint_Error =>
+         Info := Nameless_Mount;
+   end Fill_Mount_Info;
 end Userland.Syscall;

@@ -199,6 +199,7 @@ Syscalls
 * sigaltstack::             Set alternative stacks for signal handling.
 * recvsockctr/sendsockctr:: Send and receive control blocks.
 * listmounts::              List the system's mounts.
+* statvfs::                 Describe the mount holding a file.
 * uname::                   List system information.
 * listthreads::             List the system's threads.
 * listnetinter::            List the system's network interfaces.
@@ -1264,6 +1265,20 @@ Empty.
 @ref{nvmm_vcpu_stop}
 @item
 @ref{getsid/setsid, setsid}.
+@item
+@ref{pci_read/pci_write, pci_read}.
+@item
+@ref{pci_read/pci_write, pci_write}.
+@item
+Empty.
+@item
+Empty.
+@item
+Empty.
+@item
+Empty.
+@item
+@ref{statvfs}.
 @end enumerate
 
 @subsection riscv64-limine
@@ -4757,12 +4772,60 @@ This syscall writes a list of all mounts currently in use in the system to
 @code{addr}, which contains @code{len} items. If there are more than
 @code{len}, only the first @code{len} are written.
 
+@code{flags} is @code{MS_RDONLY} for a mount that is read-only, and 0 for any
+other. A device name or a mount point longer than 20 bytes is cut to its first
+20, and @code{source_len} and @code{location_len} count the bytes each field
+holds.
+
 The number of mounts in the system is returned in success, and @code{-1} in
 failure, with the following errno:
 
 @itemize @bullet
 @item
 @code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+@end itemize
+
+@node statvfs
+@section statvfs
+
+@example c
+int statvfs(int dir_fd, char *path, int len, struct mountinfo *info,
+            int flags);
+@end example
+
+This syscall writes to @code{info} what @ref{listmounts} writes of the mount
+that holds a file: the file @code{path} names, looked up as @ref{fstat} looks
+it up and following symbolic links, or, with @code{AT_EMPTY_PATH} in
+@code{flags}, the file @code{dir_fd} refers to. No permission on the file
+itself is needed. A pipe, a socket or an end of a pseudoterminal is on no
+mount, and is described with an @code{fs_type} of 0, a @code{block_size} and a
+@code{fragment_size} of 512, and every other field 0. @code{AT_EMPTY_PATH} is
+the only flag.
+
+@code{0} is returned on success, @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: @code{flags} has a bit other than @code{AT_EMPTY_PATH}.
+
+@item
+@code{EBADF}: @code{dir_fd} is not an open file descriptor, and
+@code{AT_EMPTY_PATH} was passed.
+
+@item
+@code{ENOENT}: The file pointed by @code{path} does not exist.
+
+@item
+@code{ENAMETOOLONG}: The path is longer than 1024 bytes.
+
+@item
+@code{ELOOP}: Too many symbolic links were met resolving the path.
+
+@item
+@code{EIO}: The file could not be looked up because of a device error.
+
+@item
+@code{EFAULT}: The passed address for the path or @code{info} is not valid.
 @end itemize
 
 @node uname

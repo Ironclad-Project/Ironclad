@@ -444,6 +444,18 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   --  Describe the mount holding a file as listmounts describes each: the
+   --  file named by the path relative to Dir_FD, symbolic links followed,
+   --  or with AT_EMPTY_PATH the file Dir_FD refers to. A pipe or a socket
+   --  is on no mount, and is described with a block size and nothing more.
+   procedure Stat_VFS
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Info_Addr : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
    type UTS_Name is record
       System_Name : String (1 .. 64);
       Node_Name   : String (1 .. 256);
@@ -1670,4 +1682,7 @@ private
        Address  : Unsigned_64;
        Seg_Addr : Unsigned_64;
        Size     : Unsigned_64);
+
+   --  Describe a mount as listmounts and statvfs report it.
+   procedure Fill_Mount_Info (FS : VFS.FS_Handle; Info : out Mount_Info);
 end Userland.Syscall;

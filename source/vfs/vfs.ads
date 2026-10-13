@@ -271,6 +271,12 @@ package VFS is
    --  @param Length Maximum length of a file name.
    procedure Get_Max_Length (Key : FS_Handle; Length : out Unsigned_64)
       with Pre => Is_Initialized and Key /= Error_Handle;
+
+   --  Whether the filesystem of a mount writes nothing, which is what
+   --  statvfs reports as ST_RDONLY.
+   --  @param Key FS Key.
+   --  @return True if read-only, False if not.
+   function Is_Read_Only_FS (Key : FS_Handle) return Boolean;
    ----------------------------------------------------------------------------
    --  Open a file with an absolute path inside the mount. Every directory a
    --  name is looked up in needs search permission, the one the walk starts

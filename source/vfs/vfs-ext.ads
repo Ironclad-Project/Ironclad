@@ -52,6 +52,8 @@ package VFS.EXT is
        Free_Unprivileged : out Unsigned_64);
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64;
+
+   function Is_Read_Only (FS : System.Address) return Boolean;
    ----------------------------------------------------------------------------
    procedure Create_Node
       (FS         : System.Address;

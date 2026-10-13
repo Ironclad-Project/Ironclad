@@ -36,15 +36,16 @@ package body VFS.EXT with SPARK_Mode => Off is
        Data_Addr     : out System.Address;
        Root_Ino      : out File_Inode_Number)
    is
-      Sup      : Superblock;
-      Data     : EXT_Data_Acc;
-      Success  : Boolean;
-      Is_RO    : Boolean;
-      Blk_Size : Unsigned_32;
-      Ino_Size : Unsigned_32;
-      First_In : Unsigned_32;
-      Groups   : Unsigned_64;
-      Max_Mnts : Unsigned_16;
+      Sup       : Superblock;
+      Data      : EXT_Data_Acc;
+      Success   : Boolean;
+      Is_RO     : Boolean;
+      Forced_RO : Boolean;
+      Blk_Size  : Unsigned_32;
+      Ino_Size  : Unsigned_32;
+      First_In  : Unsigned_32;
+      Groups    : Unsigned_64;
+      Max_Mnts  : Unsigned_16;
    begin
       Root_Ino  := Root_Inode;
       Data_Addr := Null_Address;
@@ -109,17 +110,19 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       --  A max mount count of zero or -1 means the mount check is disabled.
+      --  Only a read-only mount forced by the filesystem's own state is worth
+      --  a message: one asked for, or a device that is read-only to begin
+      --  with, is no reason to run fsck.
       Max_Mnts := Sup.Max_Mounts_Since_Check;
-      Is_RO :=
-         Do_Read_Only                                 or
-         Devices.Is_Read_Only (Handle)                or
+      Forced_RO :=
          Sup.Filesystem_State /= State_Clean          or
          (Max_Mnts /= 0 and then
           Max_Mnts /= Unsigned_16'Last and then
           Sup.Mounts_Since_Check > Max_Mnts)          or
          (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
-      if Is_RO then
-         Messages.Put_Line ("ext will be mounted RO, consider an fsck");
+      Is_RO := Do_Read_Only or Devices.Is_Read_Only (Handle) or Forced_RO;
+      if Forced_RO then
+         Messages.Put_Line ("eXT FS is not clean, mounting RO");
       end if;
 
       Data := new EXT_Data'
@@ -309,6 +312,15 @@ package body VFS.EXT with SPARK_Mode => Off is
    begin
       return Max_File_Name_Size;
    end Get_Max_Length;
+
+   function Is_Read_Only (FS : System.Address) return Boolean is
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+   begin
+      return Data.Is_Read_Only;
+   exception
+      when Constraint_Error =>
+         return True;
+   end Is_Read_Only;
    ----------------------------------------------------------------------------
    procedure Create_Node
       (FS         : System.Address;

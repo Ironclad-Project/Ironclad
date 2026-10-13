@@ -510,6 +510,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             PCI_Read
                (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
                 Ctx.X15, Returned, Errno);
+         when 145 =>
+            Stat_VFS (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13,
+                      Ctx.X14, Returned, Errno);
          when 140 =>
             PCI_Write
                (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
