@@ -406,7 +406,10 @@ package body VFS.EXT with SPARK_Mode => Off is
           EAB                 => 0,
           Size_High           => 0,
           Fragment_Address    => 0,
-          OS_Specific_Value_2 => [others => 0]);
+          OS_Specific_Value_2 => 0,
+          UID_High            => Unsigned_16 (Shift_Right (User, 16)),
+          GID_High            => Parent_Inode.GID_High,
+          OS_Specific_Value_3 => 0);
 
       RW_Inode
          (Data            => Data,
@@ -586,7 +589,10 @@ package body VFS.EXT with SPARK_Mode => Off is
           EAB                 => 0,
           Size_High           => 0,
           Fragment_Address    => 0,
-          OS_Specific_Value_2 => [others => 0]);
+          OS_Specific_Value_2 => 0,
+          UID_High            => Unsigned_16 (Shift_Right (User, 16)),
+          GID_High            => Parent_Inode.GID_High,
+          OS_Specific_Value_3 => 0);
 
       --  EXT implements a shortcut for short symlinks, by putting them
       --  straight on the blocks array and having no blocks.
@@ -1508,8 +1514,8 @@ package body VFS.EXT with SPARK_Mode => Off is
             (Unique_Identifier => Ino,
              Type_Of_File      => Get_Inode_Type (Inod.Permissions),
              Mode              => File_Mode (Inod.Permissions and 8#777#),
-             UID               => Unsigned_32 (Inod.UID),
-             GID               => Unsigned_32 (Inod.GID),
+             UID               => Get_Owner (Inod.all),
+             GID               => Get_Group (Inod.all),
              Hard_Link_Count   => Positive (Unsigned_16'Max
                                             (Inod.Hard_Link_Count, 1)),
              Byte_Size         => Size,
@@ -1801,14 +1807,15 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
-      --  Either of the two is left alone when it is does not fit per POSIX.
-      if Owner <= Unsigned_32 (Unsigned_16'Last) then
-         Inod.UID := Unsigned_16 (Owner);
-         Changed  := True;
+      if Owner /= Unsigned_32'Last then
+         Inod.UID      := Unsigned_16 (Owner and 16#FFFF#);
+         Inod.UID_High := Unsigned_16 (Shift_Right (Owner, 16));
+         Changed       := True;
       end if;
-      if Group <= Unsigned_32 (Unsigned_16'Last) then
-         Inod.GID := Unsigned_16 (Group);
-         Changed  := True;
+      if Group /= Unsigned_32'Last then
+         Inod.GID      := Unsigned_16 (Group and 16#FFFF#);
+         Inod.GID_High := Unsigned_16 (Shift_Right (Group, 16));
+         Changed       := True;
       end if;
 
       if Changed then
@@ -5139,7 +5146,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    is
    begin
       if User /= 0 then
-         if Unsigned_32 (Inod.UID) = User then
+         if Get_Owner (Inod) = User then
             if (Check_Read  and then ((Inod.Permissions and 8#400#) = 0)) or
                (Check_Write and then ((Inod.Permissions and 8#200#) = 0)) or
                (Check_Exec  and then ((Inod.Permissions and 8#100#) = 0))

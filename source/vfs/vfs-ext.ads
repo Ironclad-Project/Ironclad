@@ -336,7 +336,10 @@ private
       EAB                 : Unsigned_32;
       Size_High           : Unsigned_32;
       Fragment_Address    : Unsigned_32;
-      OS_Specific_Value_2 : Inode_Block_Arr (1 .. 3);
+      OS_Specific_Value_2 : Unsigned_32;
+      UID_High            : Unsigned_16;
+      GID_High            : Unsigned_16;
+      OS_Specific_Value_3 : Unsigned_32;
    end record with Size => 1024;
    for Inode use record
       Permissions         at 0 range   0 ..  15;
@@ -356,7 +359,10 @@ private
       EAB                 at 0 range 832 .. 863;
       Size_High           at 0 range 864 .. 895;
       Fragment_Address    at 0 range 896 .. 927;
-      OS_Specific_Value_2 at 0 range 928 .. 1023;
+      OS_Specific_Value_2 at 0 range 928 .. 959;
+      UID_High            at 0 range 960 .. 975;
+      GID_High            at 0 range 976 .. 991;
+      OS_Specific_Value_3 at 0 range 992 .. 1023;
    end record;
    type Inode_Acc is access Inode;
 
@@ -856,6 +862,12 @@ private
 
    function Is_Append_Only (Ino : Inode) return Boolean is
       ((Ino.Flags and Flags_Append_Only) /= 0);
+
+   --  Linux and Hurd split UID and GID on OS specific values.
+   function Get_Owner (Ino : Inode) return Unsigned_32 is
+      (Unsigned_32 (Ino.UID) or Shift_Left (Unsigned_32 (Ino.UID_High), 16));
+   function Get_Group (Ino : Inode) return Unsigned_32 is
+      (Unsigned_32 (Ino.GID) or Shift_Left (Unsigned_32 (Ino.GID_High), 16));
 
    --  A symlink short enough to fit keeps its target inside the block array
    --  of the inode, and is told apart by owning no blocks at all.
