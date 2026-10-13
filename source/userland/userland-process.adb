@@ -1951,7 +1951,9 @@ package body Userland.Process with SPARK_Mode => Off is
        Status : out MAC.Addition_Status)
    is
    begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
       MAC.Add_Entity (Registry (Proc).Perms, FS, Ino, Perms, Status);
+      Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
          Status := MAC.Is_Conflicting;

@@ -38,6 +38,8 @@ package Userland.MAC is
       Can_Bypass_IPC_Checks : Boolean;
       Can_Check_System_Logs : Boolean;
       Can_Access_Raw_PCI    : Boolean;
+      Can_Use_Raw_Network   : Boolean;
+      Can_Use_Virtualization : Boolean;
    end record;
 
    --  Permissions a file can have.

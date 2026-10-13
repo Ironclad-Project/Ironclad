@@ -1412,8 +1412,12 @@ package body Userland.Syscall is
       end case;
 
       --  A network socket needs the capability to use the network.
+      --  A raw one, which reads and writes whole packets on the interfaces,
+      --  needs one of its own as well.
       if Dom = IPC.Socket.IPv4 and then
-         not Get_Capabilities (Proc).Can_Use_Networking
+         (not Get_Capabilities (Proc).Can_Use_Networking or else
+          (Data = IPC.Socket.Raw and
+           not Get_Capabilities (Proc).Can_Use_Raw_Network))
       then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("socket", Proc);
@@ -2541,6 +2545,14 @@ package body Userland.Syscall is
       Map   : Page_Table_Acc;
       Succ  : Boolean;
    begin
+      --  Reading the kernel's log is a capability of its own.
+      if not Get_Capabilities (Proc).Can_Check_System_Logs then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("dumplogs", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       --  Arbitrary length just to make sure we do not allocate 30 quintillion
       --  bytes.
       if Length > 4096 * 4 then
@@ -3193,6 +3205,10 @@ package body Userland.Syscall is
       if Caps.Can_Bypass_IPC_Checks then Res := Res or MAC_CAP_IPC;     end if;
       if Caps.Can_Check_System_Logs then Res := Res or MAC_CAP_SYS_LOG; end if;
       if Caps.Can_Access_Raw_PCI    then Res := Res or MAC_CAP_SYS_PCI; end if;
+      if Caps.Can_Use_Raw_Network   then Res := Res or MAC_CAP_RAW_NET; end if;
+      if Caps.Can_Use_Virtualization then
+         Res := Res or MAC_CAP_SYS_VIRT;
+      end if;
 
       Errno := Error_No_Error;
       Returned := Res;
@@ -8116,10 +8132,21 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       pragma SPARK_Mode (Off);
-      ID : Virtualization.Machine_ID;
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      ID   : Virtualization.Machine_ID;
    begin
       if not Virtualization.Is_Supported then
          Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      --  Using the hypervisor is a capability of its own. What it gates is
+      --  making a machine: one a process made stays its own after it drops
+      --  the capability, as a socket does, and nobody else can reach it.
+      if not Get_Capabilities (Proc).Can_Use_Virtualization then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("nvmm_machine_create", Proc);
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -9629,7 +9656,10 @@ package body Userland.Syscall is
            Caps.Can_Change_GIDs       and ((Bits and MAC_CAP_SETGID)   /= 0),
            Caps.Can_Bypass_IPC_Checks and ((Bits and MAC_CAP_IPC) /= 0),
            Caps.Can_Check_System_Logs and ((Bits and MAC_CAP_SYS_LOG) /= 0),
-           Caps.Can_Access_Raw_PCI    and ((Bits and MAC_CAP_SYS_PCI) /= 0)));
+           Caps.Can_Access_Raw_PCI    and ((Bits and MAC_CAP_SYS_PCI) /= 0),
+           Caps.Can_Use_Raw_Network   and ((Bits and MAC_CAP_RAW_NET) /= 0),
+           Caps.Can_Use_Virtualization and
+              ((Bits and MAC_CAP_SYS_VIRT) /= 0)));
    end Set_MAC_Capabilities;
 
    procedure Check_Userland_Mappability

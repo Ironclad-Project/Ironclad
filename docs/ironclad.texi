@@ -862,6 +862,14 @@ The process will be able to access system logs, like the kernel's dmesg.
 
 @item MAC_CAP_SYS_PCI
 The process will be able to read and write from raw PCI devices.
+
+@item MAC_CAP_RAW_NET
+The process will be able to create raw IPv4 sockets, which read and write whole
+packets on the network interfaces, with @code{MAC_CAP_USE_NET} as well.
+
+@item MAC_CAP_SYS_VIRT
+The process will be able to create virtual machines, see
+@ref{nvmm_machine_create}.
 @end table
 
 File filters consist on permissions given to specific paths and files, that,
@@ -1928,7 +1936,7 @@ following errno:
 @code{EMFILE}: No available file descriptor slots.
 @item
 @code{EACCES}: An IPv4 socket was asked for without the @code{MAC_CAP_USE_NET}
-capability.
+capability, or a raw one without @code{MAC_CAP_RAW_NET}.
 @end itemize
 
 @node sethostname
@@ -2460,22 +2468,24 @@ following errno:
 @section mac_capabilities
 
 @example c
-#define MAC_CAP_SCHED     0b0000000000000001
-#define MAC_CAP_SPAWN     0b0000000000000010
-#define MAC_CAP_ENTROPY   0b0000000000000100
-#define MAC_CAP_SYS_MEM   0b0000000000001000
-#define MAC_CAP_USE_NET   0b0000000000010000
-#define MAC_CAP_SYS_NET   0b0000000000100000
-#define MAC_CAP_SYS_MNT   0b0000000001000000
-#define MAC_CAP_SYS_PWR   0b0000000010000000
-#define MAC_CAP_PTRACE    0b0000000100000000
-#define MAC_CAP_SETUID    0b0000001000000000
-#define MAC_CAP_SYS_MAC   0b0000010000000000
-#define MAC_CAP_SIGNALALL 0b0000100000000000
-#define MAC_CAP_SETGID    0b0001000000000000
-#define MAC_CAP_IPC       0b0010000000000000
-#define MAC_CAP_SYS_LOG   0b0100000000000000
-#define MAC_CAP_SYS_PCI   0b1000000000000000
+#define MAC_CAP_SCHED     0b000000000000000001
+#define MAC_CAP_SPAWN     0b000000000000000010
+#define MAC_CAP_ENTROPY   0b000000000000000100
+#define MAC_CAP_SYS_MEM   0b000000000000001000
+#define MAC_CAP_USE_NET   0b000000000000010000
+#define MAC_CAP_SYS_NET   0b000000000000100000
+#define MAC_CAP_SYS_MNT   0b000000000001000000
+#define MAC_CAP_SYS_PWR   0b000000000010000000
+#define MAC_CAP_PTRACE    0b000000000100000000
+#define MAC_CAP_SETUID    0b000000001000000000
+#define MAC_CAP_SYS_MAC   0b000000010000000000
+#define MAC_CAP_SIGNALALL 0b000000100000000000
+#define MAC_CAP_SETGID    0b000001000000000000
+#define MAC_CAP_IPC       0b000010000000000000
+#define MAC_CAP_SYS_LOG   0b000100000000000000
+#define MAC_CAP_SYS_PCI   0b001000000000000000
+#define MAC_CAP_RAW_NET   0b010000000000000000
+#define MAC_CAP_SYS_VIRT  0b100000000000000000
 
 unsigned long get_mac_capabilities(void);
 int set_mac_capabilities(unsigned long request);
@@ -4805,7 +4815,8 @@ The number of network interfaces in the system is returned in success, and
 size_t dumplogs(char *buffer, size_t len);
 @end example
 
-This syscall writes the kernel logs to a buffer in memory.
+This syscall writes the kernel logs to a buffer in memory. The caller needs
+@code{MAC_CAP_SYS_LOG}.
 
 The buffer takes the form of a string in memory of, every log line in the
 buffer takes exactly 80 characters separated by no newlines or other special
@@ -4817,6 +4828,9 @@ the following errno:
 @itemize @bullet
 @item
 @code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+
+@item
+@code{EACCES}: The caller does not have @code{MAC_CAP_SYS_LOG}.
 @end itemize
 
 @node listflocks
@@ -5093,6 +5107,10 @@ errno:
 @item ENOTSUPP
 The current hardware or Ironclad does not support hardware-accelerated
 virtualization, thus NVMM capability is not available.
+
+@item EACCES
+The process does not have @code{MAC_CAP_SYS_VIRT}. The MAC failure action is
+taken as well.
 
 @item EAGAIN
 Either no memory is available to execute this operation right now, or the
@@ -5528,6 +5546,12 @@ use with the Gloire distribution, but easily portable.
 Ironclad only provides the non-IOCTL interfaces, using syscalls only. No
 @code{/dev/nvmm} is provided either. To check presence, @code{nvmm_capability}
 will fail with @code{ENOTSUPP} if there is no NVMM support.
+
+Where NetBSD gates the interface on the permissions of @code{/dev/nvmm},
+Ironclad gates it on the @code{MAC_CAP_SYS_VIRT} capability
+(@ref{Mandatory access control (MAC)}): without it, @ref{nvmm_machine_create}
+fails with @code{EACCES}. A machine a process has already made stays its own
+after it drops the capability.
 
 A machine belongs to the process that created it. A call naming it from any
 other process fails with @code{EPERM}, from a child that @code{fork} made as
