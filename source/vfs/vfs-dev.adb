@@ -468,11 +468,16 @@ package body VFS.Dev is
       end if;
 
       Handle := From_Unique_ID (Natural (Ino));
-      if Handle /= Devices.Error_Handle then
+      if Handle = Devices.Error_Handle then
+         Status := FS_Invalid_Value;
+      elsif Devices.Is_Mappable (Handle) and then
+            Length > Unsigned_64 (Devices.Get_Block_Size (Handle)) *
+                     Devices.Get_Block_Count (Handle)
+      then
+         Status := FS_Invalid_Value;
+      else
          Devices.Mmap (Handle, Map, Address, Length, Flags, Success);
          Status := (if Success then FS_Success else FS_IO_Failure);
-      else
-         Status := FS_Invalid_Value;
       end if;
    end Mmap;
 

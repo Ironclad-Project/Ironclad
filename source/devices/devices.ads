@@ -190,6 +190,8 @@ package Devices is
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
    function Is_Read_Only (Handle : Device_Handle) return Boolean
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+   function Is_Mappable (Handle : Device_Handle) return Boolean
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Get a unique ID for the device. This does not have anything to do with
    --  device UUIDs, and is always supported for a valid handle.

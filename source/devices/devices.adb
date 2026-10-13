@@ -257,6 +257,11 @@ package body Devices is
       return Devices_Data (Handle).Contents.Write = null;
    end Is_Read_Only;
 
+   function Is_Mappable (Handle : Device_Handle) return Boolean is
+   begin
+      return Devices_Data (Handle).Contents.Mmap /= null;
+   end Is_Mappable;
+
    procedure Synchronize (Handle : Device_Handle; Success : out Boolean) is
    begin
       if Devices_Data (Handle).Contents.Sync /= null then

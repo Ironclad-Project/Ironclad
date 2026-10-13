@@ -717,6 +717,17 @@ package body Userland.Syscall is
 
       --  Do mmap anon or pass it to the VFS.
       if (Flags and MAP_ANON) /= 0 then
+         --  A fixed mapping replaces whatever was there, and one granting no
+         --  access is given no memory, so what it replaces is only taken away.
+         if (Flags and MAP_FIXED) /= 0 and then
+            not (Perms.Can_Read or Perms.Can_Write or Perms.Can_Execute)
+         then
+            Unmap_Range
+               (Map, To_Address (Final_Hint), Storage_Count (Length), Success);
+            if not Success then
+               goto No_Memory_Return;
+            end if;
+         end if;
          Map_Allocated_Range
             (Map           => Map,
              Virtual_Start => To_Address (Final_Hint),
@@ -796,6 +807,10 @@ package body Userland.Syscall is
                if not Success then
                   goto Unmap_Final_Return;
                end if;
+            elsif Status = VFS.FS_Invalid_Value then
+               Errno    := Error_No_Device_Address;
+               Returned := Unsigned_64'Last;
+               return;
             elsif Status /= VFS.FS_Success then
                goto No_Memory_Return;
             end if;
@@ -9612,7 +9627,7 @@ package body Userland.Syscall is
    is
    begin
       if P = PROT_NONE then
-         return (Is_User_Accessible => True, others => False);
+         return (others => False);
       else
          return
             (Is_User_Accessible => True,
