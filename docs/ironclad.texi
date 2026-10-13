@@ -2434,12 +2434,19 @@ free.
 @section exit_thread
 
 @example c
-void exit_thread(void);
+void exit_thread(uint32_t *clear);
 @end example
 
 This syscall terminates the calling thread "immediately". The rest of the
 process is left alone: its other threads, its open file descriptors and its
 memory all stay as they were.
+
+If @code{clear} is not @code{NULL}, the 32-bit word it points to is set to
+@code{0} and every futex wait on it is woken once the thread has stopped
+running on its own stack, so that a thread joining it may free that stack as
+soon as it reads the @code{0}. When @code{clear} does not point to writable
+memory of the process, the word is left alone and the thread exits all the
+same.
 
 If the calling thread is the last one of the process, the process exits with
 a status of @code{0}, as a process cannot go on with no thread to run it.

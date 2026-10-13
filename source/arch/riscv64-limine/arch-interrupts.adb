@@ -268,7 +268,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 30 =>
             Fcntl (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 31 =>
-            Exit_Thread (Returned, Errno);
+            Exit_Thread (Ctx.X10, Returned, Errno);
          when 32 =>
             Get_Entropy (Ctx.X10, Ctx.X11, Returned, Errno);
          when 33 =>

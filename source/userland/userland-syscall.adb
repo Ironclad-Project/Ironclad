@@ -3068,17 +3068,31 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end Fcntl;
 
-   procedure Exit_Thread (Returned : out Unsigned_64; Errno : out Errno_Value)
+   procedure Exit_Thread
+      (Clear_Address : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value)
    is
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Count : Natural;
+      package Trans is new Memory.Userland_Transfer (Unsigned_32);
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      CAddr   : constant  System.Address :=
+         To_Address (Integer_Address (Clear_Address));
+      Map     : Page_Table_Acc;
+      Count   : Natural;
+      Succ    : Boolean;
+      Discard : Natural;
    begin
       Errno := Error_No_Error;
       Returned := 0;
 
-      --  A process ends with a status of 0 when its last thread does. The
-      --  thread leaves and learns how many are left in one step, so of
-      --  threads leaving together exactly one ends the process.
+      if Clear_Address /= 0 then
+         Get_Common_Map (Proc, Map);
+         Trans.Paste_Into_Userland (Map, 0, CAddr, Succ);
+         if Succ then
+            IPC.Futex.Wake ([(CAddr, 0)], Discard);
+         end if;
+      end if;
+
       Userland.Process.Remove_Thread
          (Proc, Arch.Local.Get_Current_Thread, Count);
       if Count = 0 then

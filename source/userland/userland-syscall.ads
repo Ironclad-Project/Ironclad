@@ -590,8 +590,12 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   --  Exit the callee thread.
-   procedure Exit_Thread (Returned : out Unsigned_64; Errno : out Errno_Value);
+   --  Exit the callee thread, zeroing and waking the 32-bit word at
+   --  Clear_Address first unless it is 0.
+   procedure Exit_Thread
+      (Clear_Address : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value);
 
    --  Bypassing /dev/(u)random for getting random data.
    procedure Get_Entropy
