@@ -14,11 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Messages;
-with Networking.DHCP;
-with Networking.DNS;
-with Networking.Stack;
-
 package body Networking.Interfaces is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
@@ -41,8 +36,6 @@ package body Networking.Interfaces is
        Success     : out Boolean)
    is
       pragma SPARK_Mode (Off); --  We need the 'Address here.
-      Lease   : Networking.DHCP.DHCP_Lease;
-      DHCP_Ok : Boolean;
    begin
       Success := False;
       Seize (Interfaces_Lock);
@@ -58,21 +51,6 @@ package body Networking.Interfaces is
       end loop;
 
       Release (Interfaces_Lock);
-
-      --  XXX: Perform DHCP discovery if the device requested it. Ideally, this
-      --  would be done with userland consent and/or request, we need a
-      --  mechanism to do that.
-      if Success and then IPv4 = [0, 0, 0, 0] then
-         Networking.DHCP.Discover (Interfaced, MAC, Lease, DHCP_Ok);
-         if DHCP_Ok and Lease.Is_Valid then
-            Networking.Interfaces.Modify_Addresses
-               (Interfaced, Lease.Assigned_IP, Lease.Subnet_Mask, Success);
-            Networking.Stack.Set_Gateway (Lease.Gateway_IP);
-            Networking.DNS.Set_DNS_Server (Lease.DNS_Server_IP);
-         else
-            Messages.Put_Line ("DHCP failed, no IP assigned");
-         end if;
-      end if;
    end Register_Interface;
 
    procedure Get_Interface_Address
@@ -91,6 +69,28 @@ package body Networking.Interfaces is
       end loop;
       Release (Interfaces_Lock);
    end Get_Interface_Address;
+
+   procedure Get_Interface_MAC
+      (Interfaced : Devices.Device_Handle;
+       MAC        : out MAC_Address;
+       Is_Blocked : out Boolean;
+       Success    : out Boolean)
+   is
+   begin
+      MAC        := [others => 0];
+      Is_Blocked := True;
+      Success    := False;
+      Seize (Interfaces_Lock);
+      for Int of Interfaces loop
+         if Int.Handle = Interfaced then
+            MAC        := Int.MAC;
+            Is_Blocked := Int.Is_Blocked;
+            Success    := True;
+            exit;
+         end if;
+      end loop;
+      Release (Interfaces_Lock);
+   end Get_Interface_MAC;
 
    procedure Block
       (Interfaced : Devices.Device_Handle;

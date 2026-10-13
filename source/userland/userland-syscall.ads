@@ -30,6 +30,7 @@ with IPC.Socket;       use IPC.Socket;
 with IPC.FIFO;         use IPC.FIFO;
 use IPC.PTY;
 with Time;
+with Devices;
 
 package Userland.Syscall is
    --  Error conditions for syscalls.
@@ -57,6 +58,7 @@ package Userland.Syscall is
        Error_Too_Many_Links,  --  EMLINK
        Error_Message_Too_Long, --  EMSGSIZE
        Error_String_Too_Long, --  ENAMETOOLONG
+       Error_Network_Down,    --  ENETDOWN
        Error_No_Entity,       --  ENOENT
        Error_No_Memory,       --  ENOMEM
        Error_No_Space,        --  ENOSPC
@@ -95,6 +97,7 @@ package Userland.Syscall is
        Error_Too_Many_Links  => 1032,
        Error_Message_Too_Long => 1034,
        Error_String_Too_Long => 1036,
+       Error_Network_Down    => 1037,
        Error_No_Entity       => 1043,
        Error_No_Memory       => 1047,
        Error_No_Space        => 1050,
@@ -1063,6 +1066,7 @@ package Userland.Syscall is
    NETINTER_SET_BLOCK      : constant := 1;
    NETINTER_SET_STATIC_IP4 : constant := 2;
    NETINTER_SET_STATIC_IP6 : constant := 3;
+   NETINTER_SET_DHCP       : constant := 4;
    type Addr4_NetInterface is record
       IP  : Networking.IPv4_Address;
       Sub : Networking.IPv4_Address;
@@ -1625,6 +1629,11 @@ private
 
    --  Set MAC capabilities for a process from a bitmap.
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
+
+   procedure Lease_Interface
+      (Interfaced : Devices.Device_Handle;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    procedure Resolve_AT_Directive
       (Proc   : PID;

@@ -1349,6 +1349,10 @@ A message is too big to be sent whole.
 @item ENAMETOOLONG (1036)
 The passed value is too big for the syscall.
 
+@item ENETDOWN (1037)
+The networking interface named, or the one a packet would leave by, is
+blocked, so nothing may be put on its wire.
+
 @item ENOENT (1043)
 No such file or directory.
 
@@ -3820,6 +3824,7 @@ the addition of only accepting sockets as their passed @code{socket_fd}.
 #define NETINTER_SET_BLOCK      1
 #define NETINTER_SET_STATIC_IP4 2
 #define NETINTER_SET_STATIC_IP6 3
+#define NETINTER_SET_DHCP       4
 
 struct addr4_netinter @{
     uint32_t ip;
@@ -3852,6 +3857,13 @@ specifies an address and subnet to set as static addresses.
 @item NETINTER_SET_STATIC_IP6
 @code{arg} will be a pointer to a @code{addr6_netinter} structure, which
 specifies an address and subnet to set as static addresses.
+
+@item NETINTER_SET_DHCP
+@code{arg} is ignored. The kernel asks the network the interface is on for a
+DHCP lease, and on getting one sets the address and subnet of the interface
+from it, and the gateway and name server of the system, which nothing else
+sets. A lease is asked for with a broadcast, so an interface that is still
+blocked is refused with @code{ENETDOWN}.
 @end table
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
@@ -3866,6 +3878,12 @@ MAC did not allow this.
 
 @item EINVAL
 An argument is not valid.
+
+@item ENETDOWN
+A lease was asked for on an interface that is blocked.
+
+@item EAGAIN
+A lease was asked for and no server answered.
 @end table
 
 @node utimes
@@ -5502,7 +5520,13 @@ including per-interface configuration and enabling and disabling.
 All interfaces but @code{loopback} will be disabled by default, that is, they
 will be setup and ready to go, but will refuse connectivity via kernel block,
 as a security measure to avoid unexpected connectivity. They will need manual
-enabling.
+enabling. Nothing is addressed automatically either. Every interface but
+@code{loopback} starts with no address of its own, and gets one from
+@ref{config_netinter}: either stated outright, or asked for with
+@code{NETINTER_SET_DHCP}, which is also the only thing that sets the system's
+gateway and name server. Neither happens on its own, because a lease is a
+broadcast and an interface that has not been enabled may put nothing on its
+wire.
 
 @node Loopback
 @section Loopback

@@ -43,6 +43,13 @@ package Networking.Interfaces is
        IP         : out IPv4_Address)
       with Pre => ARP.Is_Initialized;
 
+   --  The same as above but for MACs.
+   procedure Get_Interface_MAC
+      (Interfaced : Devices.Device_Handle;
+       MAC        : out MAC_Address;
+       Is_Blocked : out Boolean;
+       Success    : out Boolean);
+
    --  Block or unblock an interface.
    --  @param Interfaced Device to modify.
    --  @param Is_Blocked True for blocking broadcast, False for not doing so.

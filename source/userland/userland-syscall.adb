@@ -36,6 +36,9 @@ with IPC.SHM;
 with Arch.Power;
 with Devices; use Devices;
 with Networking.Interfaces;
+with Networking.DHCP;
+with Networking.DNS;
+with Networking.Stack;
 with Virtualization;
 with Devices.PCI;
 with Arch.Snippets;
@@ -6224,6 +6227,9 @@ package body Userland.Syscall is
             end if;
             Networking.Interfaces.Modify_Addresses
                (Handl, IP4.IP, IP4.Sub, Suc);
+         when NETINTER_SET_DHCP =>
+            Lease_Interface (Handl, Returned, Errno);
+            return;
          when others =>
             Suc := False;
       end case;
@@ -9661,6 +9667,50 @@ package body Userland.Syscall is
            Caps.Can_Use_Virtualization and
               ((Bits and MAC_CAP_SYS_VIRT) /= 0)));
    end Set_MAC_Capabilities;
+
+   procedure Lease_Interface
+      (Interfaced : Devices.Device_Handle;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value)
+   is
+      pragma SPARK_Mode (Off);
+
+      MAC     : Networking.MAC_Address;
+      Blocked : Boolean;
+      Lease   : Networking.DHCP.DHCP_Lease;
+      Success : Boolean;
+   begin
+      Networking.Interfaces.Get_Interface_MAC
+         (Interfaced, MAC, Blocked, Success);
+      if not Success then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Invalid_Value;
+         return;
+      elsif Blocked then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Network_Down;
+         return;
+      end if;
+
+      Networking.DHCP.Discover (Interfaced, MAC, Lease, Success);
+      if not Success or else not Lease.Is_Valid then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Would_Block;
+         return;
+      end if;
+
+      Networking.Interfaces.Modify_Addresses
+         (Interfaced, Lease.Assigned_IP, Lease.Subnet_Mask, Success);
+      Networking.Stack.Set_Gateway (Lease.Gateway_IP);
+      Networking.DNS.Set_DNS_Server (Lease.DNS_Server_IP);
+      if Success then
+         Returned := 0;
+         Errno    := Error_No_Error;
+      else
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Invalid_Value;
+      end if;
+   end Lease_Interface;
 
    procedure Check_Userland_Mappability
       (Map        : Memory.MMU.Page_Table_Acc;
