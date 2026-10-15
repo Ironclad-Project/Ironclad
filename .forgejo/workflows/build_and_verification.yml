@@ -12,6 +12,7 @@ on:
       - 'ironclad.gpr.in'
       - 'rts.gpr.in'
       - 'version.sh'
+      - '.forgejo/**'
   pull_request:
     paths:
       - 'source/**'
@@ -23,6 +24,7 @@ on:
       - 'ironclad.gpr.in'
       - 'rts.gpr.in'
       - 'version.sh'
+      - '.forgejo/**'
 
 jobs:
   build_and_check:

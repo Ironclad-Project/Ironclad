@@ -4,9 +4,11 @@ on:
   push:
     paths:
       - 'docs/**'
+      - '.forgejo/**'
   pull_request:
     paths:
       - 'docs/**'
+      - '.forgejo/**'
 
 jobs:
   build_and_check:
