@@ -268,7 +268,7 @@ to get Ironclad running on those platforms.
 
 Ironclad hardware support is divided in targets, which are combos of
 an architecture and board that are supported in tandem, along with any
-accompaning hardware, some hardware is supported regardless of the underlying
+accompanying hardware, some hardware is supported regardless of the underlying
 target, @ref{Common devices}.
 
 @node riscv64-limine support
@@ -914,7 +914,7 @@ Limit of CPU time a process can consume in seconds, by default -1 (max value).
 @item RLIMIT_DATA
 Traditionally the limit of the data segment of a process. Given Ironclad does
 not support @code{brk}/@code{sbrk}, which are the syscalls that usually care
-about this, this is implemented as a synonim of @code{RLIMIT_AS} for POSIX
+about this, this is implemented as a synonym of @code{RLIMIT_AS} for POSIX
 completion.
 
 @item RLIMIT_FSIZE
