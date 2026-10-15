@@ -28,22 +28,20 @@ jobs:
   build_and_check:
     name: Build and formal verification check (${{ matrix.target_arch }})
     runs-on: docker
-    container: debian:sid
+    container: archlinux:latest
     strategy:
       matrix:
         target_arch: [riscv64-limine, x86_64-limine]
 
     steps:
       - name: Sync and install basic dependencies
-        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget git autoconf automake build-essential findutils make texinfo highlight
+        run: pacman -Syu --noconfirm && pacman -S --noconfirm --needed nodejs wget git autoconf automake base-devel findutils make texinfo highlight
 
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v6
 
       - name: Install project dependencies
         run: |
-          set -ex
-
           wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gprbuild-26.0.0-1/gprbuild-x86_64-linux-26.0.0-1.tar.gz
           echo 'bd15fadcb457e9f8abbf1489d867878bc5a4ee4c6c923f72ab12986cd02f9b379045eeb4bfa05b119c2da2ff303f79ec519f567fc5b0c0f761fefc52085f0782  gprbuild-x86_64-linux-26.0.0-1.tar.gz' | sha512sum -c
           tar -xf gprbuild-x86_64-linux-26.0.0-1.tar.gz
@@ -72,7 +70,6 @@ jobs:
 
       - name: Configure step
         run: |
-          set -ex
           export PATH="$PWD/gprbuild-tool/bin:$PWD/gnat-tool/bin:$PWD/gnatprove-tool/bin:$PATH"
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
@@ -83,18 +80,15 @@ jobs:
 
       - name: Build
         run: |
-          set -ex
           export PATH="$PWD/gprbuild-tool/bin:$PWD/gnat-tool/bin:$PWD/gnatprove-tool/bin:$PATH"
           make -j$(nproc)
 
       - name: Verify RTS
         run: |
-          set -ex
           export PATH="$PWD/gprbuild-tool/bin:$PWD/gnat-tool/bin:$PWD/gnatprove-tool/bin:$PATH"
           make check-rts -j$(nproc)
 
       - name: Verify kernel (stone level)
         run: |
-          set -ex
           export PATH="$PWD/gprbuild-tool/bin:$PWD/gnat-tool/bin:$PWD/gnatprove-tool/bin:$PATH"
           make check-kernel-stone -j$(nproc)
