@@ -1,9 +1,10 @@
-name: CI
+name: Build and formal verification check
 
 on:
   push:
     paths:
       - 'source/**'
+      - 'docs/**'
       - 'bootstrap'
       - 'configure.ac'
       - 'm4/**'
@@ -14,6 +15,7 @@ on:
   pull_request:
     paths:
       - 'source/**'
+      - 'docs/**'
       - 'bootstrap'
       - 'configure.ac'
       - 'm4/**'
@@ -24,7 +26,7 @@ on:
 
 jobs:
   build_and_check:
-    name: Build project and check
+    name: Build and formal verification check (${{ matrix.target_arch }})
     runs-on: docker
     container: debian:sid
     strategy:

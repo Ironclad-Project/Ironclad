@@ -1,0 +1,34 @@
+name: Spellcheck CI
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+  pull_request:
+    paths:
+      - 'docs/**'
+
+jobs:
+  build_and_check:
+    name: Spellcheck documentation
+    runs-on: docker
+    container: debian:sid
+
+    steps:
+      - name: Sync and install basic dependencies
+        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget git autoconf automake build-essential findutils
+
+      - name: Checkout code
+        uses: https://code.forgejo.org/actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          set -ex
+          wget https://github.com/crate-ci/typos/releases/download/v1.51.1/typos-v1.51.1-x86_64-unknown-linux-musl.tar.gz
+          echo '00ad13af33f3e312fd7101fd44ecdd2165b5086a962de463c97495b891faf23d8c5aef0549b1f2ff1e6b8581a3fbcb9085ae95b18c5a9a019331870eb06fe0bf  typos-v1.51.1-x86_64-unknown-linux-musl.tar.gz' | sha512sum -c
+          tar xf typos-v1.51.1-x86_64-unknown-linux-musl.tar.gz
+
+      - name: Check docs spelling
+        run: |
+          set -ex
+          ./typos docs
