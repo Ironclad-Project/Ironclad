@@ -57,6 +57,7 @@ library project RTS is
          "-gnaty",
          "-gnatg",
          "-nostdinc",
+         "-fno-exceptions",
          "-fno-stack-protector",
          "-fno-stack-check",
          "-fno-stack-clash-protection",

@@ -97,6 +97,7 @@ project Ironclad is
       "-Wextra",
       "@WERROR_FLAG@",
       "-nostdinc",
+      "-fno-exceptions",
       "-fno-stack-protector",
       "-fno-stack-check",
       "-fno-stack-clash-protection",
