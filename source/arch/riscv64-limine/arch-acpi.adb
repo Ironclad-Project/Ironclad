@@ -295,16 +295,18 @@ package body Arch.ACPI with SPARK_Mode => Off is
       (Address : PCI_Address;
        Handle  : access System.Address) return Status
    is
-      Ret     : constant uACPI_PCI_Acc := new uACPI_PCI;
+      Dev     : Devices.PCI.PCI_Device;
+      Ret     : uACPI_PCI_Acc;
       Success : Boolean;
    begin
       Devices.PCI.Search_Device
          (Bus     => Address.Bus,
           Slot    => Address.Device,
           Func    => Address.Func,
-          Result  => Ret.Dev,
+          Result  => Dev,
           Success => Success);
       if Success then
+         Ret := new uACPI_PCI'(Dev => Dev);
          Handle.all := C3.To_Address (C3.Object_Pointer (Ret));
          return Status_OK;
       else
