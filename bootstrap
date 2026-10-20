@@ -77,11 +77,11 @@ if ! test -f version; then
         flanterm \
         e231edd0e508022521c8233392aabc8ce5c9b242
 
-    # 6.1.1
+    # 7.0.0-2-gc0edece
     clone_repo_commit \
         https://github.com/uACPI/uACPI.git \
         uacpi \
-        fd92d3f3bdd614afda47d08ff5fc373c6d1e4c27
+        c0edecef62bcac6ce3f783540099190bafadadda
 fi
 
 for auxfile in $AUXFILES; do

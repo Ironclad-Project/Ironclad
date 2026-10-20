@@ -522,14 +522,6 @@ private
    procedure Sleep (MSec : Unsigned_64)
       with Export, Convention => C, External_Name => "uacpi_kernel_sleep";
 
-   function Create_Event return System.Address
-      with Export, Convention => C,
-           External_Name => "uacpi_kernel_create_event";
-
-   procedure Free_Event (Handle : System.Address)
-      with Export, Convention => C,
-           External_Name => "uacpi_kernel_free_event";
-
    function Create_Spinlock return System.Address
       with Export, Convention => C,
            External_Name => "uacpi_kernel_create_spinlock";
@@ -689,10 +681,19 @@ private
       with Export, Convention => C,
            External_Name => "uacpi_kernel_uninstall_interrupt_handler";
 
-   function Schedule_Work
+   function Create_Work_Item return System.Address
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_create_work_item";
+
+   procedure Free_Work_Item (Handle : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_free_work_item";
+
+   procedure Schedule_Work
       (Work_Type    : int;
+         Work_Item    : System.Address;
          Work_Handler : System.Address;
-         Context      : System.Address) return Status
+         Context      : System.Address)
       with Export, Convention => C,
            External_Name => "uacpi_kernel_schedule_work";
 
@@ -700,41 +701,28 @@ private
       with Export, Convention => C,
            External_Name => "uacpi_kernel_handle_firmware_request";
 
-   procedure Signal_Event (Event : System.Address)
-      with Export, Convention => C,
-           External_Name => "uacpi_kernel_signal_event";
-
-   procedure Reset_Event (Event : System.Address)
-      with Export, Convention => C,
-           External_Name => "uacpi_kernel_reset_event";
-
-   function Wait_For_Event
-      (Handle  : System.Address;
-         Timeout : Unsigned_16) return Unsigned_8
-      with Export, Convention => C,
-           External_Name => "uacpi_kernel_wait_for_event";
-
    function Get_Nanoseconds_Since_Boot return Unsigned_64
       with Export, Convention => C,
            External_Name => "uacpi_kernel_get_nanoseconds_since_boot";
 
-   function Create_Mutex return System.Address
+   function Create_Semaphore
+      (Initial_Units : Unsigned_32) return System.Address
       with Export, Convention => C,
-           External_Name => "uacpi_kernel_create_mutex";
+           External_Name => "uacpi_kernel_create_semaphore";
 
-   procedure Free_Mutex (Handle : System.Address)
+   procedure Free_Semaphore (Handle : System.Address)
       with Export, Convention => C,
-           External_Name => "uacpi_kernel_free_mutex";
+           External_Name => "uacpi_kernel_free_semaphore";
 
-   function Acquire_Mutex
+   function Wait_For_Semaphore
       (Handle  : System.Address;
          Timeout : Unsigned_16) return Status
       with Export, Convention => C,
-           External_Name => "uacpi_kernel_acquire_mutex";
+           External_Name => "uacpi_kernel_wait_for_semaphore";
 
-   procedure Release_Mutex (Handle : System.Address)
+   procedure Signal_Semaphore (Handle : System.Address)
       with Export, Convention => C,
-           External_Name => "uacpi_kernel_release_mutex";
+           External_Name => "uacpi_kernel_signal_semaphore";
 
    function Get_Thread_ID return System.Address
       with Export, Convention => C,

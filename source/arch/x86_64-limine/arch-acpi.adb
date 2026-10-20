@@ -28,6 +28,7 @@ with Synchronization;
 with Messages;
 with Interfaces.C.Strings;
 with System.Address_To_Access_Conversions;
+with System.Atomic_Operations;
 with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
 with Memory.Physical;
@@ -220,17 +221,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Sleep;
-
-   function Create_Event return System.Address is
-   begin
-      return System'To_Address (3);
-   end Create_Event;
-
-   procedure Free_Event (Handle : System.Address) is
-      pragma Unreferenced (Handle);
-   begin
-      null;
-   end Free_Event;
 
    type uACPI_Spinlock is record
       Lock : aliased Synchronization.Binary_Semaphore;
@@ -571,9 +561,21 @@ package body Arch.ACPI with SPARK_Mode => Off is
          null;
    end Unmap;
 
+   Work_In_Flight : aliased Unsigned_32 := 0;
+
+   function Load is new System.Atomic_Operations.Atomic_Load (Unsigned_32);
+   function Fetch_Add is new System.Atomic_Operations.Atomic_Fetch_Add
+      (Unsigned_32);
+   function Fetch_Sub is new System.Atomic_Operations.Atomic_Fetch_Sub
+      (Unsigned_32);
+
    function Wait_For_Work_Completion return Status is
+      pragma Suppress (All_Checks); --  Nothing here can fail, as for locks.
    begin
-      return Status_Unimplemented;
+      while Load (Work_In_Flight'Address) /= 0 loop
+         Scheduler.Yield_If_Able;
+      end loop;
+      return Status_OK;
    end Wait_For_Work_Completion;
 
    type uACPI_Interrupt is record
@@ -650,14 +652,32 @@ package body Arch.ACPI with SPARK_Mode => Off is
          return Status_Internal_Error;
    end Uninstall_Interrupt_Handler;
 
-   function Schedule_Work
-      (Work_Type    : int;
-       Work_Handler : System.Address;
-       Context      : System.Address) return Status
-   is
-      pragma Unreferenced (Work_Type, Work_Handler, Context);
+   function Create_Work_Item return System.Address is
    begin
-      return Status_Unimplemented;
+      return System'To_Address (1);
+   end Create_Work_Item;
+
+   procedure Free_Work_Item (Handle : System.Address) is
+      pragma Unreferenced (Handle);
+   begin
+      null;
+   end Free_Work_Item;
+
+   procedure Schedule_Work
+      (Work_Type    : int;
+       Work_Item    : System.Address;
+       Work_Handler : System.Address;
+       Context      : System.Address)
+   is
+      pragma Suppress (All_Checks); --  Nothing here can fail, as for locks.
+      pragma Unreferenced (Work_Type, Work_Item);
+      procedure Handler (Ctx : System.Address)
+         with Import, Convention => C, Address => Work_Handler;
+      Discard : Unsigned_32;
+   begin
+      Discard := Fetch_Add (Work_In_Flight'Address, 1);
+      Handler (Context);
+      Discard := Fetch_Sub (Work_In_Flight'Address, 1);
    end Schedule_Work;
 
    function Handle_Firmware_Request (Request : System.Address) return Status is
@@ -666,25 +686,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return Status_Unimplemented;
    end Handle_Firmware_Request;
 
-   procedure Signal_Event (Event : System.Address) is
-   begin
-      null;
-   end Signal_Event;
-
-   procedure Reset_Event (Event : System.Address) is
-   begin
-      null;
-   end Reset_Event;
-
-   function Wait_For_Event
-      (Handle  : System.Address;
-       Timeout : Unsigned_16) return Unsigned_8
-   is
-      pragma Unreferenced (Handle, Timeout);
-   begin
-      return 0;
-   end Wait_For_Event;
-
    function Get_Nanoseconds_Since_Boot return Unsigned_64 is
       Curr : Time.Timestamp;
    begin
@@ -692,51 +693,79 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return To_Nanoseconds (Curr);
    end Get_Nanoseconds_Since_Boot;
 
-   type uACPI_Mutex is record
-      Lock : aliased Synchronization.Mutex;
+   type uACPI_Semaphore is record
+      Lock  : aliased Synchronization.Binary_Semaphore;
+      Units : Unsigned_32;
    end record;
-   type uACPI_Mutex_Acc is access all uACPI_Mutex;
-   package C2 is new System.Address_To_Access_Conversions (uACPI_Mutex);
+   type uACPI_Semaphore_Acc is access all uACPI_Semaphore;
+   package C2 is new System.Address_To_Access_Conversions (uACPI_Semaphore);
 
-   function Create_Mutex return System.Address is
-      Lock : constant uACPI_Mutex_Acc :=
-         new uACPI_Mutex'(Lock => Synchronization.Unlocked_Mutex);
+   function Create_Semaphore
+      (Initial_Units : Unsigned_32) return System.Address
+   is
+      Sem : constant uACPI_Semaphore_Acc := new uACPI_Semaphore'
+         (Lock  => Synchronization.Unlocked_Semaphore,
+          Units => Initial_Units);
    begin
-      return C2.To_Address (C2.Object_Pointer (Lock));
-   end Create_Mutex;
+      return C2.To_Address (C2.Object_Pointer (Sem));
+   end Create_Semaphore;
 
-   procedure Free_Mutex (Handle : System.Address) is
+   procedure Free_Semaphore (Handle : System.Address) is
       procedure Free is new Ada.Unchecked_Deallocation
-         (uACPI_Mutex, uACPI_Mutex_Acc);
-      Lock : uACPI_Mutex_Acc := uACPI_Mutex_Acc (C2.To_Pointer (Handle));
+         (uACPI_Semaphore, uACPI_Semaphore_Acc);
+      Sem : uACPI_Semaphore_Acc :=
+         uACPI_Semaphore_Acc (C2.To_Pointer (Handle));
    begin
-      Free (Lock);
-   end Free_Mutex;
+      Free (Sem);
+   end Free_Semaphore;
 
-   function Acquire_Mutex
+   function Wait_For_Semaphore
       (Handle  : System.Address;
        Timeout : Unsigned_16) return Status
    is
-      pragma Unreferenced (Timeout);
-      Lock : constant uACPI_Mutex_Acc :=
-         uACPI_Mutex_Acc (C2.To_Pointer (Handle));
+      Sem : constant uACPI_Semaphore_Acc :=
+         uACPI_Semaphore_Acc (C2.To_Pointer (Handle));
+      Curr, Tgt : Time.Timestamp;
+      Taken     : Boolean;
    begin
-      Synchronization.Seize (Lock.Lock);
+      Arch.Clocks.Get_Monotonic_Time (Tgt);
+      Tgt := Tgt + (Unsigned_64 (Timeout) / 1000,
+                    (Unsigned_64 (Timeout) mod 1000) * 1000000);
+      loop
+         Synchronization.Seize (Sem.Lock);
+         Taken := Sem.Units /= 0;
+         if Taken then
+            Sem.Units := Sem.Units - 1;
+         end if;
+         Synchronization.Release (Sem.Lock);
+         exit when Taken;
+         if Timeout /= 16#FFFF# then
+            Arch.Clocks.Get_Monotonic_Time (Curr);
+            if Curr >= Tgt then
+               return Status_Timeout;
+            end if;
+         end if;
+         Scheduler.Yield_If_Able;
+      end loop;
       return Status_OK;
    exception
       when Constraint_Error =>
          return Status_Internal_Error;
-   end Acquire_Mutex;
+   end Wait_For_Semaphore;
 
-   procedure Release_Mutex (Handle : System.Address) is
-      Lock : constant uACPI_Mutex_Acc :=
-         uACPI_Mutex_Acc (C2.To_Pointer (Handle));
+   procedure Signal_Semaphore (Handle : System.Address) is
+      Sem : constant uACPI_Semaphore_Acc :=
+         uACPI_Semaphore_Acc (C2.To_Pointer (Handle));
    begin
-      Synchronization.Release (Lock.Lock);
+      Synchronization.Seize (Sem.Lock);
+      if Sem.Units /= Unsigned_32'Last then
+         Sem.Units := Sem.Units + 1;
+      end if;
+      Synchronization.Release (Sem.Lock);
    exception
       when Constraint_Error =>
          null;
-   end Release_Mutex;
+   end Signal_Semaphore;
 
    function Get_Thread_ID return System.Address is
    begin
