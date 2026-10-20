@@ -67,9 +67,9 @@ if ! test -f version; then
         5b4a649b38e1d27f2b7470f593d58e907438aca5
 
     clone_repo_commit \
-        https://github.com/osdev0/cc-runtime.git \
-        cc-runtime \
-        9891629daf3703d0ddecd295772df7da82ab25b9
+        https://github.com/osdev0/freestanding-lgrt.git \
+        freestanding-lgrt \
+        a6e79759589f9905ec08c5fdc7f10f34f668d145
 
     # 3.1.2
     clone_repo_commit \

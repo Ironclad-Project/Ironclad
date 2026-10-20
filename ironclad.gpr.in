@@ -47,7 +47,7 @@ project Ironclad is
       "@SRCDIR@/source/virtualization",
       "@SRCDIR@/source",
       "@SRCDIR@/freestanding-c-hdrs/include",
-      "@SRCDIR@/cc-runtime/src"
+      "@SRCDIR@/freestanding-lgrt/src"
    );
 
    case Arch is
@@ -159,13 +159,13 @@ project Ironclad is
 
       --  The compiler runtime has to survive as real object code, as the calls
       --  to it are generated after LTO has already chosen what to keep.
-      for Switches ("cc-runtime.c") use Base_C_Switches & ("-fno-lto");
+      for Switches ("freestanding-lgrt.c") use Base_C_Switches & ("-fno-lto");
       for Local_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
    end Compiler;
 
    package Linker is
-      --  The kernel needs its runtime and the runtime needs cc-runtime, which
-      --  is part of the kernel, so search their archives as a group.
+      --  The kernel needs its runtime and the runtime needs freestanding-lgrt,
+      --  which is part of the kernel, so search their archives as a group.
       for Leading_Switches ("Ada") use ("-Wl,--start-group");
       Base_Link_Switches := ("rtsdir/adalib/libgnat.a", "-Wl,--end-group");
 

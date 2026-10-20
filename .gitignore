@@ -43,6 +43,6 @@
 /target.atp
 /rtsdir
 /freestanding-c-hdrs
-/cc-runtime
+/freestanding-lgrt
 /uacpi
 /flanterm

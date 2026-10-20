@@ -186,7 +186,7 @@ distclean: clean
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
-	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf configure build-aux *'~' autom4te.cache aclocal.m4 freestanding-c-hdrs cc-runtime flanterm uacpi
+	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf configure build-aux *'~' autom4te.cache aclocal.m4 freestanding-c-hdrs freestanding-lgrt flanterm uacpi
 ###############################################################################
 # Create a release tarball.
 .PHONY: dist
@@ -203,8 +203,8 @@ dist:
 	rm -rf "$(DIST_OUTPUT)"/.forgejo
 	rm -rf "$(DIST_OUTPUT)"/RELEASE_PROCEDURE.md
 	rm -rf "$(DIST_OUTPUT)"/autom4te.cache
-	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.git
 	rm -rf "$(DIST_OUTPUT)"/freestanding-c-hdrs/.git
+	rm -rf "$(DIST_OUTPUT)"/freestanding-lgrt/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.github
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.gitignore
