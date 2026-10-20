@@ -105,13 +105,15 @@ rtsdir/adalib/libgnat.a: GNUmakefile $(RTSFILES)
 		--target=$(GPRBUILD_TARGET) \
 		-j$(PARALLELISM)
 
+# gprbuild does not recompile when the toolchain or flags change, which they
+# only do along with the configuration, so force it to when that changes.
 $(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES)
 	$(GPRCONFIG) --batch -o ironclad.cgpr \
 		--target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
 		--config=Ada,,$(RTS_PATH),$(CC_PATH) \
 		--config=C,,,$(CC_PATH) --config=Asm_Cpp,,,$(CC_PATH)
 	$(GPRBUILD) -P ./ironclad.gpr --config=ironclad.cgpr \
-		--target=$(GPRBUILD_TARGET) \
+		--target=$(GPRBUILD_TARGET) $(if $(filter GNUmakefile,$?),-f) \
 		-j$(PARALLELISM)
 
 .PHONY: info
