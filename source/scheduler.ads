@@ -85,6 +85,8 @@ package Scheduler is
    procedure Release_Thread (Thread : TID);
 
    --  Removes a thread, kernel or user, from existence (if it exists).
+   --  One other than the caller goes at once if it is in userland, and is
+   --  doomed if it is in the kernel.
    procedure Delete_Thread (Thread : TID);
 
    --  A removed thread goes on running until its core next reschedules. Wait
@@ -289,4 +291,5 @@ private
    procedure Next_Wake (Max_Micros : Natural; Micros : out Natural);
    procedure Evaluate_Runnable (T : TID; Can_Run : out Boolean);
    procedure Evaluate_Suspended (T : TID; Suspended : out Boolean);
+   procedure Drop_Thread (Thread : TID);
 end Scheduler;

@@ -1664,8 +1664,6 @@ private
        Sig     : out Signal;
        Success : out Boolean);
 
-   procedure Common_Death_Preparations (Proc : PID);
-
    procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean);
 
    function Is_Valid_Clock (ID : Unsigned_64) return Boolean;

@@ -943,6 +943,7 @@ package body Userland.Syscall is
       Th         : constant TID := Arch.Local.Get_Current_Thread;
       Proc       : constant PID := Arch.Local.Get_Current_Process;
       Parent     : PID;
+      Handed_On  : Boolean;
       Map, Orig  : Memory.MMU.Page_Table_Acc;
       Success    : Boolean;
       Success3   : Boolean;
@@ -1080,8 +1081,14 @@ package body Userland.Syscall is
             end if;
 
             if Str_Errno = Error_No_Error then
+               Userland.Process.Flush_Threads (Proc, False, Success);
+               if not Success then
+                  Str_Errno := Error_Interrupted;
+               end if;
+            end if;
+
+            if Str_Errno = Error_No_Error then
                --  Create a new map for the process and reroll ASLR.
-               Userland.Process.Flush_Threads (Proc);
                Userland.Process.Destroy_Machines (Proc);
                Userland.Process.Flush_Exec_Files (Proc);
                Userland.Process.Reassign_Process_Addresses (Proc);
@@ -1127,8 +1134,11 @@ package body Userland.Syscall is
             Set_Exec_Marker (Proc);
             if not Success then
                Detach_All_SHM (Proc);
-               Scheduler.Wait_For_Removed (Convert (Proc));
-               Memory.MMU.Destroy_Table (Orig);
+               Hand_Table_On (Orig, Handed_On);
+               if not Handed_On then
+                  Scheduler.Wait_For_Removed (Convert (Proc));
+                  Memory.MMU.Destroy_Table (Orig);
+               end if;
             else
                --  The parent waits for its table back, see Fork.
                Get_Parent (Proc, Parent);
@@ -1397,12 +1407,8 @@ package body Userland.Syscall is
 
       --  Now that we got the exit code, finally allow the process to die. A
       --  vforked child that never called exec let go of its parent's table
-      --  when it exited.
-      Get_Common_Map (Waited, Map);
-      if Map /= null then
-         Scheduler.Wait_For_Removed (Convert (Waited));
-         Memory.MMU.Destroy_Table (Map);
-      end if;
+      --  when it exited, and any other process gave its own back then
+      --  (Drop_Address_Space): a zombie keeps its status and nothing else.
       Userland.Process.Delete_Process (Waited);
 
       Errno    := Error_No_Error;
@@ -9552,14 +9558,16 @@ package body Userland.Syscall is
                exit when Is_Traced or Scheduler.Is_Doomed;
                Scheduler.Yield_If_Able;
             end loop;
-            declare
-               TInfo_Data : Devices.Operation_Data (1 .. TInfo'Size / 8)
-                  with Import, Address => TInfo'Address;
-            begin
-               TInfo := (Unsigned_16 (Convert (Thread)), State);
-               Write (File.Inner_Writer_FIFO, TInfo_Data, File.Is_Blocking,
-                      Ret_Count, Success);
-            end;
+            if Is_Traced then
+               declare
+                  TInfo_Data : Devices.Operation_Data (1 .. TInfo'Size / 8)
+                     with Import, Address => TInfo'Address;
+               begin
+                  TInfo := (Unsigned_16 (Convert (Thread)), State);
+                  Write (File.Inner_Writer_FIFO, TInfo_Data, File.Is_Blocking,
+                         Ret_Count, Success);
+               end;
+            end if;
          end if;
       end if;
    exception
@@ -9921,17 +9929,6 @@ package body Userland.Syscall is
          Success := False;
    end Translate_Signal;
 
-   procedure Common_Death_Preparations (Proc : PID) is
-   begin
-      --  Inherit all our children to init, who will take care of them.
-      Reassign_Parent_To_Init (Proc);
-
-      --  Remove all state but the return value and keep the zombie around
-      --  until we are waited.
-      Userland.Process.Flush_Threads (Proc);
-      Userland.Process.Flush_Files   (Proc);
-   end Common_Death_Preparations;
-
    procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean) is
       Raised_Signal : Userland.Process.Signal;
       Signal_Addr   : System.Address;
@@ -9940,6 +9937,11 @@ package body Userland.Syscall is
       Altstack      : Boolean;
       Mask          : Process.Signal_Bitmap;
    begin
+      Has_Handled := False;
+      if Scheduler.Is_Doomed then
+         return;
+      end if;
+
       Process.Get_Raised_Signal_Actions
          (Proc     => Proc,
           Sig      => Raised_Signal,

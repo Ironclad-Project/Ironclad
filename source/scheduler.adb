@@ -44,6 +44,7 @@ package body Scheduler with SPARK_Mode => Off is
    type Thread_Info is record
       Is_Present      : Boolean with Atomic;
       Is_Running      : Boolean with Atomic;
+      Is_Doomed       : Boolean with Atomic;
       Is_Held         : Boolean with Atomic;  --  See Create_User_Thread.
       Watcher         : TID with Atomic;  --  See Launch_Signal_Thread.
       Path            : String (1 .. 20);
@@ -130,6 +131,7 @@ package body Scheduler with SPARK_Mode => Off is
          Thread :=
             (Is_Present      => False,
              Is_Running      => False,
+             Is_Doomed       => False,
              Is_Held         => False,
              Watcher         => Error_TID,
              Path            => [others => ' '],
@@ -423,6 +425,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID) :=
          (Is_Present     => True,
           Is_Running     => False,
+          Is_Doomed      => False,
           Is_Held        => True,
           Watcher        => Error_TID,
           Path           => [others => ' '],
@@ -484,17 +487,18 @@ package body Scheduler with SPARK_Mode => Off is
       Self : constant TID := Arch.Local.Get_Current_Thread;
    begin
       if Thread_Pool (Thread).Is_Present then
-         Thread_Pool (Thread).Is_Present := False;
-         Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
-      end if;
-
-      --  A sleep in the kernel ends, for the thread to give up its wait and
-      --  leave at the edge of its syscall. One asleep on its core is woken
-      --  there, see Kick.
-      Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
-      Thread_Pool (Thread).Start_Time  := (0, 0);
-      if Thread_Pool (Thread).Is_Running then
-         Kick (Thread);
+         if Thread = Self then
+            Drop_Thread (Thread);
+         elsif not Thread_Pool (Thread).Is_Running and then
+               Arch.Context.Is_User_Context (Thread_Pool (Thread).GP_State)
+         then
+            Drop_Thread (Thread);
+         else
+            Thread_Pool (Thread).Is_Doomed   := True;
+            Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
+            Thread_Pool (Thread).Start_Time  := (0, 0);
+            Kick (Thread);
+         end if;
       end if;
 
       for T in Thread_Pool'Range loop
@@ -591,7 +595,7 @@ package body Scheduler with SPARK_Mode => Off is
    function Is_Doomed return Boolean is
       Thread : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      return Thread /= Error_TID and then not Thread_Pool (Thread).Is_Present;
+      return Thread /= Error_TID and then Thread_Pool (Thread).Is_Doomed;
    exception
       when Constraint_Error =>
          return False;
@@ -645,9 +649,8 @@ package body Scheduler with SPARK_Mode => Off is
       Thread : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
       Stop : Boolean;
    begin
-      --  A deleted thread does not sleep, see Delete_Thread.
       Synchronization.Seize (Scheduler_Mutex);
-      if Thread_Pool (Thread).Is_Present then
+      if not Thread_Pool (Thread).Is_Doomed then
          Thread_Pool (Thread).Start_Clock := Clock;
          Thread_Pool (Thread).Start_Time := Start_Time;
       end if;
@@ -776,7 +779,9 @@ package body Scheduler with SPARK_Mode => Off is
       --  Wake_Event sets the flag with the lock held, so wakes are either
       --  seen here or lift the sleep below.
       Synchronization.Seize (Scheduler_Mutex);
-      if not Thread_Pool (Thread).Wake_Pending then
+      if not Thread_Pool (Thread).Wake_Pending and
+         not Thread_Pool (Thread).Is_Doomed
+      then
          Thread_Pool (Thread).Event_Waiting := True;
          Thread_Pool (Thread).Start_Clock   := Time.Monotonic_Clock;
          Thread_Pool (Thread).Start_Time    := Until_Time;
@@ -1174,10 +1179,10 @@ package body Scheduler with SPARK_Mode => Off is
       --  slot is watched until it is done, so that it is not taken by a new
       --  thread meanwhile, and its end wakes the watcher, see Bail. It goes
       --  with the thread it interrupted, as nothing else would take it down,
-      --  see Delete_Locked, and at once if that one is gone already.
+      --  see Delete_Locked, and at once if that one is doomed already.
       Synchronization.Seize (Scheduler_Mutex);
       Thread_Pool (New_TID).Watcher := Th;
-      if Thread_Pool (Th).Is_Present then
+      if not Thread_Pool (Th).Is_Doomed then
          Thread_Pool (New_TID).Is_Held := False;
       else
          Delete_Locked (New_TID);
@@ -1190,7 +1195,8 @@ package body Scheduler with SPARK_Mode => Off is
       loop
          Clear_Wake;
          Killed := Is_Doomed;
-         exit when Killed or not Thread_Pool (New_TID).Is_Present;
+         exit when (Killed and not Thread_Pool (New_TID).Is_Doomed) or
+                   not Thread_Pool (New_TID).Is_Present;
          Wait_Event
             (No_Deadline,
              (if Registered then Woken_Sleep_Micros else Polled_Sleep_Micros));
@@ -1337,11 +1343,14 @@ package body Scheduler with SPARK_Mode => Off is
          end if;
       end if;
 
-      --  We only get here if the thread search did not find anything, and we
-      --  are just going back to whoever called. A thread deleted while in
-      --  userland is not gone back to: the core waits on its stack instead,
-      --  as after a Bail.
       if Next_TID = Error_TID then
+         if Current_TID /= Error_TID and then
+            Thread_Pool (Current_TID).Is_Present and then
+            Thread_Pool (Current_TID).Is_Doomed and then
+            Arch.Context.Is_User_Context (State)
+         then
+            Drop_Thread (Current_TID);
+         end if;
          if Current_TID /= Error_TID and then
             not Thread_Pool (Current_TID).Is_Present and then
             Arch.Context.Is_User_Context (State)
@@ -1360,12 +1369,16 @@ package body Scheduler with SPARK_Mode => Off is
          return;
       end if;
 
-      --  Save state.
       if Current_TID /= Error_TID then
          if Current_TID /= Next_TID then
             Arch.Local.Set_Retiring_Thread (Current_TID);
          end if;
-         if Thread_Pool (Current_TID).Is_Present then
+         if Thread_Pool (Current_TID).Is_Present and then
+            Thread_Pool (Current_TID).Is_Doomed and then
+            Arch.Context.Is_User_Context (State)
+         then
+            Drop_Thread (Current_TID);
+         elsif Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).PageMap := MMU.Get_Curr_Table_Addr;
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).GP_State    := State;
@@ -1769,7 +1782,13 @@ package body Scheduler with SPARK_Mode => Off is
       Can_Run := Thread_Pool (T).Is_Present and
                  not Thread_Pool (T).Is_Running and
                  not Thread_Pool (T).Is_Held;
-      if Can_Run then
+
+      if Can_Run and then Thread_Pool (T).Is_Doomed and then
+         Arch.Context.Is_User_Context (Thread_Pool (T).GP_State)
+      then
+         Drop_Thread (T);
+         Can_Run := False;
+      elsif Can_Run then
          Evaluate_Suspended (T, Can_Run);
          Can_Run := not Can_Run;
       end if;
@@ -1787,4 +1806,14 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          Suspended := False;
    end Evaluate_Suspended;
+
+   procedure Drop_Thread (Thread : TID) is
+   begin
+      Thread_Pool (Thread).Is_Present := False;
+      Thread_Pool (Thread).Is_Doomed  := False;
+      Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
+   exception
+      when Constraint_Error =>
+         null;
+   end Drop_Thread;
 end Scheduler;

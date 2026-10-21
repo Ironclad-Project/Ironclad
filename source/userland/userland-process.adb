@@ -37,6 +37,16 @@ package body Userland.Process with SPARK_Mode => Off is
    Description_Mutex : aliased Synchronization.Mutex :=
       Synchronization.Unlocked_Mutex;
 
+   --  Taking down another process waits for its threads to leave the
+   --  kernel, and one of those may be taking down ours, each then waiting
+   --  for the other, so such teardowns take turns.
+   Kill_Mutex : aliased Synchronization.Binary_Semaphore :=
+      Synchronization.Unlocked_Semaphore;
+   Kill_Busy  : Boolean := False;
+
+   procedure Take_Kill_Turn (Success : out Boolean);
+   procedure Give_Kill_Turn;
+
    Do_ASLR : Boolean := True;
 
    procedure Init is
@@ -154,6 +164,8 @@ package body Userland.Process with SPARK_Mode => Off is
                 Which_Signal    => Signal_Kill,
                 Did_Exit        => False,
                 Exit_Code       => 0,
+                Is_Flushing     => False,
+                Is_Exiting      => False,
                 VFork_Mark      => False,
                 Exec_Mark       => False,
                 RR_Sec          => 0,
@@ -342,6 +354,10 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       Success := False;
+      if Registry (Proc).Is_Flushing or Registry (Proc).Is_Exiting then
+         Synchronization.Release (Registry (Proc).Data_Mutex);
+         return;
+      end if;
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Error_TID then
             Registry (Proc).Thread_List (I) := Thread;
@@ -391,14 +407,12 @@ package body Userland.Process with SPARK_Mode => Off is
        Remaining : out Natural)
    is
       Tmp_System, Tmp_User : Time.Timestamp;
-      Found : Boolean := False;
    begin
       Remaining := 0;
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Thread then
             Registry (Proc).Thread_List (I) := Error_TID;
-            Found := True;
             Scheduler.Get_Runtimes (Thread, Tmp_System, Tmp_User);
             if Registry (Proc).Parent /= Error_PID and then
                Registry (Registry (Proc).Parent) /= null
@@ -415,25 +429,43 @@ package body Userland.Process with SPARK_Mode => Off is
          end if;
       end loop;
       Synchronization.Release (Registry (Proc).Data_Mutex);
-
-      --  A thread already flushed leaves the process to whoever flushed it.
-      if not Found and Remaining = 0 then
-         Remaining := 1;
-      end if;
    exception
       when Constraint_Error =>
          --  Not known to be the last, so not the one to end the process.
          Remaining := 1;
    end Remove_Thread;
 
-   procedure Flush_Threads (Proc : PID) is
+   procedure Flush_Threads
+      (Proc     : PID;
+       For_Exit : Boolean;
+       Done     : out Boolean)
+   is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
-      Parent : PID;
+      Parent   : PID;
+      Victims  : Thread_Arr;
+      Busy     : Boolean;
+      Finished : Boolean;
       Tmp_System, Tmp_User : Time.Timestamp;
    begin
-      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      loop
+         Synchronization.Seize (Registry (Proc).Data_Mutex);
+         Busy     := Registry (Proc).Is_Flushing;
+         Finished := Registry (Proc).Is_Exiting;
+         exit when not Busy and not Finished;
+         Synchronization.Release (Registry (Proc).Data_Mutex);
+         if not For_Exit or Finished or Scheduler.Is_Doomed then
+            Done := False;
+            return;
+         end if;
+         Scheduler.Yield_If_Able;
+      end loop;
+      Registry (Proc).Is_Flushing := True;
+      Registry (Proc).Is_Exiting  := For_Exit;
+
+      --  The caller keeps its place in the list.
+      Victims := Registry (Proc).Thread_List;
       for Thread of Registry (Proc).Thread_List loop
-         if Thread /= Error_TID then
+         if Thread /= Error_TID and Thread /= Current_Thread then
             Parent := Registry (Proc).Parent;
             if Parent /= Error_PID and then Registry (Parent) /= null then
                Scheduler.Get_Runtimes (Thread, Tmp_System, Tmp_User);
@@ -442,17 +474,39 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (Parent).Children_User :=
                   Registry (Parent).Children_User + Tmp_User;
             end if;
-
-            if Thread /= Current_Thread then
-               Scheduler.Delete_Thread (Thread);
-            end if;
+            Thread := Error_TID;
          end if;
-         Thread := Error_TID;
       end loop;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+
+      for Thread of Victims loop
+         if Thread /= Error_TID and Thread /= Current_Thread then
+            Scheduler.Delete_Thread (Thread);
+         end if;
+      end loop;
+
+      --  A doomed thread still in the kernel finishes what it was doing
+      --  before it goes, and until then it may use anything of the process.
+      Done := True;
+      for Thread of Victims loop
+         if Thread /= Error_TID and Thread /= Current_Thread then
+            while Scheduler.Is_Alive (Thread, Convert (Proc)) loop
+               if not For_Exit and then Scheduler.Is_Doomed then
+                  Done := False;
+                  exit;
+               end if;
+               Scheduler.Yield_If_Able;
+            end loop;
+         end if;
+         exit when not Done;
+      end loop;
+
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Registry (Proc).Is_Flushing := False;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
-         null;
+         Done := False;
    end Flush_Threads;
 
    procedure Reassign_Process_Addresses (Process : PID) is
@@ -1138,39 +1192,119 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Reassign_Parent_To_Init;
 
+   procedure Take_Kill_Turn (Success : out Boolean) is
+   begin
+      loop
+         Synchronization.Seize (Kill_Mutex);
+         Success   := not Kill_Busy;
+         Kill_Busy := True;
+         Synchronization.Release (Kill_Mutex);
+         exit when Success or else Scheduler.Is_Doomed;
+         Scheduler.Yield_If_Able;
+      end loop;
+   end Take_Kill_Turn;
+
+   procedure Give_Kill_Turn is
+   begin
+      Synchronization.Seize (Kill_Mutex);
+      Kill_Busy := False;
+      Synchronization.Release (Kill_Mutex);
+   end Give_Kill_Turn;
+
+   procedure Drop_Address_Space (Proc : PID) is
+      use type Memory.MMU.Page_Table_Acc;
+      Map      : Memory.MMU.Page_Table_Acc;
+      Is_VFork : Boolean;
+      Taken    : Boolean;
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Is_VFork := Registry (Proc).VFork_Mark;
+      Map      := Registry (Proc).Common_Map;
+      Registry (Proc).Common_Map := null;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+
+      if not Is_VFork and then Map /= null then
+         Hand_Table_On (Map, Taken);
+         if not Taken then
+            Scheduler.Wait_For_Removed (Convert (Proc));
+            Memory.MMU.Destroy_Table (Map);
+         end if;
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Drop_Address_Space;
+
+   procedure Hand_Table_On
+      (Map   : Memory.MMU.Page_Table_Acc;
+       Taken : out Boolean)
+   is
+      use type Memory.MMU.Page_Table_Acc;
+   begin
+      Taken := False;
+      Synchronization.Seize (Registry_Mutex);
+      for Proc of Registry.all loop
+         if Proc /= null then
+            Synchronization.Seize (Proc.Data_Mutex);
+            if Proc.VFork_Mark and then Proc.Common_Map = Map then
+               Proc.VFork_Mark := False;
+               Taken := True;
+            end if;
+            Synchronization.Release (Proc.Data_Mutex);
+            exit when Taken;
+         end if;
+      end loop;
+      Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Registry_Mutex);
+   end Hand_Table_On;
+
    procedure Exit_Process (Process : PID; Killer : Signal) is
       Exiting_Ourselves : constant Boolean :=
          Process = Arch.Local.Get_Current_Process;
+      Done : Boolean;
    begin
+      --  Another process is taken down in turn, see Take_Kill_Turn.
+      if not Exiting_Ourselves then
+         Take_Kill_Turn (Done);
+         if not Done then
+            return;
+         end if;
+      end if;
+
+      --  Take down every other thread first, unless another thread already
+      --  does or an exec replacing this one is under way, which ends us.
+      Flush_Threads (Process, True, Done);
+      if not Done then
+         if Exiting_Ourselves then
+            Scheduler.Bail;
+         end if;
+         Give_Kill_Turn;
+         return;
+      end if;
+
       if Exiting_Ourselves then
          --  Switch to the kernel page table to make us immune to having it
          --  swept from under out feet by process cleanup.
          if not Memory.MMU.Make_Active (Memory.MMU.Kernel_Table) then
             Messages.Put_Line ("Could not switch table on thread exit");
          end if;
+
+         Remove_Thread (Process, Arch.Local.Get_Current_Thread);
       end if;
 
       --  Inherit all our children to init, who will take care of them.
       Reassign_Parent_To_Init (Process);
 
       --  Remove all state but the return value and keep the zombie around
-      --  until we are waited, the process's virtual machines first. The
-      --  caller leaves the thread list with the others, so a thread exiting
-      --  meanwhile never takes itself for the last. The emptied descriptor
-      --  table stays until then, as the other threads may still look at it.
-      Flush_Threads (Process);
+      --  until we are waited, the process's virtual machines first. A
+      --  guest's memory is the process's, which goes below.
       Destroy_Machines (Process);
-      Flush_Files   (Process);
+      Flush_Files (Process);
+      Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);
-
-      --  A vforked child that has not called exec runs on its parent's table,
-      --  which is not its own to give back. Letting go of it here is what
-      --  lets the parent go on.
-      Synchronization.Seize (Registry (Process).Data_Mutex);
-      if Registry (Process).VFork_Mark then
-         Registry (Process).Common_Map := null;
-      end if;
-      Synchronization.Release (Registry (Process).Data_Mutex);
+      Drop_Address_Space (Process);
 
       Registry (Process).Did_Exit     := True;
       Registry (Process).Signal_Exit  := True;
@@ -1183,51 +1317,71 @@ package body Userland.Process with SPARK_Mode => Off is
       if Exiting_Ourselves then
          Scheduler.Bail;
       end if;
+      Give_Kill_Turn;
    exception
       when Constraint_Error =>
+         if not Exiting_Ourselves then
+            Give_Kill_Turn;
+         end if;
          Messages.Put_Line ("Exception exiting process");
    end Exit_Process;
 
    procedure Exit_Process (Process : PID; Code : Unsigned_8) is
       Exiting_Ourselves : constant Boolean :=
          Process = Arch.Local.Get_Current_Process;
+      Done : Boolean;
    begin
+      --  Another process is taken down in turn, see Take_Kill_Turn.
+      if not Exiting_Ourselves then
+         Take_Kill_Turn (Done);
+         if not Done then
+            return;
+         end if;
+      end if;
+
+      --  Take down every other thread first, unless another thread already
+      --  does or an exec replacing this one is under way, which ends us.
+      Flush_Threads (Process, True, Done);
+      if not Done then
+         if Exiting_Ourselves then
+            Scheduler.Bail;
+         end if;
+         Give_Kill_Turn;
+         return;
+      end if;
+
       if Exiting_Ourselves then
          --  Switch to the kernel page table to make us immune to having it
          --  swept from under out feet by process cleanup.
          if not Memory.MMU.Make_Active (Memory.MMU.Kernel_Table) then
             Messages.Put_Line ("Could not switch table on thread exit");
          end if;
+
+         Remove_Thread (Process, Arch.Local.Get_Current_Thread);
       end if;
 
       --  Inherit all our children to init, who will take care of them.
       Reassign_Parent_To_Init (Process);
 
       --  Remove all state but the return value and keep the zombie around
-      --  until we are waited, the process's virtual machines first. The
-      --  caller leaves the thread list with the others, so a thread exiting
-      --  meanwhile never takes itself for the last. The emptied descriptor
-      --  table stays until then, as the other threads may still look at it.
-      Flush_Threads (Process);
+      --  until we are waited, the process's virtual machines first. A
+      --  guest's memory is the process's, which goes below.
       Destroy_Machines (Process);
-      Flush_Files   (Process);
+      Flush_Files (Process);
+      Free (Registry (Process).File_Table);
       Detach_All_SHM (Process);
-
-      --  A vforked child that has not called exec runs on its parent's table,
-      --  which is not its own to give back. Letting go of it here is what
-      --  lets the parent go on.
-      Synchronization.Seize (Registry (Process).Data_Mutex);
-      if Registry (Process).VFork_Mark then
-         Registry (Process).Common_Map := null;
-      end if;
-      Synchronization.Release (Registry (Process).Data_Mutex);
+      Drop_Address_Space (Process);
       Issue_Exit (Process, Code);
 
       if Exiting_Ourselves then
          Scheduler.Bail;
       end if;
+      Give_Kill_Turn;
    exception
       when Constraint_Error =>
+         if not Exiting_Ourselves then
+            Give_Kill_Turn;
+         end if;
          Messages.Put_Line ("Exception exiting process");
    end Exit_Process;
 

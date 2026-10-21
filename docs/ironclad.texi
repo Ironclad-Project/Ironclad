@@ -1421,9 +1421,13 @@ void exit(uint64_t status);
 @end example
 
 This syscall terminates the calling process "immediately".
-Any open file descriptors belonging to the process to be closed, and any
-threads of execution are terminated. @code{SIGCHLD} will be sent to the parent
-if any.
+Its other threads of execution are terminated first: a thread running in
+userland at once, and a thread in the middle of a syscall when it leaves the
+kernel, any blocking wait of that syscall being given up so that it does not
+linger. Then any open file descriptors belonging to the process are closed.
+@code{SIGCHLD} will be sent to the parent if any. If the process is already
+being terminated by another of its threads, the calling thread is only
+terminated with the rest.
 
 This syscall does not return any value, but it sets errno on failure:
 
@@ -1735,7 +1739,8 @@ int exec(const char *path, int path_len, char *const argv[], int argv_len, char 
 
 This syscall executes the program passed with the passed argv and evp, closing
 all the threads of the callee process and putting a single one in place for
-the new program. Other process-specific elements like file descriptors are
+the new program. The other threads are terminated first, as they are for
+@ref{exit}. Other process-specific elements like file descriptors are
 untouched.
 
 Exception handlers marked as @code{SIG_DFL} and @code{SIG_IGN} are preserved,
@@ -1773,6 +1778,10 @@ readable memory.
 @code{EACCES}: The file couldn't be launched out of a permission error. A
 process with an effective user ID of 0 may only execute a file somebody may
 execute.
+
+@item
+@code{EINTR}: Another thread of the process is terminating or replacing it at
+the same time, which terminates the calling thread as well.
 @end itemize
 
 @node fork
@@ -4648,6 +4657,9 @@ This syscall returns the TID on success or @code{-1} on failure, with the errno:
 @table @code
 @item EFAULT
 The passed buffers were pointing to invalid memory.
+
+@item EAGAIN
+The process is exiting.
 
 @item EACCES
 MAC disallowed this.

@@ -236,7 +236,8 @@ package Userland.Process is
 
    --  Add a thread to the process and let it run, a user thread being made
    --  held (see Scheduler.Create_User_Thread). A thread refused is still
-   --  held, and its maker deletes it.
+   --  held, and its maker deletes it. Threads are refused while those of the
+   --  process are being flushed and once it exits.
    --  @param Proc    Process to add a thread.
    --  @param Thread  Thread to add.
    --  @param Success True on success, False on failure.
@@ -260,8 +261,7 @@ package Userland.Process is
 
    --  Remove a thread from the process and say how many it has left, counted
    --  in the same step, so that of threads leaving together exactly one sees
-   --  none left. A thread the process no longer lists, having been taken by
-   --  an exit, a kill or an exec under way, is not told that none are left.
+   --  none left.
    --  @param Proc      Process to remove a thread from.
    --  @param Thread    Thread to remove.
    --  @param Remaining Threads the process has once this one is gone.
@@ -271,9 +271,19 @@ package Userland.Process is
        Remaining : out Natural)
       with Pre => Proc /= Error_PID;
 
-   --  Flush all the threads from a process.
-   --  @param Proc Process to remove all threads.
-   procedure Flush_Threads (Proc : PID) with Pre => Proc /= Error_PID;
+   --  Flush all the threads from a process but the caller, and wait for them
+   --  to be gone, so nothing of the process is in use by them afterwards.
+   --  Only one flush runs at a time, and one for an exit is the last: no
+   --  thread can join the process after it.
+   --  @param Proc     Process to remove all threads.
+   --  @param For_Exit Whether the process is exiting, rather than exec'ing.
+   --  @param Done     True once the threads are gone, False if the flush gave
+   --                  way to another flush of the process.
+   procedure Flush_Threads
+      (Proc     : PID;
+       For_Exit : Boolean;
+       Done     : out Boolean)
+      with Pre => Proc /= Error_PID;
 
    --  Reset the trackers for memory addresses and locations for the process.
    --  If ASLR is enabled, it will be used here.
@@ -552,14 +562,16 @@ package Userland.Process is
       with Pre => Process /= Error_PID;
 
    --  Terminate process, if it is the caller one, this function will not
-   --  return.
+   --  return. Its other threads are waited for to leave the kernel first,
+   --  and nothing is done if the process is already being terminated.
    --  @param Process Parent process to reassign from.
    --  @param Killer  Signal that ended up killing this process.
    procedure Exit_Process (Process : PID; Killer : Signal)
       with Pre => Process /= Error_PID;
 
    --  Terminate process, if it is the caller one, this function will not
-   --  return.
+   --  return. Its other threads are waited for to leave the kernel first,
+   --  and nothing is done if the process is already being terminated.
    --  @param Process Parent process to reassign from.
    --  @param Code    Code to exit the process with.
    procedure Exit_Process (Process : PID; Code : Unsigned_8)
@@ -584,6 +596,20 @@ package Userland.Process is
        FS   : out VFS.FS_Handle;
        Ino  : out VFS.File_Inode_Number)
       with Pre => Proc /= Error_PID;
+
+   --  Give back the address space of a process that has exited, which it
+   --  can never touch again.
+   --  @param Proc Process to operate on.
+   procedure Drop_Address_Space (Proc : PID) with Pre => Proc /= Error_PID;
+
+   --  A vforked child that has not called exec runs on its parent's table.
+   --  The parent can be killed while the child still runs on it. This hands
+   --  over the tables between processes.
+   --  @param Map   Table its owner is done with.
+   --  @param Taken True if a child took it, else it is the caller's to free.
+   procedure Hand_Table_On
+      (Map   : Memory.MMU.Page_Table_Acc;
+       Taken : out Boolean);
 
    --  Get the parent PID of the process.
    --  @param Proc   Process to get the info from.
@@ -935,6 +961,8 @@ private
       Exec_Mark       : Boolean;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;
+      Is_Flushing     : Boolean;
+      Is_Exiting      : Boolean;
       Children_System : Time.Timestamp;
       Children_User   : Time.Timestamp;
       Creation        : Time.Timestamp;
