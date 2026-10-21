@@ -622,25 +622,6 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Set_Exec_Marker;
 
-   procedure Is_Valid_File
-      (Process : PID;
-       FD      : Unsigned_64;
-       Success : out Boolean)
-   is
-      R : Boolean renames Success;
-   begin
-      Synchronization.Seize (Registry (Process).Data_Mutex);
-      if FD <= Unsigned_64 (File_Arr'Last) then
-         R := Registry (Process).File_Table (Natural (FD)).Description /= null;
-      else
-         R := False;
-      end if;
-      Synchronization.Release (Registry (Process).Data_Mutex);
-   exception
-      when Constraint_Error =>
-         R := False;
-   end Is_Valid_File;
-
    procedure Add_File
       (Process : PID;
        File    : File_Description_Acc;
@@ -862,18 +843,26 @@ package body Userland.Process with SPARK_Mode => Off is
        FD      : Unsigned_64;
        File    : out File_Description_Acc)
    is
+      Found : File_Description_Acc := null;
    begin
+      File := null;
       Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         File := Registry (Process).File_Table (Natural (FD)).Description;
-      else
-         File := null;
+         Found := Registry (Process).File_Table (Natural (FD)).Description;
+      end if;
+      if Found /= null then
+         Duplicate (Found, File);
       end if;
       Synchronization.Release (Registry (Process).Data_Mutex);
    exception
       when Constraint_Error =>
          File := null;
    end Get_File;
+
+   procedure Put_File (File : in out File_Description_Acc) is
+   begin
+      Close (File);
+   end Put_File;
 
    procedure Get_FD_Flags
       (Process       : PID;
@@ -930,20 +919,36 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Release_Locks;
 
-   procedure Remove_File (Process : PID; FD : Natural) is
+   procedure Remove_File
+      (Process : PID;
+       FD      : Unsigned_64;
+       Success : out Boolean)
+   is
    begin
       Synchronization.Seize (Registry (Process).Data_Mutex);
-      if FD <= File_Arr'Last then
-         Release_Locks
-            (Process, Registry (Process).File_Table (FD).Description);
-         Close (Registry (Process).File_Table (FD).Description);
-         Registry (Process).File_Table (FD).Close_On_Exec := False;
-         Registry (Process).File_Table (FD).Close_On_Fork := False;
+      Success := FD <= Unsigned_64 (File_Arr'Last) and then
+         Registry (Process).File_Table (Natural (FD)).Description /= null;
+      if Success then
+         declare
+            Ent : File_Descriptor renames
+               Registry (Process).File_Table (Natural (FD));
+         begin
+            --  Closing any descriptor for a file takes the process's own
+            --  locks on it away, even ones taken through another description.
+            if Ent.Description.Description = Description_Inode then
+               IPC.FileLock.Release_Process_Locks
+                  (Process, Ent.Description.Inner_Ino_FS,
+                   Ent.Description.Inner_Ino);
+            end if;
+            Close (Ent.Description);
+            Ent.Close_On_Exec := False;
+            Ent.Close_On_Fork := False;
+         end;
       end if;
       Synchronization.Release (Registry (Process).Data_Mutex);
    exception
       when Constraint_Error =>
-         null;
+         Success := False;
    end Remove_File;
 
    procedure Flush_Files (Process : PID) is

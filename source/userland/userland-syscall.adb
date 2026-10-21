@@ -343,20 +343,14 @@ package body Userland.Syscall is
       Curr : constant PID := Arch.Local.Get_Current_Process;
       Succ : Boolean;
    begin
-      Userland.Process.Is_Valid_File (Curr, File_D, Succ);
+      Userland.Process.Remove_File (Curr, File_D, Succ);
       if Succ then
-         Userland.Process.Remove_File (Curr, Natural (File_D));
          Returned := 0;
          Errno    := Error_No_Error;
       else
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
       end if;
-   exception
-      when Constraint_Error =>
-         Messages.Put_Line ("Exception while executing Close");
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Close;
 
    procedure Read
@@ -415,6 +409,7 @@ package body Userland.Syscall is
          --  methods.
          Trans.Check_Access (Map, Buf_SAddr, True, Success);
          if not Success then
+            Put_File (File);
             Returned := Unsigned_64'Last;
             Errno := Error_Would_Fault;
             return;
@@ -469,6 +464,7 @@ package body Userland.Syscall is
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
          end case;
+         Put_File (File);
 
          Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
@@ -478,6 +474,7 @@ package body Userland.Syscall is
          Messages.Put_Line ("Exception while executing Read");
          Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
+         Put_File (File);
          Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Read;
@@ -529,6 +526,7 @@ package body Userland.Syscall is
          --  The same block comment writeup as Read applies.
          Trans.Check_Access (Map, Buf_SAddr, False, Success);
          if not Success then
+            Put_File (File);
             Returned := Unsigned_64'Last;
             Errno := Error_Would_Fault;
             return;
@@ -598,12 +596,14 @@ package body Userland.Syscall is
       <<Cleanup>>
          Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
+         Put_File (File);
       end;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Write");
          Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
+         Put_File (File);
          Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Write;
@@ -656,21 +656,25 @@ package body Userland.Syscall is
             goto Invalid_Seek_Error;
       end case;
 
+      Put_File (File);
       Errno := Error_No_Error;
       Returned := Result;
       return;
 
    <<Invalid_Seek_Error>>
+      Put_File (File);
       Errno := Error_Invalid_Seek;
       Returned := Unsigned_64'Last;
       return;
 
    <<Invalid_Value_Error>>
+      Put_File (File);
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Seek");
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Seek;
@@ -774,6 +778,7 @@ package body Userland.Syscall is
                 ((Flags and MAP_SHARED) /= 0 or else
                  Get_Backing_FS (File.Inner_Ino_FS) = FS_DEV))
             then
+               Put_File (File);
                Errno    := Error_Bad_Access;
                Returned := Unsigned_64'Last;
                return;
@@ -826,6 +831,7 @@ package body Userland.Syscall is
                   goto Unmap_Final_Return;
                end if;
             elsif Status = VFS.FS_Invalid_Value then
+               Put_File (File);
                Errno    := Error_No_Device_Address;
                Returned := Unsigned_64'Last;
                return;
@@ -841,6 +847,7 @@ package body Userland.Syscall is
          end if;
       end if;
 
+      Put_File (File);
       return;
 
    <<Unmap_Final_Return>>
@@ -850,11 +857,13 @@ package body Userland.Syscall is
       goto No_Memory_Return;
 
    <<Invalid_Value_Return>>
+      Put_File (File);
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
       return;
 
    <<No_Memory_Return>>
+      Put_File (File);
       Errno := Error_No_Memory;
       Returned := Unsigned_64'Last;
       return;
@@ -866,6 +875,7 @@ package body Userland.Syscall is
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Mmap");
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Mmap;
@@ -1616,6 +1626,7 @@ package body Userland.Syscall is
                    Birth_Time    => (Seconds => 0, Nanoseconds => 0),
                    Block_Size    => 512,
                    Block_Count   => 1);
+               Put_File (File_Desc);
                goto Write_Success;
             when Description_Socket =>
                Stat_Buf :=
@@ -1633,8 +1644,10 @@ package body Userland.Syscall is
                    Birth_Time    => (Seconds => 0, Nanoseconds => 0),
                    Block_Size    => 512,
                    Block_Count   => 1);
+               Put_File (File_Desc);
                goto Write_Success;
          end case;
+         Put_File (File_Desc);
       else
          if Path_Len > Path_Max_Len then
             Returned := Unsigned_64'Last;
@@ -1738,6 +1751,7 @@ package body Userland.Syscall is
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing FStat");
+         Put_File (File_Desc);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end FStat;
@@ -1819,7 +1833,12 @@ package body Userland.Syscall is
       User : Unsigned_32;
    begin
       Get_File (Proc, FD, Desc);
-      if Desc = null or else Desc.Description /= Description_Inode then
+      if Desc = null then
+         Errno    := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Desc.Description /= Description_Inode then
+         Put_File (Desc);
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
@@ -1828,6 +1847,7 @@ package body Userland.Syscall is
       Userland.Process.Get_Effective_UID (Proc, User);
       VFS.Stat (Desc.Inner_Ino_FS, Desc.Inner_Ino, St, Succ);
       if Succ /= VFS.FS_Success or else St.Type_Of_File /= File_Directory then
+         Put_File (Desc);
          Errno    := Error_Not_Directory;
          Returned := Unsigned_64'Last;
          return;
@@ -1840,17 +1860,20 @@ package body Userland.Syscall is
           Want_Write => False,
           Want_Exec  => True)
       then
+         Put_File (Desc);
          Errno    := Error_Bad_Access;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
       Set_CWD (Proc, Desc.Inner_Ino_FS, Desc.Inner_Ino);
+      Put_File (Desc);
       Errno    := Error_No_Error;
       Returned := 0;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Chdir");
+         Put_File (Desc);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Chdir;
@@ -2001,10 +2024,12 @@ package body Userland.Syscall is
 
    <<Cleanup>>
       Free (Buffer);
+      Put_File (File);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing DevCtl");
          Free (Buffer);
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end DevCtl;
@@ -2076,7 +2101,7 @@ package body Userland.Syscall is
       end if;
       Add_File (Proc, Writer_Desc, Res (2), Succ2);
       if not Succ2 then
-         Remove_File (Proc, Res (1));
+         Remove_File (Proc, Unsigned_64 (Res (1)), Succ1);
          Close (Writer_Desc);
          Errno    := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
@@ -2089,8 +2114,8 @@ package body Userland.Syscall is
       Get_Common_Map (Proc, Map);
       Trans.Paste_Into_Userland (Map, Res, To_Address (Ad), Succ1);
       if not Succ1 then
-         Remove_File (Proc, Res (1));
-         Remove_File (Proc, Res (2));
+         Remove_File (Proc, Unsigned_64 (Res (1)), Succ1);
+         Remove_File (Proc, Unsigned_64 (Res (2)), Succ2);
          Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
@@ -2406,6 +2431,7 @@ package body Userland.Syscall is
                  Description_Socket =>
                null;
          end case;
+         Put_File (File_Desc);
       else
          if Path_Len > Path_Max_Len then
             Returned := Unsigned_64'Last;
@@ -2469,6 +2495,7 @@ package body Userland.Syscall is
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Stat_VFS");
+         Put_File (File_Desc);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Stat_VFS;
@@ -3167,6 +3194,7 @@ package body Userland.Syscall is
             goto Invalid_Return;
       end case;
 
+      Put_File (File);
       Errno := Error_No_Error;
       return;
 
@@ -3179,10 +3207,12 @@ package body Userland.Syscall is
       goto Error_Return;
 
    <<Error_Return>>
+      Put_File (File);
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Fcntl");
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fcntl;
@@ -3818,10 +3848,12 @@ package body Userland.Syscall is
 
          Free (Tmp_Buffer);
       end if;
+      Put_File (File);
    exception
       when others =>
          Messages.Put_Line ("Exception while executing GetDEnts");
          Free (Tmp_Buffer);
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end GetDEnts;
@@ -4011,6 +4043,7 @@ package body Userland.Syscall is
          when Description_Inode =>
             --  Only a descriptor open for writing changes the file.
             if not File.Inner_Ino_Write then
+               Put_File (File);
                Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
                return;
@@ -4022,9 +4055,11 @@ package body Userland.Syscall is
             Errno := Error_Bad_File;
             Returned := Unsigned_64'Last;
       end case;
+      Put_File (File);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Truncate");
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Truncate;
@@ -4049,6 +4084,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
+         Put_File (File);
          return;
       end if;
 
@@ -4096,13 +4132,16 @@ package body Userland.Syscall is
          Errno := Error_IO;
          Returned := Unsigned_64'Last;
       end if;
+      Put_File (File);
       return;
 
    <<Would_Fault_Error>>
       Errno := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Bind");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -4202,6 +4241,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
+         Put_File (File);
          return;
       end if;
 
@@ -4254,13 +4294,16 @@ package body Userland.Syscall is
          Errno := Error_IO;
          Returned := Unsigned_64'Last;
       end if;
+      Put_File (File);
       return;
 
    <<Would_Fault_Error>>
       Errno := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Connect");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -4306,7 +4349,7 @@ package body Userland.Syscall is
       end if;
       Add_File (Proc, S_Desc, Result (2), Succ2);
       if not Succ2 then
-         Remove_File (Proc, Result (1));
+         Remove_File (Proc, Unsigned_64 (Result (1)), Succ1);
          Close (S_Desc);
          Errno := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
@@ -4350,9 +4393,11 @@ package body Userland.Syscall is
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
       end case;
+      Put_File (File);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing FSync");
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end FSync;
@@ -4507,8 +4552,10 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
          end if;
       end if;
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Listen");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -4543,11 +4590,11 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       elsif Get_Type (File.Inner_Socket) /= IPC.Socket.Stream then
          Errno    := Error_Op_Not_Supported;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       end if;
 
       PI := Unsigned_32 (Convert (Proc));
@@ -4625,7 +4672,7 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
       end if;
 
-      return;
+      goto Done;
 
    <<Would_Fault_Error>>
       --  A connection taken but not handed over is closed.
@@ -4634,8 +4681,12 @@ package body Userland.Syscall is
       end if;
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Sys_Accept");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -4988,6 +5039,7 @@ package body Userland.Syscall is
                         Wake_Key := VFS.Get_Wait_Key
                            (File.Inner_Ino_FS, File.Inner_Ino);
                   end case;
+                  Put_File (File);
                   if Wake_Key /= System.Null_Address then
                      Scheduler.Add_Wait_Key (Wake_Key, Registered);
                      Is_Wired := Is_Wired and Registered;
@@ -5045,6 +5097,7 @@ package body Userland.Syscall is
                      VFS.Poll (File.Inner_Ino_FS, File.Inner_Ino, Can_Read,
                         Can_Write, Is_Error);
                end case;
+               Put_File (File);
 
                if Can_Read and (Polled.Events and POLLIN) /= 0 then
                   Polled.Out_Events := Polled.Out_Events or POLLIN;
@@ -5111,6 +5164,7 @@ package body Userland.Syscall is
             Set_Masked_Signals (Proc, Old_Set);
          end if;
          Messages.Put_Line ("Exception while executing PPoll");
+         Put_File (File);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end PPoll;
@@ -5199,6 +5253,7 @@ package body Userland.Syscall is
          --  or FIFOs that we internally have as non Inodes, in those cases, we
          --  can just ignore.
          if File_Desc.Description /= Description_Inode then
+            Put_File (File_Desc);
             Errno    := Error_No_Error;
             Returned := 0;
             return;
@@ -5206,6 +5261,7 @@ package body Userland.Syscall is
 
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
+         Put_File (File_Desc);
       else
          if Path_Len > Path_Max_Len then
             Errno := Error_String_Too_Long;
@@ -5282,6 +5338,7 @@ package body Userland.Syscall is
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Fchmod");
+         Put_File (File_Desc);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fchmod;
@@ -5396,6 +5453,7 @@ package body Userland.Syscall is
          --  or FIFOs that we internally have as non Inodes, in those cases, we
          --  can just ignore.
          if File_Desc.Description /= Description_Inode then
+            Put_File (File_Desc);
             Errno    := Error_No_Error;
             Returned := 0;
             return;
@@ -5403,6 +5461,7 @@ package body Userland.Syscall is
 
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
+         Put_File (File_Desc);
       else
          if Path_Len > Path_Max_Len then
             Errno := Error_String_Too_Long;
@@ -5488,6 +5547,7 @@ package body Userland.Syscall is
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing FChown");
+         Put_File (File_Desc);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fchown;
@@ -5608,7 +5668,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       end if;
 
       case Get_Domain (File.Inner_Socket) is
@@ -5656,13 +5716,17 @@ package body Userland.Syscall is
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       end if;
-      return;
+      goto Done;
 
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Get_Sock_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -5691,7 +5755,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       end if;
 
       case Get_Domain (File.Inner_Socket) is
@@ -5740,13 +5804,17 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
       end if;
 
-      return;
+      goto Done;
 
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Get_Peer_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -5766,7 +5834,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       end if;
 
       case How is
@@ -5779,7 +5847,7 @@ package body Userland.Syscall is
          when others =>
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
-            return;
+            goto Done;
       end case;
 
       if Succ then
@@ -5789,8 +5857,12 @@ package body Userland.Syscall is
          Errno    := Error_Not_Connected;
          Returned := Unsigned_64'Last;
       end if;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Shutdown");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -6089,6 +6161,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
+         Put_File (File);
          return;
       elsif Count > Unsigned_64 (Natural'Last) then
          Final_Cnt := Natural'Last;
@@ -6187,8 +6260,10 @@ package body Userland.Syscall is
       <<Cleanup>>
          Free (Data);
       end;
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing RecvFrom");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -6222,6 +6297,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
+         Put_File (File);
          return;
       elsif Count > Unsigned_64 (Natural'Last) then
          Final_Cnt := Natural'Last;
@@ -6311,8 +6387,10 @@ package body Userland.Syscall is
       <<Cleanup>>
          Free (Data);
       end;
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing SendTo");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -6340,23 +6418,25 @@ package body Userland.Syscall is
       Blk :            Boolean;
       IP4 : Addr4_NetInterface;
    begin
-      Get_File (Proc, InterDev, File);
       if not Get_Capabilities (Proc).Can_Manage_Networking then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("config_netinter", Proc);
          Returned := Unsigned_64'Last;
          return;
-      elsif File = null or else File.Description /= Description_Inode then
+      end if;
+
+      Get_File (Proc, InterDev, File);
+      if File = null or else File.Description /= Description_Inode then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
-         return;
+         goto Done;
       end if;
 
       VFS.Stat (File.Inner_Ino_FS, File.Inner_Ino, Stat, Suc2);
       if Suc2 /= FS_Success or Stat.Type_Of_File /= File_Character_Device then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
-         return;
+         goto Done;
       end if;
       Handl := Devices.From_Unique_ID (Integer (File.Inner_Ino));
 
@@ -6390,13 +6470,17 @@ package body Userland.Syscall is
          Errno    := Error_Invalid_Value;
       end if;
 
-      return;
+      goto Done;
 
    <<Would_Fault_Error>>
       Returned := Unsigned_64'Last;
       Errno    := Error_Would_Fault;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing Config_NetInterface");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -6431,12 +6515,14 @@ package body Userland.Syscall is
          Get_File (Proc, Dir_FD, File_Desc);
          if File_Desc = null or else File_Desc.Description /= Description_Inode
          then
+            Put_File (File_Desc);
             Errno    := Error_Bad_File;
             Returned := Unsigned_64'Last;
             return;
          end if;
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
+         Put_File (File_Desc);
       else
          if Path_Len > Path_Max_Len then
             Errno := Error_String_Too_Long;
@@ -6535,6 +6621,7 @@ package body Userland.Syscall is
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing UTimes");
+         Put_File (File_Desc);
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end UTimes;
@@ -7240,7 +7327,6 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
       File  : File_Description_Acc;
-      Data  : IPC.PTY.Inner_Acc;
       Map   : Page_Table_Acc;
       Succ  : Boolean;
    begin
@@ -7248,25 +7334,28 @@ package body Userland.Syscall is
       if File = null then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       elsif Length > Path_Max_Len then
          Returned := Unsigned_64'Last;
          Errno    := Error_String_Too_Long;
-         return;
+         goto Done;
       end if;
-
-      case File.Description is
-         when Description_Primary_PTY   => Data := File.Inner_Primary_PTY;
-         when Description_Secondary_PTY => Data := File.Inner_Secondary_PTY;
-         when others => goto Invalid_Error;
-      end case;
 
       declare
          subtype Name_String is String (1 .. Natural (Length));
          package Trans is new Memory.Userland_Transfer (Name_String);
          Name : Name_String;
       begin
-         IPC.PTY.Get_Name (Data, Name, Natural (Returned));
+         case File.Description is
+            when Description_Primary_PTY =>
+               IPC.PTY.Get_Name
+                  (File.Inner_Primary_PTY, Name, Natural (Returned));
+            when Description_Secondary_PTY =>
+               IPC.PTY.Get_Name
+                  (File.Inner_Secondary_PTY, Name, Natural (Returned));
+            when others =>
+               goto Invalid_Error;
+         end case;
          if Returned >= Length then
             goto Invalid_Error;
          end if;
@@ -7277,19 +7366,23 @@ package body Userland.Syscall is
          if not Succ then
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
-            return;
+            goto Done;
          end if;
 
          Errno := Error_No_Error;
          Returned := 0;
-         return;
+         goto Done;
       end;
 
    <<Invalid_Error>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing TTY_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -7331,12 +7424,16 @@ package body Userland.Syscall is
             goto Error_Return;
       end case;
 
-      return;
+      goto Done;
 
    <<Error_Return>>
       Returned := Unsigned_64'Last;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing FAdvise");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -7681,7 +7778,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       elsif Level /= SOL_SOCKET then
          goto Invalid_Value_Error;
       end if;
@@ -7756,18 +7853,22 @@ package body Userland.Syscall is
 
       Errno := Error_No_Error;
       Returned := 0;
-      return;
+      goto Done;
 
    <<Invalid_Value_Error>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
-      return;
+      goto Done;
 
    <<Would_Fault_Error>>
       Errno := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing GetSockOpt");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -7800,7 +7901,7 @@ package body Userland.Syscall is
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         goto Done;
       elsif Level /= SOL_SOCKET then
          goto Invalid_Value_Error;
       end if;
@@ -7837,18 +7938,22 @@ package body Userland.Syscall is
 
       Errno    := Error_No_Error;
       Returned := 0;
-      return;
+      goto Done;
 
    <<Invalid_Value_Error>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
-      return;
+      goto Done;
 
    <<Would_Fault_Error>>
       Errno := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+
+   <<Done>>
+      Put_File (File);
    exception
       when Constraint_Error =>
+         Put_File (File);
          Messages.Put_Line ("Exception while executing SetSockOpt");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -8207,7 +8312,7 @@ package body Userland.Syscall is
       end if;
       Add_File (Proc, New_Desc2, Res (2), Succ2);
       if not Succ2 then
-         Remove_File (Proc, Res (1));
+         Remove_File (Proc, Unsigned_64 (Res (1)), Succ1);
          Close (New_Desc2);
          Errno    := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
@@ -9569,10 +9674,12 @@ package body Userland.Syscall is
                end;
             end if;
          end if;
+         Put_File (File);
       end if;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing common syscall hook");
+         Put_File (File);
    end Common_Syscall_Hook;
 
    procedure Translate_Status
@@ -9886,7 +9993,7 @@ package body Userland.Syscall is
        FS     : out VFS.FS_Handle;
        Ino    : out VFS.File_Inode_Number)
    is
-      Descr : File_Description_Acc;
+      Descr : File_Description_Acc := null;
    begin
       if (Dir_FD and 16#FFFFFFFF#) = Unsigned_64 (Unsigned_32'Mod (AT_FDCWD))
       then
@@ -9900,10 +10007,12 @@ package body Userland.Syscall is
             FS  := Descr.Inner_Ino_FS;
             Ino := Descr.Inner_Ino;
          end if;
+         Put_File (Descr);
       end if;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while resolving AT directive");
+         Put_File (Descr);
          FS  := VFS.Error_Handle;
          Ino := 0;
    end Resolve_AT_Directive;

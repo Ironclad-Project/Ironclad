@@ -315,16 +315,6 @@ package Userland.Process is
    procedure Set_Exec_Marker (Process : PID)
       with Pre => Process /= Error_PID;
 
-   --  Check whether a file is registered in a process.
-   --  @param Process Process to check.
-   --  @param FD      FD to check.
-   --  @param Success True if valid and registered, False if not.
-   procedure Is_Valid_File
-      (Process : PID;
-       FD      : Unsigned_64;
-       Success : out Boolean)
-      with Pre => Process /= Error_PID;
-
    --  Add a file to a process in the earliest available file descriptor slot.
    --  @param Process Process to add a file to.
    --  @param File    File to add.
@@ -394,7 +384,9 @@ package Userland.Process is
    --  @param F File to operate on.
    procedure Close (F : in out File_Description_Acc);
 
-   --  Get a file held on a file descriptor.
+   --  Get a file held on a file descriptor. It comes with a reference of its
+   --  own, for Put_File to drop once done with it, so that the descriptor
+   --  being closed meanwhile does not free it.
    --  @param Process Process to operate on.
    --  @param FD      FD to fetch.
    --  @param File    Returned file, or null in failure.
@@ -403,6 +395,11 @@ package Userland.Process is
        FD      : Unsigned_64;
        File    : out File_Description_Acc)
       with Pre => Process /= Error_PID;
+
+   --  Drop the reference Get_File took, if any, closing the file if that
+   --  was the last one.
+   --  @param File File to drop, null afterwards.
+   procedure Put_File (File : in out File_Description_Acc);
 
    --  Get the Close on Exec flag for a file descriptor.
    --  @param Process  Process to operate on.
@@ -429,7 +426,11 @@ package Userland.Process is
    --  Remove a file from a process.
    --  @param Process Process to operate on.
    --  @param FD      File to remove.
-   procedure Remove_File (Process : PID; FD : Natural)
+   --  @param Success True if FD held a file, which is now closed.
+   procedure Remove_File
+      (Process : PID;
+       FD      : Unsigned_64;
+       Success : out Boolean)
       with Pre => Process /= Error_PID;
 
    --  Remove all files from a process.
