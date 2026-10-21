@@ -34,6 +34,7 @@ package Arch.CPU is
       Current_Thread  : Scheduler.TID;
       Current_Process : Userland.Process.PID;
       Retiring_Thread : Scheduler.TID;  --  See Arch.Local.
+      Idle_Stack      : Unsigned_64;    --  See Arch.Local.
    end record;
    for Core_Local use record
       Kernel_Stack at 0 range   0 ..  63;

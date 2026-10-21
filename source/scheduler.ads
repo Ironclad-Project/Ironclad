@@ -284,6 +284,10 @@ private
    --  run. The calling thread must not change cores meanwhile.
    procedure Set_Waiting (Value : Boolean);
 
+   --  Whether the calling core still has a thread to let go, or runs one
+   --  that has gone.
+   function Is_Retire_Pending return Boolean;
+
    --  Get the microseconds until the soonest end of the suspension of a
    --  thread that is not running, with the scheduler lock held.
    --  @param Max_Micros Microseconds to give at most.

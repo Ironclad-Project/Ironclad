@@ -48,4 +48,8 @@ package Arch.Local is
    --  on counting as running until the core has left its kernel stack.
    function Get_Retiring_Thread return Scheduler.TID;
    procedure Set_Retiring_Thread (Thread : Scheduler.TID);
+
+   --  The top of a stack unique to the core to use for throwaway contextes
+   --  and the like.
+   function Get_Idle_Stack return System.Address;
 end Arch.Local;

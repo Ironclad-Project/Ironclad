@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
+with Ada.Unchecked_Deallocation;
 with Synchronization;
 with Panic;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -33,6 +34,11 @@ package body Scheduler with SPARK_Mode => Off is
    Idle_Reschedule_Micros : constant := 100_000;  --  See Next_Wake.
    Removed_Wait_Seconds   : constant := 2;  --  See Wait_For_Removed.
    Removed_Poll_Micros    : constant := 1_000;
+
+   --  How soon a core retries leaving or letting go of a thread that has gone
+   --  when the lock is busy.
+   Retire_Retry_Micros : constant := 100;
+
    type Thread_Stack is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64 is array (Natural range <>) of Unsigned_64;
    --  A stack's top is the address one past its last byte, and the psABIs
@@ -40,6 +46,8 @@ package body Scheduler with SPARK_Mode => Off is
    type Kernel_Stack is array (1 ..  Memory.Kernel_Stack_Size) of Unsigned_8
       with Alignment => 16;
    type Kernel_Stack_Acc is access Kernel_Stack;
+   procedure Free_Kernel_Stack is new Ada.Unchecked_Deallocation
+      (Kernel_Stack, Kernel_Stack_Acc);
 
    type Thread_Info is record
       Is_Present      : Boolean with Atomic;
@@ -1275,8 +1283,28 @@ package body Scheduler with SPARK_Mode => Off is
       --  which comes in on the new thread's stack: it lets the old thread go
       --  and arms the new one's time. A new thread that has gone meanwhile
       --  is switched away from at once.
+      --
+      --  This entry is also the first moment no core is on the kernel stack
+      --  of a thread that has gone, so that stack is given back here. It goes
+      --  under the lock and before the thread is let go, as a slot let go is
+      --  taken by the next thread made, and a stack still in it would be
+      --  handed over. When the lock is busy, the thread stays retiring and is
+      --  let go at the next entry, which is asked for soon.
       if Retiring /= Error_TID then
-         Thread_Pool (Retiring).Is_Running := False;
+         if not Thread_Pool (Retiring).Is_Present and then
+            Thread_Pool (Retiring).Kernel_Stack /= null
+         then
+            Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
+            if not Did_Seize then
+               Arch.Local.Reschedule_In (Retire_Retry_Micros);
+               return;
+            end if;
+            Free_Kernel_Stack (Thread_Pool (Retiring).Kernel_Stack);
+            Thread_Pool (Retiring).Is_Running := False;
+            Synchronization.Release (Scheduler_Mutex);
+         else
+            Thread_Pool (Retiring).Is_Running := False;
+         end if;
          Arch.Local.Set_Retiring_Thread (Error_TID);
 
          --  Waiting cores do not look for threads until their own time, so
@@ -1302,7 +1330,11 @@ package body Scheduler with SPARK_Mode => Off is
 
       Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
       if not Did_Seize then
-         Arch.Local.Reschedule_In (Fast_Reschedule_Micros);
+         Arch.Local.Reschedule_In
+            (if Current_TID /= Error_TID and then
+                not Thread_Pool (Current_TID).Is_Present
+             then Retire_Retry_Micros
+             else Fast_Reschedule_Micros);
          return;
       end if;
 
@@ -1351,18 +1383,21 @@ package body Scheduler with SPARK_Mode => Off is
          then
             Drop_Thread (Current_TID);
          end if;
+
          if Current_TID /= Error_TID and then
-            not Thread_Pool (Current_TID).Is_Present and then
-            Arch.Context.Is_User_Context (State)
+            not Thread_Pool (Current_TID).Is_Present
          then
             Discard := Memory.MMU.Make_Active (Memory.MMU.Kernel_Table);
             Thread_Pool (Current_TID).PageMap :=
                Memory.MMU.Get_Curr_Table_Addr;
+            Arch.Local.Set_Retiring_Thread (Current_TID);
+            Arch.Local.Set_Current_Thread (Error_TID);
+            Arch.Local.Set_Current_Process (Userland.Process.Error_PID);
             Arch.Context.Init_Kernel_GP_Context
-               (State,
-                Thread_Pool (Current_TID).Kernel_Stack.all'Address +
-                Kernel_Stack'Length,
-                Waiting_Spot'Address);
+               (State, Arch.Local.Get_Idle_Stack, Waiting_Spot'Address);
+            Arch.Local.Reschedule_ASAP;
+            Synchronization.Release (Scheduler_Mutex);
+            return;
          end if;
          Synchronization.Release (Scheduler_Mutex);
          Arch.Local.Reschedule_In (Timeout);
@@ -1649,13 +1684,13 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Waiting_Spot is
       Micros : Natural;
    begin
-      --  As in Wait_If_Suspended, the core is marked waiting under the lock
-      --  a wake takes, and wakes for the threads that are due.
       loop
          Arch.Snippets.Disable_Interrupts;
          Synchronization.Seize (Scheduler_Mutex);
          Set_Waiting (True);
-         Next_Wake (Idle_Reschedule_Micros, Micros);
+         Next_Wake
+            ((if Is_Retire_Pending then Retire_Retry_Micros
+              else Idle_Reschedule_Micros), Micros);
          Synchronization.Release (Scheduler_Mutex);
          Arch.Local.Reschedule_In (Micros);
          Arch.Snippets.Enable_Interrupts_And_Wait;
@@ -1677,7 +1712,9 @@ package body Scheduler with SPARK_Mode => Off is
       Stop := Thread_Pool (Thread).Start_Time > Curr;
       if Stop then
          --  The core also wakes for the other threads, as an idle one does.
-         Next_Wake (Idle_Reschedule_Micros, Micros);
+         Next_Wake
+            ((if Is_Retire_Pending then Retire_Retry_Micros
+              else Idle_Reschedule_Micros), Micros);
          Left   := Thread_Pool (Thread).Start_Time - Curr;
          if Left.Seconds = 0 and
             Left.Nanoseconds < Unsigned_64 (Micros) * 1_000
@@ -1748,6 +1785,17 @@ package body Scheduler with SPARK_Mode => Off is
          null;
    end Set_Waiting;
 
+   function Is_Retire_Pending return Boolean is
+      Current : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      return Arch.Local.Get_Retiring_Thread /= Error_TID or else
+             (Current /= Error_TID and then
+              not Thread_Pool (Current).Is_Present);
+   exception
+      when Constraint_Error =>
+         return False;
+   end Is_Retire_Pending;
+
    procedure Kick (Thread : TID) is
       Self : constant Positive := Arch.Local.Get_Core_Number;
       Core : Natural := 0;
@@ -1812,6 +1860,9 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (Thread).Is_Present := False;
       Thread_Pool (Thread).Is_Doomed  := False;
       Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
+      if not Thread_Pool (Thread).Is_Running then
+         Free_Kernel_Stack (Thread_Pool (Thread).Kernel_Stack);
+      end if;
    exception
       when Constraint_Error =>
          null;

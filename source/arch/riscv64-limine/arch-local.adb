@@ -159,4 +159,17 @@ package body Arch.Local with SPARK_Mode => Off is
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception setting retiring thread");
    end Set_Retiring_Thread;
+
+   function Get_Idle_Stack return System.Address is
+      Returned : System.Address;
+      Is_Ints  : constant Boolean := Snippets.Interrupts_Enabled;
+   begin
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
+      Returned := To_Address (Integer_Address (CPU.Get_Local.Idle_Stack));
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
+      return Returned;
+   exception
+      when Constraint_Error =>
+         return System.Null_Address;
+   end Get_Idle_Stack;
 end Arch.Local;

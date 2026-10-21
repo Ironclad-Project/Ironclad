@@ -323,7 +323,8 @@ package body Arch.CPU with SPARK_Mode => Off is
           Current_Process  => Userland.Process.Error_PID,
           Retiring_Thread  => Scheduler.Error_TID,
           Online           => True,
-          Is_Timer_Set_Up  => False);
+          Is_Timer_Set_Up  => False,
+          Idle_Stack       => Unsigned_64 (To_Integer (Int_Stk_Top)));
       APIC.LAPIC_Timer_Calibrate (Core_Locals (Core_Number).LAPIC_Timer_Hz);
 
       Snippets.Write_GS        (Locals_Addr);
@@ -334,6 +335,8 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  exceptions like #DF and #MC. The ring 0 stack is only what the core
       --  starts with: the first thread it runs replaces it with its own
       --  kernel stack (Arch.Local.Set_Stacks).
+      --  From then on it is the stack the core waits on when it has nothing
+      --  to run (Arch.Local.Get_Idle_Stack).
       Core_Locals (Core_Number).Core_TSS.Stack_Ring0 := Int_Stk_Top;
       Core_Locals (Core_Number).Core_TSS.IST1 := IST_Stk_Top;
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
