@@ -47,6 +47,9 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Take_Kill_Turn (Success : out Boolean);
    procedure Give_Kill_Turn;
 
+   --  The 38 signals of Signal_Bitmap as one word.
+   type Unsigned_38 is mod 2 ** 38;
+
    Do_ASLR : Boolean := True;
 
    procedure Init is
@@ -132,7 +135,6 @@ package body Userland.Process with SPARK_Mode => Off is
             Registry (I) := new Process_Data'
                (Data_Mutex      => Synchronization.Unlocked_Mutex,
                 Controlling_TTY => null,
-                Masked_Signals  => [others => False],
                 Raised_Signals  => [others => False],
                 Signal_Handlers => Default_Signal_Handlers,
                 Prio            => Scheduler.Default_Priority,
@@ -179,7 +181,6 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (I).Prio            := Registry (P).Prio;
                Registry (I).Niceness        := Registry (P).Niceness;
                Registry (I).Pol             := Registry (P).Pol;
-               Registry (I).Masked_Signals  := Registry (P).Masked_Signals;
                Registry (I).Controlling_TTY := Registry (P).Controlling_TTY;
                Registry (I).Parent          := Parent;
                Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
@@ -549,7 +550,8 @@ package body Userland.Process with SPARK_Mode => Off is
             (Is_Ignored    => Handler.Is_Ignored,
              Handler_Addr  => System.Null_Address,
              Restorer_Addr => System.Null_Address,
-             Is_Altstack   => False);
+             Mask          => 0,
+             Flags         => 0);
       end loop;
    exception
       when Constraint_Error =>
@@ -1707,30 +1709,32 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Set_Umask;
 
-   procedure Get_Masked_Signals (Proc : PID; Sig : out Signal_Bitmap) is
+   procedure Get_Thread_Mask
+      (Thread : Scheduler.TID;
+       Sig    : out Signal_Bitmap)
+   is
+      function C is new Ada.Unchecked_Conversion (Unsigned_38, Signal_Bitmap);
+      Mask : Unsigned_64;
    begin
-      Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Sig := Registry (Proc).Masked_Signals;
-      Synchronization.Release (Registry (Proc).Data_Mutex);
+      Scheduler.Get_Masked_Signals (Thread, Mask);
+      Sig := C (Unsigned_38 (Mask and 16#3F_FFFF_FFFF#));
    exception
       when Constraint_Error =>
-         Sig := [others => True];
-   end Get_Masked_Signals;
+         Sig := [others => False];
+   end Get_Thread_Mask;
 
-   procedure Set_Masked_Signals (Proc : PID; Sig : Signal_Bitmap) is
+   procedure Set_Thread_Mask
+      (Thread : Scheduler.TID;
+       Sig    : Signal_Bitmap)
+   is
+      function C is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_38);
+      Masked : Signal_Bitmap := Sig;
    begin
-      Synchronization.Seize (Registry (Proc).Data_Mutex);
-
-      --  Set the signals and ensure that unmaskable signals are not masked.
-      Registry (Proc).Masked_Signals               := Sig;
-      Registry (Proc).Masked_Signals (Signal_Kill) := False;
-      Registry (Proc).Masked_Signals (Signal_Stop) := False;
-
-      Synchronization.Release (Registry (Proc).Data_Mutex);
-   exception
-      when Constraint_Error =>
-         null;
-   end Set_Masked_Signals;
+      --  Neither of these two can be blocked.
+      Masked (Signal_Kill) := False;
+      Masked (Signal_Stop) := False;
+      Scheduler.Set_Masked_Signals (Thread, Unsigned_64 (C (Masked)));
+   end Set_Thread_Mask;
 
    procedure Raise_Signal (Proc : PID; Sig : Signal) is
       use System;
@@ -1847,7 +1851,8 @@ package body Userland.Process with SPARK_Mode => Off is
        Is_Ignored : out Boolean;
        Handler    : out System.Address;
        Restorer   : out System.Address;
-       Altstack   : out Boolean)
+       Mask       : out Unsigned_64;
+       Flags      : out Unsigned_32)
    is
       use System;
    begin
@@ -1856,7 +1861,8 @@ package body Userland.Process with SPARK_Mode => Off is
       Is_Default := Handler = System.Null_Address;
       Is_Ignored := Registry (Proc).Signal_Handlers (Sig).Is_Ignored;
       Restorer   := Registry (Proc).Signal_Handlers (Sig).Restorer_Addr;
-      Altstack   := Registry (Proc).Signal_Handlers (Sig).Is_Altstack;
+      Mask       := Registry (Proc).Signal_Handlers (Sig).Mask;
+      Flags      := Registry (Proc).Signal_Handlers (Sig).Flags;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
@@ -1864,7 +1870,8 @@ package body Userland.Process with SPARK_Mode => Off is
          Is_Ignored := False;
          Handler    := System.Null_Address;
          Restorer   := System.Null_Address;
-         Altstack   := False;
+         Mask       := 0;
+         Flags      := 0;
    end Get_Signal_Handlers;
 
    procedure Set_Signal_Handlers
@@ -1874,7 +1881,8 @@ package body Userland.Process with SPARK_Mode => Off is
        Is_Ignored : Boolean;
        Handler    : System.Address;
        Restorer   : System.Address;
-       Altstack   : Boolean;
+       Mask       : Unsigned_64;
+       Flags      : Unsigned_32;
        Success    : out Boolean)
    is
       use System;
@@ -1890,7 +1898,8 @@ package body Userland.Process with SPARK_Mode => Off is
             (Is_Ignored    => False,
              Handler_Addr  => System.Null_Address,
              Restorer_Addr => Restorer,
-             Is_Altstack   => Altstack);
+             Mask          => Mask,
+             Flags         => Flags);
 
          --  As per POSIX, the default of these is to be ignored, so we are
          --  going to harcode the signal clearing.
@@ -1902,14 +1911,16 @@ package body Userland.Process with SPARK_Mode => Off is
             (Is_Ignored    => True,
              Handler_Addr  => System.Null_Address,
              Restorer_Addr => Restorer,
-             Is_Altstack   => Altstack);
+             Mask          => Mask,
+             Flags         => Flags);
          Registry (Proc).Raised_Signals (Sig) := False;
       else
          Registry (Proc).Signal_Handlers (Sig) :=
             (Is_Ignored    => False,
              Handler_Addr  => Handler,
              Restorer_Addr => Restorer,
-             Is_Altstack   => Altstack);
+             Mask          => Mask,
+             Flags         => Flags);
       end if;
       Synchronization.Release (Registry (Proc).Data_Mutex);
       Success := True;
@@ -1920,35 +1931,35 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Get_Raised_Signal_Actions
       (Proc     : PID;
+       Masked   : Signal_Bitmap;
        Sig      : out Signal;
        Handler  : out System.Address;
        Restorer : out System.Address;
        No_Sig   : out Boolean;
-       Altstack : out Boolean;
-       Old_Mask : out Signal_Bitmap)
+       Sig_Mask : out Unsigned_64;
+       Flags    : out Unsigned_32)
    is
    begin
       Sig      := Signal_FP_Exception;
       Handler  := System.Null_Address;
       Restorer := System.Null_Address;
       No_Sig   := True;
-      Altstack := False;
-      Old_Mask := [others => False];
+      Sig_Mask := 0;
+      Flags    := 0;
 
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       for I in Registry (Proc).Raised_Signals'Range loop
-         if not Registry (Proc).Masked_Signals (I) and
+         if not Masked (I) and
             Registry (Proc).Raised_Signals (I)
          then
             Sig      := I;
             Handler  := Registry (Proc).Signal_Handlers (I).Handler_Addr;
             Restorer := Registry (Proc).Signal_Handlers (I).Restorer_Addr;
-            Altstack := Registry (Proc).Signal_Handlers (I).Is_Altstack;
+            Sig_Mask := Registry (Proc).Signal_Handlers (I).Mask;
+            Flags    := Registry (Proc).Signal_Handlers (I).Flags;
             No_Sig   := False;
 
             Registry (Proc).Raised_Signals (I) := False;
-            Old_Mask := Registry (Proc).Masked_Signals;
-            Registry (Proc).Masked_Signals (I) := True;
             exit;
          end if;
       end loop;

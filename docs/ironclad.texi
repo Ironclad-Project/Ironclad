@@ -178,7 +178,7 @@ Syscalls
 * utimes::                  Modify timestamps for a file.
 * get/set_scheduler::       Get and set scheduling details for a process.
 * get_priority_limits::     Get the minimum and maximum scheduler priorities.
-* sigprocmask::             Fetch and change a process' blocked signal.
+* sigprocmask::             Fetch and change a thread's blocked signals.
 * sigaction::               Fetch and change a signal's action.
 * send_signal::             Send a signal to a process.
 * getprio/setprio::         Get / Set the niceness of some entities.
@@ -4017,9 +4017,13 @@ the minimum.
 int sigprocmask(int how, sigset_t *set, sigset_t *oldset);
 @end example
 
-This syscall fetches and/or changes the signal mask of the calling
-process. The signal mask is the set of signals whose delivery is currently
-blocked.
+This syscall fetches and/or changes the signal mask of the calling thread, which
+is the set of signals whose delivery is currently blocked. A thread starts from
+the mask of the thread that made it, and keeps it across @ref{fork} and
+@ref{exec}.
+
+It is not possible to block @code{SIGKILL} or @code{SIGSTOP}. Attempts to do so
+are silently ignored.
 
 If not @code{NULL}, @code{set} can be used for passing a new mask, if not
 @code{NULL}, @code{oldset} can be used for getting the existing mask.
@@ -4060,14 +4064,38 @@ struct sigaction @{
     int sa_flags;
 @};
 
+#define SA_ONSTACK   0b0000010
+#define SA_RESETHAND 0b0000100
+#define SA_NODEFER   0b1000000
+
 int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
 @end example
 
 This syscall fetches and/or changes the associated actions with the signal
-@code{sig}.
+@code{sig}. If not @code{NULL}, @code{act} can be used for setting a new
+action, if not @code{NULL}, @code{oldact} can be used for getting the existing
+action.
 
-If not @code{NULL}, @code{act} can be used for setting a new action, if not
-@code{NULL}, @code{oldact} can be used for getting the existing action.
+@code{sa_mask} specifies a mask of signals which should be blocked (i.e.,
+added to the signal mask of the thread in which the signal handler is invoked)
+during execution of the signal handler. In addition, the signal which triggered
+the handler will be blocked, unless the @code{SA_NODEFER} flag is used.
+
+@code{sa_flags} specifies a set of flags that modify the behaviour of the
+signal, they are:
+
+@table @code
+@item SA_ONSTACK
+Run the handler on the alternate stack, @ref{sigaltstack}.
+
+@item SA_NODEFER
+Do not add the signal to the thread's signal mask while the handler is
+executing, unless the signal is specified in @code{sa_mask}.
+
+@item SA_RESETHAND
+Restore the signal action to the default upon entry to the signal handler.
+This flag is meaningful only when establishing a signal handler.
+@end table
 
 It returns @code{0} on success or @code{-1} on failure, with the following
 errno:

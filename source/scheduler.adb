@@ -80,6 +80,7 @@ package body Scheduler with SPARK_Mode => Off is
       Wake_Pending    : Boolean;  --  See Clear_Wake.
       Event_Waiting   : Boolean;  --  Sleeping in Wait_Event.
       Core            : Natural;  --  Core it runs on, see Kick.
+      Masked_Signals  : Unsigned_64;
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
@@ -161,6 +162,7 @@ package body Scheduler with SPARK_Mode => Off is
              User_Stack      => System.Null_Address,
              User_Stack_Size => 0,
              User_Stack_Used => False,
+             Masked_Signals  => 0,
              Is_Disabled     => True,
              Start_Clock     => Time.Monotonic_Clock,
              Start_Time      => (0, 0),
@@ -406,8 +408,11 @@ package body Scheduler with SPARK_Mode => Off is
        New_TID  : out TID)
    is
       New_Stack : Kernel_Stack_Acc;
+      Maker          : constant TID := Arch.Local.Get_Current_Thread;
+      Inherited_Mask : Unsigned_64;
    begin
       New_TID := Error_TID;
+      Get_Masked_Signals (Maker, Inherited_Mask);
       Synchronization.Seize (Scheduler_Mutex);
 
       --  Find a new TID.
@@ -451,6 +456,7 @@ package body Scheduler with SPARK_Mode => Off is
           User_Stack      => System.Null_Address,
           User_Stack_Size => 0,
           User_Stack_Used => False,
+          Masked_Signals  => Inherited_Mask,
           Is_Disabled     => True,
           Start_Clock     => Time.Monotonic_Clock,
           Start_Time      => (0, 0),
@@ -943,6 +949,22 @@ package body Scheduler with SPARK_Mode => Off is
          Success := False;
    end Set_Name;
    ----------------------------------------------------------------------------
+   procedure Get_Masked_Signals (Thread : TID; Mask : out Unsigned_64) is
+   begin
+      Mask := Thread_Pool (Thread).Masked_Signals;
+   exception
+      when Constraint_Error =>
+         Mask := 0;
+   end Get_Masked_Signals;
+
+   procedure Set_Masked_Signals (Thread : TID; Mask : Unsigned_64) is
+   begin
+      Thread_Pool (Thread).Masked_Signals := Mask;
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Masked_Signals;
+
    procedure Get_Signal_Stack
       (Thread      : TID;
        Addr        : out System.Address;

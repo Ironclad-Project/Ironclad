@@ -199,6 +199,14 @@ package Scheduler is
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural);
    procedure Set_Name (Thread : TID; Name : String; Success : out Boolean);
    ----------------------------------------------------------------------------
+   --  A thread has its own set of blocked signals.
+   --  It is kept as the bitmap userland passes, bit N - 1 standing for
+   --  signal N, so that this package does not name signals.
+   --  @param Thread Thread to operate on.
+   --  @param Mask   The signals it has blocked.
+   procedure Get_Masked_Signals (Thread : TID; Mask : out Unsigned_64);
+   procedure Set_Masked_Signals (Thread : TID; Mask : Unsigned_64);
+
    procedure Get_Signal_Stack
       (Thread      : TID;
        Addr        : out System.Address;

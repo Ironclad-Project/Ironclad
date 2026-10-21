@@ -1143,7 +1143,9 @@ package Userland.Syscall is
    SIG_ERR : constant := Integer_Address'Last;
    SIG_IGN : constant := Integer_Address'Last - 1;
    SIG_DFL : constant := Integer_Address'Last - 2;
-   SA_ONSTACK : constant := 2#10#;
+   SA_ONSTACK   : constant := 2#0000010#;
+   SA_RESETHAND : constant := 2#0000100#;
+   SA_NODEFER   : constant := 2#1000000#;
    type Sigaction_Info is record
       Handler  : System.Address; --  void handler(int, siginfo_t *, void *);
       Restorer : System.Address; --  void restorer(void);

@@ -725,17 +725,11 @@ package Userland.Process is
    --  @param Umask umask to set without modification, no AND or anything.
    procedure Set_Umask (Proc : PID; Umask : VFS.File_Mode);
 
-   --  Get masked signals for a process, those are signals that cannot be
-   --  raised.
-   --  @param Proc Process to set masked signals for.
-   --  @param Sig  Signal bitmap to write.
-   procedure Get_Masked_Signals (Proc : PID; Sig : out Signal_Bitmap);
-
-   --  Set masked signals for a process, those are signals that cannot be
-   --  raised.
-   --  @param Proc Process to set masked signals for.
-   --  @param Sig  Signal bitmap to mask, true means that signal will be mask.
-   procedure Set_Masked_Signals (Proc : PID; Sig : Signal_Bitmap);
+   --  The signals a thread has blocked.
+   --  @param Thread Thread to operate on.
+   --  @param Sig    Signal bitmap, true meaning that signal is blocked.
+   procedure Get_Thread_Mask (Thread : Scheduler.TID; Sig : out Signal_Bitmap);
+   procedure Set_Thread_Mask (Thread : Scheduler.TID; Sig : Signal_Bitmap);
 
    --  Signal that a signal was raised, and wake the threads waiting on the
    --  wait key of the process.
@@ -775,7 +769,8 @@ package Userland.Process is
    --  @param Is_Ignored True if the handler is ignored.
    --  @param Handler    Address set for the handler.
    --  @param Restorer   Address set for the restorer function.
-   --  @param Altstack   Whether the signal will be handled in an altstack.
+   --  @param Mask       sa_mask of the action.
+   --  @param Flags      sa_flags of the action.
    procedure Get_Signal_Handlers
       (Proc       : PID;
        Sig        : Signal;
@@ -783,7 +778,8 @@ package Userland.Process is
        Is_Ignored : out Boolean;
        Handler    : out System.Address;
        Restorer   : out System.Address;
-       Altstack   : out Boolean);
+       Mask       : out Unsigned_64;
+       Flags      : out Unsigned_32);
 
    --  Set an address for a process to use as a signal handler.
    --  @param Proc       Process to set the handler for.
@@ -792,7 +788,8 @@ package Userland.Process is
    --  @param Is_Ignored Ignore the Handler field, never raise this signal.
    --  @param Handler    Address set for the handler.
    --  @param Restorer   Address set for the restorer function.
-   --  @param Altstack   Whether the signal will be handled in an altstack.
+   --  @param Mask       sa_mask of the action.
+   --  @param Flags      sa_flags of the action.
    --  @param Success    True if the passed signal was changed.
    procedure Set_Signal_Handlers
       (Proc       : PID;
@@ -801,26 +798,30 @@ package Userland.Process is
        Is_Ignored : Boolean;
        Handler    : System.Address;
        Restorer   : System.Address;
-       Altstack   : Boolean;
+       Mask       : Unsigned_64;
+       Flags      : Unsigned_32;
        Success    : out Boolean);
 
    --  Get a raised signal for a process.
    --  Getting a signal will mask it.
    --  @param Proc     Process to fetch signals for.
+   --  @param Masked   What the taking thread has blocked, which is what
+   --                  decides whether a pending signal can be taken at all.
    --  @param Sig      Raised signal.
    --  @param Handler  Address of the handler, Null_Address if not registered.
    --  @param Restorer Address of the restorer.
    --  @param No_Sig   The process has no more signals to process.
-   --  @param Altstack If true, handle this signal in an altstack.
-   --  @param Old_Mask Masked signals after maskng the raised one.
+   --  @param Sig_Mask The action's sa_mask, blocked while its handler runs.
+   --  @param Flags    The action's sa_flags.
    procedure Get_Raised_Signal_Actions
       (Proc     : PID;
+       Masked   : Signal_Bitmap;
        Sig      : out Signal;
        Handler  : out System.Address;
        Restorer : out System.Address;
        No_Sig   : out Boolean;
-       Altstack : out Boolean;
-       Old_Mask : out Signal_Bitmap);
+       Sig_Mask : out Unsigned_64;
+       Flags    : out Unsigned_32);
 
    procedure Get_Default_Policy (Proc : PID; Pol : out Scheduler.Policy);
    procedure Set_Default_Policy (Proc : PID; Pol : Scheduler.Policy);
@@ -898,7 +899,8 @@ private
       Is_Ignored    : Boolean;
       Handler_Addr  : System.Address;
       Restorer_Addr : System.Address;
-      Is_Altstack   : Boolean;
+      Mask          : Unsigned_64;
+      Flags         : Unsigned_32;
    end record;
 
    Max_File_Count : constant Natural := 1024;
@@ -928,7 +930,6 @@ private
    type Process_Data is record
       Data_Mutex      : aliased Synchronization.Mutex;
       Controlling_TTY : IPC.PTY.Inner_Acc;
-      Masked_Signals  : Signal_Bitmap;
       Raised_Signals  : Signal_Bitmap;
       Signal_Handlers : Handle_Arr;
       Prio            : Scheduler.Priority;
@@ -975,7 +976,7 @@ private
    type Process_Arr_Acc  is access Process_Arr;
 
    Default_Signal_Handlers : constant Handle_Arr :=
-      [others => (False, System.Null_Address, System.Null_Address, False)];
+      [others => (False, System.Null_Address, System.Null_Address, 0, 0)];
 
    Registry       : Process_Arr_Acc := null;
    Registry_Mutex : aliased Synchronization.Mutex :=

@@ -4937,6 +4937,7 @@ package body Userland.Syscall is
       File       : File_Description_Acc;
       Curr       : Time.Timestamp;
       Final      : Time.Timestamp;
+      Th         : constant TID := Arch.Local.Get_Current_Thread;
       Old_Set    : Signal_Bitmap;
       Map        : Page_Table_Acc;
       Success    : Boolean;
@@ -4965,8 +4966,8 @@ package body Userland.Syscall is
             if not Success then
                goto Would_Fault_Error;
             end if;
-            Get_Masked_Signals (Proc, Old_Set);
-            Set_Masked_Signals (Proc, C1 (Passed_Set));
+            Get_Thread_Mask (Th, Old_Set);
+            Set_Thread_Mask (Th, C1 (Passed_Set));
             Mask_Set := True;
          end;
       end if;
@@ -5140,7 +5141,7 @@ package body Userland.Syscall is
 
    <<Success_Return>>
       if S_IAddr /= 0 then
-         Set_Masked_Signals (Proc, Old_Set);
+         Set_Thread_Mask (Th, Old_Set);
       end if;
 
       if Handled then
@@ -5154,14 +5155,14 @@ package body Userland.Syscall is
 
    <<Would_Fault_Error>>
       if Mask_Set then
-         Set_Masked_Signals (Proc, Old_Set);
+         Set_Thread_Mask (Th, Old_Set);
       end if;
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    exception
       when others =>
          if Mask_Set then
-            Set_Masked_Signals (Proc, Old_Set);
+            Set_Thread_Mask (Th, Old_Set);
          end if;
          Messages.Put_Line ("Exception while executing PPoll");
          Put_File (File);
@@ -6769,13 +6770,14 @@ package body Userland.Syscall is
       O_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
       S_SAddr : constant  System.Address := To_Address (S_IAddr);
       O_SAddr : constant  System.Address := To_Address (O_IAddr);
+      Th      : constant TID := Arch.Local.Get_Current_Thread;
       Old_Set : Signal_Bitmap;
       New_Set : Unsigned_38;
       Success : Boolean;
       Map     : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
-      Get_Masked_Signals (Proc, Old_Set);
+      Get_Thread_Mask (Th, Old_Set);
 
       if O_IAddr /= 0 then
          Trans_1.Paste_Into_Userland (Map, Old_Set, O_SAddr, Success);
@@ -6792,11 +6794,11 @@ package body Userland.Syscall is
 
          case How is
             when SIG_BLOCK =>
-               Set_Masked_Signals (Proc, C2 (New_Set or C1 (Old_Set)));
+               Set_Thread_Mask (Th, C2 (New_Set or C1 (Old_Set)));
             when SIG_UNBLOCK =>
-               Set_Masked_Signals (Proc, C2 (C1 (Old_Set) and not New_Set));
+               Set_Thread_Mask (Th, C2 (C1 (Old_Set) and not New_Set));
             when SIG_SETMASK =>
-               Set_Masked_Signals (Proc, C2 (New_Set));
+               Set_Thread_Mask (Th, C2 (New_Set));
             when others =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
@@ -6830,7 +6832,6 @@ package body Userland.Syscall is
       Success : Boolean;
       Old     : Sigaction_Info;
       Map     : Page_Table_Acc;
-      Altstk  : Boolean;
       Is_Default, Is_Ignored : Boolean;
    begin
       Translate_Signal (Signal, Actual, Success);
@@ -6843,7 +6844,6 @@ package body Userland.Syscall is
       Get_Common_Map (Proc, Map);
 
       if O_IAddr /= 0 then
-         Old.Mask  := 0;
          Get_Signal_Handlers
             (Proc       => Proc,
              Sig        => Actual,
@@ -6851,18 +6851,13 @@ package body Userland.Syscall is
              Is_Ignored => Is_Ignored,
              Handler    => Old.Handler,
              Restorer   => Old.Restorer,
-             Altstack   => Altstk);
+             Mask       => Old.Mask,
+             Flags      => Old.Flags);
 
          if Is_Ignored then
             Old.Handler := To_Address (SIG_IGN);
          elsif Is_Default then
             Old.Handler := To_Address (SIG_DFL);
-         end if;
-
-         if Altstk then
-            Old.Flags := SA_ONSTACK;
-         else
-            Old.Flags := 0;
          end if;
 
          Trans.Paste_Into_Userland (Map, Old, O_SAddr, Success);
@@ -6877,7 +6872,6 @@ package body Userland.Syscall is
             goto Would_Fault_Error;
          end if;
 
-         Altstk := (Old.Flags and SA_ONSTACK) /= 0;
          case To_Integer (Old.Handler) is
             when SIG_DFL =>
                Set_Signal_Handlers
@@ -6887,7 +6881,8 @@ package body Userland.Syscall is
                    Is_Ignored => False,
                    Handler    => System.Null_Address,
                    Restorer   => Old.Restorer,
-                   Altstack   => Altstk,
+                   Mask       => Old.Mask,
+                   Flags      => Old.Flags,
                    Success    => Success);
             when SIG_IGN =>
                Set_Signal_Handlers
@@ -6897,7 +6892,8 @@ package body Userland.Syscall is
                    Is_Ignored => True,
                    Handler    => System.Null_Address,
                    Restorer   => Old.Restorer,
-                   Altstack   => Altstk,
+                   Mask       => Old.Mask,
+                   Flags      => Old.Flags,
                    Success    => Success);
             when others =>
                Set_Signal_Handlers
@@ -6907,7 +6903,8 @@ package body Userland.Syscall is
                    Is_Ignored => False,
                    Handler    => Old.Handler,
                    Restorer   => Old.Restorer,
-                   Altstack   => Altstk,
+                   Mask       => Old.Mask,
+                   Flags      => Old.Flags,
                    Success    => Success);
          end case;
 
@@ -10039,43 +10036,73 @@ package body Userland.Syscall is
    end Translate_Signal;
 
    procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean) is
+      type Unsigned_38 is mod 2 ** 38;
+      function To_Bitmap is new Ada.Unchecked_Conversion
+         (Unsigned_38, Process.Signal_Bitmap);
+      function To_Word is new Ada.Unchecked_Conversion
+         (Process.Signal_Bitmap, Unsigned_38);
+
+      Th            : constant TID := Arch.Local.Get_Current_Thread;
       Raised_Signal : Userland.Process.Signal;
       Signal_Addr   : System.Address;
       Restorer_Addr : System.Address;
       No_Signal     : Boolean;
-      Altstack      : Boolean;
-      Mask          : Process.Signal_Bitmap;
+      Sig_Mask      : Unsigned_64;
+      Sig_Flags     : Unsigned_32;
+      Mask, Blocked : Process.Signal_Bitmap;
+      Discard       : Boolean;
    begin
       Has_Handled := False;
       if Scheduler.Is_Doomed then
          return;
       end if;
 
+      Process.Get_Thread_Mask (Th, Mask);
       Process.Get_Raised_Signal_Actions
          (Proc     => Proc,
+          Masked   => Mask,
           Sig      => Raised_Signal,
           Handler  => Signal_Addr,
           Restorer => Restorer_Addr,
           No_Sig   => No_Signal,
-          Altstack => Altstack,
-          Old_Mask => Mask);
+          Sig_Mask => Sig_Mask,
+          Flags    => Sig_Flags);
       if not No_Signal then
          --  Handle signals.
          if Signal_Addr /= System.Null_Address then
-            Scheduler.Launch_Signal_Thread
-               (Unsigned_64 (Process.Signal'Enum_Rep (Raised_Signal)),
-                Signal_Addr, Restorer_Addr, Altstack, Has_Handled);
+            Blocked := To_Bitmap
+               (To_Word (Mask) or Unsigned_38 (Sig_Mask and 16#3F_FFFF_FFFF#));
+            if (Sig_Flags and SA_NODEFER) = 0 then
+               Blocked (Raised_Signal) := True;
+            end if;
+            Process.Set_Thread_Mask (Th, Blocked);
+
+            if (Sig_Flags and SA_RESETHAND) /= 0 then
+               Process.Set_Signal_Handlers
+                  (Proc       => Proc,
+                   Sig        => Raised_Signal,
+                   Is_Default => True,
+                   Is_Ignored => False,
+                   Handler    => System.Null_Address,
+                   Restorer   => Restorer_Addr,
+                   Mask       => 0,
+                   Flags      => 0,
+                   Success    => Discard);
+            end if;
          else
             Exit_Process (Proc, Raised_Signal);
          end if;
 
          --  Restore old signals if we were successful.
          if Has_Handled then
-            Process.Set_Masked_Signals (Proc, Mask);
+            Process.Set_Thread_Mask (Th, Mask);
          end if;
       else
          Has_Handled := False;
       end if;
+   exception
+      when Constraint_Error =>
+         Has_Handled := False;
    end Clear_Process_Signals;
 
    function Is_Valid_Clock (ID : Unsigned_64) return Boolean is
