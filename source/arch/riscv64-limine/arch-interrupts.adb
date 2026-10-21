@@ -27,6 +27,8 @@ with Messages;
 with Userland.Corefile;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
+   use type Scheduler.TID;
+
    Interrupt_Table : array (Interrupt_Index) of Interrupt_Handler
       := [others => null];
 
@@ -88,6 +90,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Is_Int, Is_User : Boolean;
       Cause           : Unsigned_64;
       Signal          : Userland.Process.Signal;
+      Code            : Unsigned_32;
+      Addr            : Unsigned_64;
+      Taken           : Boolean;
+      Thread          : Scheduler.TID;
    begin
       --  Read exception data to determine cause.
       System.Machine_Code.Asm
@@ -111,7 +117,16 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                 Inputs   => Unsigned_64'Asm_Input ("r", 32),
                 Clobber  => "memory",
                 Volatile => True);
+            Thread := Local.Get_Current_Thread;
             Scheduler.Scheduler_ISR (Ctx.all);
+
+            --  A thread going back to its own code takes a signal raised for
+            --  it on the way. After a switch the frame is the thread left's,
+            --  and the thread switched to takes its signals at its own next
+            --  entry.
+            if Local.Get_Current_Thread = Thread then
+               Interrupt_Return_Hook (Context.GP_Context (Ctx.all));
+            end if;
          else
             Panic.Hard_Panic ("Missing interrupt with cause " & Cause'Image);
          end if;
@@ -122,8 +137,42 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          elsif Is_User then
             Signal :=
                (case Cause is
-                 when      2 => Userland.Process.Signal_Illegal_Instruction,
+                 when 2 => Userland.Process.Signal_Illegal_Instruction,
+                 when 3 => Userland.Process.Signal_Tracepoint,
+                 when 0 | 4 | 6 => Userland.Process.Signal_Bad_Memory,
                  when others => Userland.Process.Signal_Segmentation_Fault);
+            Code :=
+               (case Cause is
+                 when            2 => ILL_ILLOPN,
+                 when            3 => TRAP_BRKPT,
+                 when    0 | 4 | 6 => BUS_ADRALN,
+                 when 12 | 13 | 15 => SEGV_MAPERR,
+                 when        5 | 7 => SEGV_ACCERR,
+                 when       others => SI_KERNEL);
+
+            --  stval carries the address a memory fault happened at.
+            --  An illegal instruction leaves the instruction's bits there, if
+            --  anything, and its address in sepc.
+            System.Machine_Code.Asm
+               ("csrr %0, stval",
+                Outputs  => Unsigned_64'Asm_Output ("=r", Addr),
+                Clobber  => "memory",
+                Volatile => True);
+            if Cause = 2 then
+               Addr := Ctx.SEPC;
+            elsif Cause not in 0 | 4 | 5 | 6 | 7 | 12 | 13 | 15 then
+               Addr := 0;
+            end if;
+
+            --  Taking the fault to the program needs its tables read and its
+            --  stack written, neither of which may be done with interrupts
+            --  off.
+            Arch.Snippets.Enable_Interrupts;
+            Deliver_Fault
+               (Context.GP_Context (Ctx.all), Signal, Addr, Code, Taken);
+            if Taken then
+               return;
+            end if;
 
             Messages.Put_Line ("Userland exception: " & Signal'Image);
             Userland.Corefile.Generate_Corefile (Context.GP_Context (Ctx.all));
@@ -179,6 +228,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Returned : Unsigned_64;
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
+      Restored : Boolean := False;
    begin
       Arch.Snippets.Enable_Interrupts;
 
@@ -434,7 +484,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Create_Thread
                (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Returned, Errno);
          when 101 =>
-            Signal_Return (Returned, Errno);
+            Signal_Return
+               (Context.GP_Context (Ctx.all), Returned, Errno, Restored);
          when 102 =>
             Sigaltstack (Ctx.X10, Ctx.X11, Returned, Errno);
          when 103 =>
@@ -525,9 +576,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Errno    := Error_Not_Implemented;
       end case;
 
-      --  Assign the return values.
-      Ctx.X10 := Returned;
-      Ctx.X11 := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
+      --  Assign the return values, unless a signal return put back the
+      --  whole frame a handler had interrupted, whose own answer is in it.
+      if not Restored then
+         Ctx.X10 := Returned;
+         Ctx.X11 := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
+      end if;
 
       --  Post syscall hook.
       Post_Syscall_Hook (Context.GP_Context (Ctx.all));

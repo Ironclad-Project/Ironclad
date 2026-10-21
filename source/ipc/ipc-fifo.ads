@@ -94,7 +94,11 @@ package IPC.FIFO is
       with Pre => (Is_Valid (P) and Size < Natural'Last - 100);
 
    --  Returned status of a pipe operation.
-   type Pipe_Status is (Pipe_Success, Broken_Failure, Would_Block_Failure);
+   type Pipe_Status is
+      (Pipe_Success,
+       Broken_Failure,
+       Would_Block_Failure,
+       Interrupted_Failure);
 
    --  Read from the reader end of a pipe.
    --  @param To_Read     Pipe end to read from.

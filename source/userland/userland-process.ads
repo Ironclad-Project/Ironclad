@@ -731,6 +731,19 @@ package Userland.Process is
    procedure Get_Thread_Mask (Thread : Scheduler.TID; Sig : out Signal_Bitmap);
    procedure Set_Thread_Mask (Thread : Scheduler.TID; Sig : Signal_Bitmap);
 
+   --  Whether the process has a signal pending that a thread blocking the
+   --  passed set could take. It is what makes a wait give up: a caught
+   --  signal is delivered on the way out of the call, so the call has to get
+   --  there, and it answers EINTR.
+   --  @param Proc   Process to ask about, which may be no process at all.
+   --  @param Thread Thread asking.
+   --  @param Masked What the asking thread blocks, as the bitmap userland
+   --                passes, bit N - 1 standing for signal N.
+   function Has_Deliverable_Signal
+      (Proc   : PID;
+       Thread : Scheduler.TID;
+       Masked : Unsigned_64) return Boolean;
+
    --  Signal that a signal was raised, and wake the threads waiting on the
    --  wait key of the process.
    --  @param Proc Process to raise for.
@@ -931,6 +944,11 @@ private
       Data_Mutex      : aliased Synchronization.Mutex;
       Controlling_TTY : IPC.PTY.Inner_Acc;
       Raised_Signals  : Signal_Bitmap;
+      --  The same set as a word, bit N - 1 standing for signal N, kept
+      --  beside it so that it can be read without the mutex: the scheduler
+      --  asks whether a sleeping thread has anything to take, and it asks
+      --  from inside its own critical section.
+      Pending_Bits    : Unsigned_64 with Atomic;
       Signal_Handlers : Handle_Arr;
       Prio            : Scheduler.Priority;
       Niceness        : Scheduler.Niceness;

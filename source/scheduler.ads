@@ -107,6 +107,12 @@ package Scheduler is
    --  Whether the calling thread has been deleted while running.
    function Is_Doomed return Boolean;
 
+   --  Whether the calling thread has to give up any wait it is in and
+   --  return from it as interrupted, which a doomed thread does and so does
+   --  one with a signal it can take: a caught signal is delivered on the way
+   --  out of the call, which a wait has to end for.
+   function Is_Interrupted return Boolean;
+
    --  Get runtime times of the thread.
    procedure Get_Runtimes (Thread : TID; System, User : out Time.Timestamp);
 
@@ -115,7 +121,8 @@ package Scheduler is
    procedure Signal_Kernel_Entry (Thread : TID);
    procedure Signal_Kernel_Exit (Thread : TID);
 
-   --  Do not schedule the calling thread until a certain timestamp is hit.
+   --  Do not schedule the calling thread until a certain timestamp is hit,
+   --  or until it is interrupted, see Is_Interrupted.
    procedure Suspend_Until
       (Clock      : Time.Clock_Type;
        Start_Time : Time.Timestamp);
@@ -137,15 +144,16 @@ package Scheduler is
    --     Begin_Wait, and Add_Wait_Key for every object;
    --     loop
    --        Clear_Wake, check the condition, and exit if it holds or the
-   --        thread is doomed;
+   --        thread is interrupted, see Is_Interrupted;
    --        Wait_Event (Deadline, Max_Micros);
    --     end loop;
    --     End_Wait;
    --
    --  Wait_Event returns at once for wakes after Clear_Wake, so wakes that
-   --  come between the check and the sleep are not lost. A doomed thread
-   --  gives up the wait to leave at the edge of its syscall, and deleting a
-   --  thread ends its sleep, see Delete_Thread.
+   --  come between the check and the sleep are not lost. An interrupted
+   --  thread gives up the wait to leave at the edge of its syscall: deleting
+   --  a thread ends its sleep, see Delete_Thread, and so does a signal it
+   --  can take, see Wake_For_Signal.
 
    --  Start a wait for the calling thread, with no keys and no wakes.
    procedure Begin_Wait;
@@ -178,6 +186,12 @@ package Scheduler is
 
    --  Wake the threads waiting on a key.
    procedure Wake_Event (Key : System.Address);
+
+   --  Get the threads a signal was just made pending for onto a core, where
+   --  a sleeping one finds a signal it can take and gives its sleep up.
+   --  @param PID    Process of the threads, a plain number as for Is_Alive.
+   --  @param Thread The one thread the signal is for, or Error_TID for all.
+   procedure Wake_For_Signal (PID : Natural; Thread : TID);
    ----------------------------------------------------------------------------
    --  Some scheduling algorithms allow priority, in those cases, it is
    --  interacted with using POSIX-compatible niceness.
@@ -221,13 +235,110 @@ package Scheduler is
        Is_Disabled : Boolean;
        Success     : out Boolean);
 
-   procedure Launch_Signal_Thread
-      (Signal_Number    : Unsigned_64;
+   --  Record the userland state a thread entered the kernel with, which is
+   --  what a call has to be aimed back at to be issued again (SA_RESTART).
+   procedure Set_Syscall_State
+      (Thread : TID;
+       State  : Arch.Context.GP_Context);
+
+   --  Aim a leaving call back at itself, so that it is issued again from the
+   --  start with the arguments it was given.
+   --  @param Thread Thread whose call is to be repeated.
+   --  @param State  The state the call is leaving in, aimed back at it.
+   procedure Restart_Syscall
+      (Thread : TID;
+       State  : in out Arch.Context.GP_Context);
+
+   --  A call may give the thread a mask for its own duration, as ppoll
+   --  does. The mask to go back to is restored by the call's own edge or, if
+   --  a handler runs first, by that handler's return: the ucontext the
+   --  handler is given carries it, so a signal the call unblocked is taken
+   --  with the call's mask in force and sigreturn puts the original back.
+   --  @param Thread Thread to operate on.
+   --  @param Mask   Mask to go back to.
+   --  @param Valid  True if there was a mask to go back to.
+   procedure Set_Saved_Mask (Thread : TID; Mask : Unsigned_64);
+   procedure Take_Saved_Mask
+      (Thread : TID;
+       Mask   : out Unsigned_64;
+       Valid  : out Boolean);
+
+   --  Enter a signal handler on the interrupted thread itself: write the
+   --  frame it is to run on (a siginfo_t, a ucontext_t describing the state
+   --  being interrupted, and the address of the restorer to return to) onto
+   --  its stack or its alternate stack, and aim the state it is leaving the
+   --  kernel with at the handler.
+   --  @param State       State the thread is leaving the kernel with, which
+   --                     the handler is entered with instead.
+   --  @param Info_Code   si_code of the signal.
+   --  @param Info_PID    si_pid of the signal.
+   --  @param Info_UID    si_uid of the signal.
+   --  @param Info_Status si_status of the signal.
+   --  @param Info_Value  si_value of the signal, which a queued one
+   --                     carries and every other one leaves at 0.
+   --  @param Old_Mask    Mask the handler's return is to restore.
+   --  @param Fault_Addr  Address a hardware fault happened at, which for a
+   --                     fault takes the place of the sender's identity.
+   --  @param Is_Fault    True when the signal came of a hardware fault, so
+   --                     that the siginfo carries si_addr, which shares its
+   --                     place with si_pid and si_uid.
+   --  @param Success     False if the frame could not be written, as when
+   --                     the stack is not userland memory or another thread
+   --                     unmapped it.
+   procedure Enter_Signal_Handler
+      (State            : in out Arch.Context.GP_Context;
+       Signal_Number    : Unsigned_64;
        Handle, Restorer : System.Address;
        Is_Altstack      : Boolean;
+       Info_Code        : Unsigned_32;
+       Info_PID         : Unsigned_32;
+       Info_UID         : Unsigned_32;
+       Info_Status      : Unsigned_32;
+       Info_Value       : Unsigned_64;
+       Old_Mask         : Unsigned_64;
+       Fault_Addr       : Unsigned_64 := 0;
+       Is_Fault         : Boolean     := False;
        Success          : out Boolean);
 
-   procedure Exit_Signal_And_Reschedule;
+   --  The siginfo_t of our glibc, as bytes. A signal accepted rather than
+   --  delivered (sigwaitinfo, sigtimedwait) hands userland the same
+   --  structure a handler is given, so it is built here, where the signal
+   --  frame is written, and those calls only copy it out.
+   Siginfo_Size : constant := 128;
+   --  The alignment is stated because the layout is written through it: a
+   --  plain byte array is 1-aligned, and overlaying a record with 32-bit
+   --  components on one may be erroneous (Ada 2022 RM 13.3(27)).
+   type Siginfo_Bytes is array (1 .. Siginfo_Size) of Unsigned_8
+      with Alignment => 8;
+
+   --  Lay out one siginfo_t.
+   --  @param Number Signal number, si_signo.
+   --  @param Code   si_code, where the signal came from.
+   --  @param PID    si_pid, who sent it.
+   --  @param UID    si_uid, their real user.
+   --  @param Status si_status, a child's exit code or killing signal.
+   --  @param Value  si_value, what a queued signal carries.
+   --  @param Into   The bytes, ready to be given to userland.
+   procedure Build_Siginfo
+      (Number : Unsigned_64;
+       Code   : Unsigned_32;
+       PID    : Unsigned_32;
+       UID    : Unsigned_32;
+       Status : Unsigned_32;
+       Value  : Unsigned_64;
+       Into   : out Siginfo_Bytes);
+
+   --  Put back what a handler interrupted, from the ucontext_t it was given
+   --  and may have edited. The segments and the flags the kernel owns are
+   --  never taken from userland.
+   --  @param State    State the call is leaving in, replaced by the restored
+   --                  one, return registers included.
+   --  @param New_Mask Mask the restored state is to run under.
+   --  @param Success  False if the frame could not be read back.
+   procedure Leave_Signal_Handler
+      (State    : in out Arch.Context.GP_Context;
+       New_Mask : out Unsigned_64;
+       Success  : out Boolean);
    ----------------------------------------------------------------------------
    --  Get the number of processes set to run over various periods of time.
    --  @param Avg_1  1 minute average  * 100.
@@ -274,11 +385,6 @@ private
    procedure Next_Other (Curr : TID; Timeout : out Natural; Next : out TID);
 
    procedure Waiting_Spot with No_Return;
-
-   --  Delete a thread with the scheduler lock held, and the signal thread it
-   --  watches with it, see Launch_Signal_Thread, but for the calling thread,
-   --  which leaves by itself.
-   procedure Delete_Locked (Thread : TID);
 
    --  Wait for an interrupt if the calling thread is suspended, see
    --  Yield_If_Able.

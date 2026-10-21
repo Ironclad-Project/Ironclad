@@ -467,6 +467,7 @@ package body IPC.Socket is
       Recv_Src_IP   : Networking.IPv4_Address;
       Recv_Src_Port : Unsigned_16;
       UDP_Success   : Boolean;
+      UDP_Cut       : Boolean;
    begin
       --  Initialize output parameters.
       Addr := [others => 0];
@@ -488,7 +489,9 @@ package body IPC.Socket is
             Devices.Read (Dev, 0, Data, Ret_Count, Succ);
             if Succ /= Devices.Dev_Success or Ret_Count < Hdr_Size / 8 then
                Ret_Count := 0;
-               Success   := Would_Block;
+               Success   :=
+                  (if Succ = Devices.Dev_Interrupted then Is_Interrupted
+                   else Would_Block);
                return;
             end if;
             Data (Data'First .. Data'Last - (Hdr_Size / 8)) :=
@@ -498,14 +501,15 @@ package body IPC.Socket is
          when Stream =>
             --  TCP socket read.
             declare
-               TCP_Success : Boolean;
+               TCP_Success, Cut : Boolean;
             begin
                Networking.Stack.TCP_Recv
                   (Handle      => Sock.IPv4_TCP_Handle,
                    Data        => Data,
                    Received    => Ret_Count,
                    Is_Blocking => Is_Blocking,
-                   Success     => TCP_Success);
+                   Success     => TCP_Success,
+                   Interrupted => Cut);
                if TCP_Success then
                   --  TCP doesn't return source address per-read.
                   Addr := Sock.IPv4_Remote_Addr;
@@ -514,7 +518,7 @@ package body IPC.Socket is
                else
                   Data := [others => 0];
                   Ret_Count := 0;
-                  Success := Would_Block;
+                  Success := (if Cut then Is_Interrupted else Would_Block);
                end if;
             end;
          when Datagram =>
@@ -548,14 +552,15 @@ package body IPC.Socket is
                 Src_IP      => Recv_Src_IP,
                 Src_Port    => Recv_Src_Port,
                 Is_Blocking => Is_Blocking,
-                Success     => UDP_Success);
+                Success     => UDP_Success,
+                Interrupted => UDP_Cut);
             if UDP_Success then
                --  Return the source address to userspace.
                Addr := Recv_Src_IP;
                Port := Networking.IPv4_Port (Recv_Src_Port);
                Success := Plain_Success;
             else
-               Success := Would_Block;
+               Success := (if UDP_Cut then Is_Interrupted else Would_Block);
             end if;
       end case;
    end Read;
@@ -1032,7 +1037,7 @@ package body IPC.Socket is
        Ret_Count   : out Natural;
        Success     : out Socket_Status)
    is
-      TCP_Success : Boolean;
+      TCP_Success, Cut : Boolean;
    begin
       case Sock.Kind is
          when Stream =>
@@ -1047,11 +1052,12 @@ package body IPC.Socket is
                 Data        => Data,
                 Received    => Ret_Count,
                 Is_Blocking => Is_Blocking,
-                Success     => TCP_Success);
+                Success     => TCP_Success,
+                Interrupted => Cut);
             if TCP_Success then
                Success := Plain_Success;
             else
-               Success := Would_Block;
+               Success := (if Cut then Is_Interrupted else Would_Block);
             end if;
          when others =>
             Read

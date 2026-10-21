@@ -54,6 +54,17 @@ package Arch.Context is
    --  set for success conditions, and said status is expected in userland.
    procedure Success_Fork_Result (Ctx : in out GP_Context);
 
+   --  Aim a context back at the system call it is returning from, so that it
+   --  is issued again from the start. This is needed for some POSIXy things.
+   --  @param Ctx       Context to aim back, as the call is leaving it.
+   --  @param Entry_Ctx The same context as the call was entered with.
+   procedure Repeat_Syscall (Ctx : in out GP_Context; Entry_Ctx : GP_Context);
+
+   --  The errno a system call is leaving in, which tells whether it was
+   --  interrupted and so whether it is to be repeated.
+   --  @param Ctx Context the call is leaving in.
+   function Syscall_Errno (Ctx : GP_Context) return Unsigned_64;
+
    --  Whether the context was saved while running in userland.
    function Is_User_Context (Ctx : GP_Context) return Boolean;
 

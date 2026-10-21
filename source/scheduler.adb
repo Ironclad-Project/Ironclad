@@ -54,7 +54,6 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Running      : Boolean with Atomic;
       Is_Doomed       : Boolean with Atomic;
       Is_Held         : Boolean with Atomic;  --  See Create_User_Thread.
-      Watcher         : TID with Atomic;  --  See Launch_Signal_Thread.
       Path            : String (1 .. 20);
       Path_Len        : Natural range 0 .. 20;
       Pol             : Policy;
@@ -66,6 +65,7 @@ package body Scheduler with SPARK_Mode => Off is
       Kernel_Stack    : Kernel_Stack_Acc;
       GP_State        : Arch.Context.GP_Context;
       FP_State        : Arch.Context.FP_Context;
+      Syscall_State   : Arch.Context.GP_Context;
       Process         : Userland.Process.PID;
       System_Runtime  : Time.Timestamp;
       User_Runtime    : Time.Timestamp;
@@ -81,6 +81,8 @@ package body Scheduler with SPARK_Mode => Off is
       Event_Waiting   : Boolean;  --  Sleeping in Wait_Event.
       Core            : Natural;  --  Core it runs on, see Kick.
       Masked_Signals  : Unsigned_64;
+      Saved_Mask      : Unsigned_64;
+      Has_Saved_Mask  : Boolean;
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
@@ -130,6 +132,59 @@ package body Scheduler with SPARK_Mode => Off is
        Can_Execute        => False,
        Is_Global          => False);
 
+   --  The frame a signal handler is entered with.
+   type Siginfo_Tail is array (1 .. Siginfo_Size - 28) of Unsigned_8;
+   type Siginfo is record
+      Number : Unsigned_32;
+      Errno  : Unsigned_32;
+      Code   : Unsigned_32;
+      Pad    : Unsigned_32;
+      PID    : Unsigned_32;
+      UID    : Unsigned_32;
+      Status : Unsigned_32;
+      Tail   : Siginfo_Tail;
+   end record with Size => Siginfo_Size * 8;
+   for Siginfo use record
+      Number at  0 range 0 .. 31;
+      Errno  at  4 range 0 .. 31;
+      Code   at  8 range 0 .. 31;
+      Pad    at 12 range 0 .. 31;
+      PID    at 16 range 0 .. 31;
+      UID    at 20 range 0 .. 31;
+      Status at 24 range 0 .. 31;
+      Tail   at 28 range 0 .. (Siginfo_Size - 28) * 8 - 1;
+   end record;
+
+   #if ArchName = """riscv64-limine"""
+      UC_Stack    : constant := 2;
+      UC_Sigmask  : constant := 5;
+      UC_Gregs    : constant := 22;
+      UC_FPRegs   : constant := 54;
+      UC_Words    : constant := 120;
+      Return_Slot : constant := 0;
+      Red_Zone    : constant := 0;
+   #elsif ArchName = """x86_64-limine"""
+      UC_Stack    : constant := 2;
+      UC_Gregs    : constant := 5;
+      UC_FPRegs   : constant := 28;
+      UC_Sigmask  : constant := 37;
+      UC_FP_Mem   : constant := 53;
+      UC_Words    : constant := 121;
+      Return_Slot : constant := 8;
+      Red_Zone    : constant := 128;
+
+      User_RFLAGS : constant := 16#24_4DD5#;
+      Entry_Clear_RFLAGS : constant := 16#1_0500#;
+   #end if;
+   type UContext is array (0 .. UC_Words - 1) of Unsigned_64;
+
+   --  The frame sits at the top of the stack.
+   Frame_Size : constant :=
+      15 + 16 + Siginfo_Size + UC_Words * 8 + 15 + Return_Slot;
+
+   SS_ONSTACK : constant := 1;
+   SS_DISABLE : constant := 2;
+
    procedure Init (Success : out Boolean) is
    begin
       --  Initialize registries. GNAT before 15 can build an array aggregate on
@@ -142,7 +197,6 @@ package body Scheduler with SPARK_Mode => Off is
              Is_Running      => False,
              Is_Doomed       => False,
              Is_Held         => False,
-             Watcher         => Error_TID,
              Path            => [others => ' '],
              Path_Len        => 0,
              RR_Micro_Inter  => Default_RR_NS_Interval / 1000,
@@ -154,6 +208,7 @@ package body Scheduler with SPARK_Mode => Off is
              Kernel_Stack    => null,
              GP_State        => <>,
              FP_State        => <>,
+             Syscall_State   => <>,
              Process         => Userland.Process.Error_PID,
              System_Runtime  => (0, 0),
              User_Runtime    => (0, 0),
@@ -168,7 +223,9 @@ package body Scheduler with SPARK_Mode => Off is
              Start_Time      => (0, 0),
              Wake_Pending    => False,
              Event_Waiting   => False,
-             Core            => 0);
+             Core            => 0,
+             Saved_Mask      => 0,
+             Has_Saved_Mask  => False);
       end loop;
       Waits := new Wait_Info_Arr'
          [others => (Count => 0, Keys => [others => System.Null_Address])];
@@ -417,9 +474,7 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Find a new TID.
       for I in Thread_Pool'Range loop
-         if not Thread_Pool (I).Is_Present and
-            not Thread_Pool (I).Is_Running and
-            Thread_Pool (I).Watcher = Error_TID
+         if not Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
          then
             New_TID := I;
             goto Found_TID;
@@ -440,7 +495,6 @@ package body Scheduler with SPARK_Mode => Off is
           Is_Running     => False,
           Is_Doomed      => False,
           Is_Held        => True,
-          Watcher        => Error_TID,
           Path           => [others => ' '],
           Path_Len       => 0,
           RR_Micro_Inter => Default_RR_NS_Interval / 1000,
@@ -452,6 +506,7 @@ package body Scheduler with SPARK_Mode => Off is
           Kernel_Stack   => New_Stack,
           GP_State       => GP_State,
           FP_State       => FP_State,
+          Syscall_State  => GP_State,
           Process        => Userland.Process.Convert (PID),
           User_Stack      => System.Null_Address,
           User_Stack_Size => 0,
@@ -466,7 +521,9 @@ package body Scheduler with SPARK_Mode => Off is
           System_Runtime  => (0, 0),
           User_Runtime    => (0, 0),
           System_Tmp      => (0, 0),
-          User_Tmp        => (0, 0));
+          User_Tmp        => (0, 0),
+          Saved_Mask      => 0,
+          Has_Saved_Mask  => False);
 
       Arch.Clocks.Get_Monotonic_Time (Thread_Pool (New_TID).User_Tmp);
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
@@ -491,15 +548,9 @@ package body Scheduler with SPARK_Mode => Off is
    end Release_Thread;
 
    procedure Delete_Thread (Thread : TID) is
-   begin
-      Synchronization.Seize (Scheduler_Mutex);
-      Delete_Locked (Thread);
-      Synchronization.Release (Scheduler_Mutex);
-   end Delete_Thread;
-
-   procedure Delete_Locked (Thread : TID) is
       Self : constant TID := Arch.Local.Get_Current_Thread;
    begin
+      Synchronization.Seize (Scheduler_Mutex);
       if Thread_Pool (Thread).Is_Present then
          if Thread = Self then
             Drop_Thread (Thread);
@@ -514,19 +565,11 @@ package body Scheduler with SPARK_Mode => Off is
             Kick (Thread);
          end if;
       end if;
-
-      for T in Thread_Pool'Range loop
-         if Thread_Pool (T).Watcher = Thread then
-            if T /= Self then
-               Delete_Locked (T);
-            end if;
-            Thread_Pool (T).Watcher := Error_TID;
-         end if;
-      end loop;
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         null;
-   end Delete_Locked;
+         Synchronization.Release (Scheduler_Mutex);
+   end Delete_Thread;
 
    procedure Wait_For_Removed (PID : Natural) is
       Self   : constant TID := Arch.Local.Get_Current_Thread;
@@ -594,9 +637,6 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
       Thread_Pool (Thread).PageMap := Memory.MMU.Get_Curr_Table_Addr;
       Synchronization.Release (Scheduler_Mutex);
-      if Thread_Pool (Thread).Watcher /= Error_TID then
-         Wake_Event (Thread_Pool (Thread)'Address);
-      end if;
       Arch.Local.Reschedule_ASAP;
       Waiting_Spot;
    exception
@@ -614,6 +654,23 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          return False;
    end Is_Doomed;
+
+   function Is_Interrupted return Boolean is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
+      Proc   : constant Userland.Process.PID :=
+         Arch.Local.Get_Current_Process;
+   begin
+      --  A signal the thread can take ends the wait as surely as being
+      --  doomed does: it is delivered on the way out of the call, so the
+      --  call has to get there, and what it answers is EINTR.
+      return Is_Doomed or else
+             (Thread /= Error_TID and then
+              Userland.Process.Has_Deliverable_Signal
+                 (Proc, Thread, Thread_Pool (Thread).Masked_Signals));
+   exception
+      when Constraint_Error =>
+         return False;
+   end Is_Interrupted;
 
    procedure Get_Runtimes (Thread : TID; System, User : out Time.Timestamp) is
    begin
@@ -639,6 +696,52 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Signal_Kernel_Entry;
+
+   procedure Set_Syscall_State
+      (Thread : TID;
+       State  : Arch.Context.GP_Context)
+   is
+   begin
+      Thread_Pool (Thread).Syscall_State := State;
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Syscall_State;
+
+   procedure Restart_Syscall
+      (Thread : TID;
+       State  : in out Arch.Context.GP_Context)
+   is
+   begin
+      Arch.Context.Repeat_Syscall (State, Thread_Pool (Thread).Syscall_State);
+   exception
+      when Constraint_Error =>
+         null;
+   end Restart_Syscall;
+
+   procedure Set_Saved_Mask (Thread : TID; Mask : Unsigned_64) is
+   begin
+      Thread_Pool (Thread).Saved_Mask     := Mask;
+      Thread_Pool (Thread).Has_Saved_Mask := True;
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Saved_Mask;
+
+   procedure Take_Saved_Mask
+      (Thread : TID;
+       Mask   : out Unsigned_64;
+       Valid  : out Boolean)
+   is
+   begin
+      Mask  := Thread_Pool (Thread).Saved_Mask;
+      Valid := Thread_Pool (Thread).Has_Saved_Mask;
+      Thread_Pool (Thread).Has_Saved_Mask := False;
+   exception
+      when Constraint_Error =>
+         Mask  := 0;
+         Valid := False;
+   end Take_Saved_Mask;
 
    procedure Signal_Kernel_Exit (Thread : TID) is
       Tmp : Time.Timestamp;
@@ -674,9 +777,17 @@ package body Scheduler with SPARK_Mode => Off is
          Synchronization.Seize (Scheduler_Mutex);
          Evaluate_Suspended (Thread, Stop);
          Synchronization.Release (Scheduler_Mutex);
-         exit when not Stop;
+         exit when not Stop or else Is_Interrupted;
          Scheduler.Yield_If_Able;
       end loop;
+
+      --  A sleep given up for a signal or a kill leaves no deadline behind:
+      --  the thread would go on counting as asleep, and once off its core it
+      --  would not be run again before that time.
+      Synchronization.Seize (Scheduler_Mutex);
+      Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
+      Thread_Pool (Thread).Start_Time  := (0, 0);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
          --  The index check fires with the lock held.
@@ -811,8 +922,11 @@ package body Scheduler with SPARK_Mode => Off is
          exit when Is_Doomed;
       end loop;
 
+      --  As in Suspend_Until, a sleep given up early leaves no deadline.
       Synchronization.Seize (Scheduler_Mutex);
       Thread_Pool (Thread).Event_Waiting := False;
+      Thread_Pool (Thread).Start_Clock   := Time.Monotonic_Clock;
+      Thread_Pool (Thread).Start_Time    := (0, 0);
       Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
@@ -866,6 +980,38 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          Synchronization.Release (Wait_Mutex);
    end Wake_Event;
+
+   procedure Wake_For_Signal (PID : Natural; Thread : TID) is
+      Self : constant Positive := Arch.Local.Get_Core_Number;
+      Core : Natural;
+   begin
+      --  Under the lock a sleeping thread is checked and its core marked
+      --  waiting with, so a kick either finds that core waiting or comes
+      --  before the check, which then sees the signal: see Kick and
+      --  Wait_If_Suspended. A thread running on another core that is not
+      --  waiting is interrupted there, and takes the signal on its way back
+      --  to its own code rather than at the end of its time.
+      Synchronization.Seize (Scheduler_Mutex);
+      for T in Thread_Pool'Range loop
+         if Thread_Pool (T).Is_Present and then
+            (if Thread /= Error_TID then T = Thread
+             else Userland.Process.Convert (Thread_Pool (T).Process) = PID)
+         then
+            Core := Thread_Pool (T).Core;
+            if Thread_Pool (T).Is_Running and then Core /= Self and then
+               Core in Is_Waiting'Range and then not Is_Waiting (Core)
+            then
+               Arch.Local.Reschedule_Core (Core);
+            else
+               Kick (T);
+            end if;
+         end if;
+      end loop;
+      Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Scheduler_Mutex);
+   end Wake_For_Signal;
 
    function Get_Niceness (Thread : TID) return Niceness is
    begin
@@ -1006,26 +1152,44 @@ package body Scheduler with SPARK_Mode => Off is
          Success := False;
    end Set_Signal_Stack;
 
-   procedure Launch_Signal_Thread
-      (Signal_Number    : Unsigned_64;
+   procedure Enter_Signal_Handler
+      (State            : in out Arch.Context.GP_Context;
+       Signal_Number    : Unsigned_64;
        Handle, Restorer : System.Address;
        Is_Altstack      : Boolean;
+       Info_Code        : Unsigned_32;
+       Info_PID         : Unsigned_32;
+       Info_UID         : Unsigned_32;
+       Info_Status      : Unsigned_32;
+       Info_Value       : Unsigned_64;
+       Old_Mask         : Unsigned_64;
+       Fault_Addr       : Unsigned_64 := 0;
+       Is_Fault         : Boolean     := False;
        Success          : out Boolean)
    is
-      Stack_Size : Unsigned_64 := Kernel_Stack_Size;
-      GP_State  : Arch.Context.GP_Context;
-      FP_State  : Arch.Context.FP_Context;
-      New_TID   : TID;
-      Stack_Top : Unsigned_64;
+      Th   : constant TID := Arch.Local.Get_Current_Thread;
+      Proc : constant Userland.Process.PID :=
+         Arch.Local.Get_Current_Process;
+      Own_FP    : Arch.Context.FP_Context;
       Map       : Memory.MMU.Page_Table_Acc;
       Use_Altsk : Boolean;
-      Killed    : Boolean := False;
-      Discard   : Boolean;
-      Registered : Boolean;
-      Th        : constant TID := Arch.Local.Get_Current_Thread;
-      Proc : constant Userland.Process.PID := Arch.Local.Get_Current_Process;
+      Was_On    : Boolean;
+      Top       : Unsigned_64;
    begin
+      Success := False;
+
+      --  A handler is entered through the call's own return path, which on
+      --  x86 takes the address in a register the processor requires to be
+      --  canonical, and which runs in kernel mode: an address that is not
+      --  userland's would fault the kernel rather than the process.
+      if Unsigned_64 (To_Integer (Handle)) >=
+         Unsigned_64 (Arch.MMU.Canonical_Hole_Offset)
+      then
+         return;
+      end if;
+
       Userland.Process.Get_Common_Map (Proc, Map);
+      Was_On := Thread_Pool (Th).User_Stack_Used;
 
       --  Initialize signal stack. We either start by mapping a new user stack
       --  or we use to passed one.
@@ -1035,230 +1199,369 @@ package body Scheduler with SPARK_Mode => Off is
          not Thread_Pool (Th).Is_Disabled;
 
       if Use_Altsk then
-         Thread_Pool (Th).User_Stack_Used := True;
-         Stack_Top  := Unsigned_64 (To_Integer (Thread_Pool (Th).User_Stack));
-         Stack_Size := Thread_Pool (Th).User_Stack_Size;
+         if Thread_Pool (Th).User_Stack_Size < Frame_Size then
+            return;
+         end if;
+         Top :=
+            (Unsigned_64 (To_Integer (Thread_Pool (Th).User_Stack)) +
+             Thread_Pool (Th).User_Stack_Size) and not 15;
       else
-         Userland.Process.Bump_Alloc_Base (Proc, Stack_Size, Stack_Top);
-         Memory.MMU.Map_Allocated_Range
-            (Map           => Map,
-             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
-             Length        => Storage_Offset (Stack_Size),
-             Permissions   => Tmp_Stack_Permissions,
-             Success       => Success);
+         #if ArchName = """x86_64-limine""" then
+            --  Below what the thread was interrupted on, past the bytes a
+            --  leaf function may be using without moving the pointer.
+            Top := (State.RSP - Red_Zone) and not 15;
+         #elsif ArchName = """riscv64-limine""" then
+            Top := (State.X2 - Red_Zone) and not 15;
+         #end if;
+      end if;
+
+      --  The frame is built in kernel memory and copied out at once, which
+      --  checks that the stack really is memory the process may write: an
+      --  alternate stack is wherever userland said it was, and another
+      --  thread may unmap any stack meanwhile.
+      declare
+         Info_Addr : constant Unsigned_64 := Top - 16 - Siginfo_Size;
+         Cont_Addr : constant Unsigned_64 :=
+            (Info_Addr - UContext'Size / 8) and not 15;
+         SP        : constant Unsigned_64 := Cont_Addr - Return_Slot;
+         Frame_Len : constant Natural     := Natural (Top - SP);
+         subtype Frame_Data is Thread_Stack (1 .. Frame_Len);
+         package Trans is new Memory.Userland_Transfer (Frame_Data);
+         Frame : Frame_Data := [others => 0];
+         Info : Siginfo
+            with Import,
+                 Address => Frame'Address + Storage_Offset (Info_Addr - SP);
+         Cont : UContext
+            with Import,
+                 Address => Frame'Address + Storage_Offset (Cont_Addr - SP);
+      begin
+         Info :=
+            (Number => Unsigned_32 (Signal_Number),
+             Errno  => 0,
+             Code   => Info_Code,
+             Pad    => 0,
+             PID    => Info_PID,
+             UID    => Info_UID,
+             Status => Info_Status,
+             Tail   => [others => 0]);
+
+         --  For a hardware fault the union at byte 16 is si_addr.
+         if Is_Fault then
+            declare
+               Fault_At : Unsigned_64
+                  with Import,
+                       Address => Frame'Address +
+                          Storage_Offset (Info_Addr - SP) + 16;
+            begin
+               Fault_At := Fault_Addr;
+            end;
+         end if;
+
+         --  si_value shares the union's slot with si_status, and at most one
+         --  of the two is ever set: a signal queued with a value reports no
+         --  status and a child's report carries no value. So the slot is
+         --  written only when there is a value, a si_value of 0 reading as
+         --  the 0 the frame already holds.
+         if Info_Value /= 0 then
+            declare
+               Val_At : Unsigned_64
+                  with Import,
+                       Address => Frame'Address +
+                          Storage_Offset (Info_Addr - SP) + 24;
+            begin
+               Val_At := Info_Value;
+            end;
+         end if;
+
+         Cont (UC_Stack) :=
+            Unsigned_64 (To_Integer (Thread_Pool (Th).User_Stack));
+         Cont (UC_Stack + 1) := Thread_Pool (Th).User_Stack_Size;
+         if Thread_Pool (Th).Is_Disabled or
+            Thread_Pool (Th).User_Stack = System.Null_Address
+         then
+            Cont (UC_Stack + 2) := SS_DISABLE;
+         elsif Was_On then
+            --  What the return puts back, so that a nested handler gives
+            --  the alternate stack back to the one it interrupted.
+            Cont (UC_Stack + 2) := SS_ONSTACK;
+         end if;
+         Cont (UC_Sigmask) := Old_Mask;
+
+         --  The interrupted state: the registers the thread is leaving the
+         --  kernel with, and its floating point state as it stands.
+         Arch.Context.Clone_FP_Context (Own_FP);
+         #if ArchName = """x86_64-limine""" then
+            declare
+               FXSAVE : Thread_Stack (1 .. 512)
+                  with Import, Address => Own_FP;
+               FP_Mem : Thread_Stack (1 .. 512)
+                  with Import, Address => Frame'Address +
+                     Storage_Offset (Cont_Addr + UC_FP_Mem * 8 - SP);
+            begin
+               Cont (UC_Gregs .. UC_Gregs + 22) :=
+                  [State.R8,  State.R9,  State.R10, State.R11, State.R12,
+                   State.R13, State.R14, State.R15, State.RDI, State.RSI,
+                   State.RBP, State.RSP, State.RBX, State.RDX, State.RCX,
+                   State.RAX, State.RIP, State.CS,  State.RFLAGS,
+                   State.Error_Code, 0, Old_Mask, 0];
+               Cont (UC_FPRegs) := Cont_Addr + UC_FP_Mem * 8;
+               FP_Mem := FXSAVE;
+            end;
+
+            --  x86 requires the return address in the stack.
+            declare
+               Return_Addr : Unsigned_64
+                  with Import, Address => Frame'Address;
+            begin
+               Return_Addr := Unsigned_64 (To_Integer (Restorer));
+            end;
+         #elsif ArchName = """riscv64-limine""" then
+            Cont (UC_Gregs .. UC_Gregs + 31) :=
+               [State.SEPC, State.X1, State.X2, State.X3, State.X4,
+                State.X5, State.X6, State.X7, State.X8, State.X9,
+                State.X10, State.X11, State.X12, State.X13, State.X14,
+                State.X15, State.X16, State.X17, State.X18, State.X19,
+                State.X20, State.X21, State.X22, State.X23, State.X24,
+                State.X25, State.X26, State.X27, State.X28, State.X29,
+                State.X30, State.X31];
+            Cont (UC_FPRegs .. UC_FPRegs + 32) :=
+               [Own_FP.F0, Own_FP.F1, Own_FP.F2, Own_FP.F3, Own_FP.F4,
+                Own_FP.F5, Own_FP.F6, Own_FP.F7, Own_FP.F8, Own_FP.F9,
+                Own_FP.F10, Own_FP.F11, Own_FP.F12, Own_FP.F13, Own_FP.F14,
+                Own_FP.F15, Own_FP.F16, Own_FP.F17, Own_FP.F18, Own_FP.F19,
+                Own_FP.F20, Own_FP.F21, Own_FP.F22, Own_FP.F23, Own_FP.F24,
+                Own_FP.F25, Own_FP.F26, Own_FP.F27, Own_FP.F28, Own_FP.F29,
+                Own_FP.F30, Own_FP.F31, Own_FP.FCSR];
+         #end if;
+         Arch.Context.Destroy_FP_Context (Own_FP);
+
+         Trans.Paste_Into_Userland
+            (Map, Frame, To_Address (Integer_Address (SP)), Success);
          if not Success then
             return;
          end if;
-      end if;
 
-      declare
-         type Siginfo is record
-            Signal_Number : Unsigned_32;
-            Signal_Code   : Unsigned_32;
-            Signal_Errno  : Unsigned_32;
-            Signal_PID    : Unsigned_32;
-            Signal_UID    : Unsigned_32;
-            Signal_Addr   : Unsigned_64;
-            Signal_Status : Unsigned_32;
-            Sival_Pointer : Unsigned_64;
-         end record;
-
-         type U64_Arr is array (Natural range <>) of Unsigned_64;
-         type MContext is record
-            Old_Mask        : Unsigned_64;
-            Regs            : U64_Arr (1 .. 16);
-            PC, PR, SR      : Unsigned_64;
-            GBR, Mach, Macl : Unsigned_64;
-            FPRegs          : U64_Arr (1 .. 16);
-            XFPregs         : U64_Arr (1 .. 16);
-            FPSCR, FPul, FP : Unsigned_32;
-         end record;
-
-         type UContext is record
-            Link    : Unsigned_64;
-            Stack   : Unsigned_64;
-            Context : MContext;
-            Sigmask : Unsigned_64;
-         end record;
-
-         Sz     : constant Natural := Natural (Stack_Size);
-         Stk_64 : Thread_Stack_64 (1 .. Sz / 8)
-            with Import, Address => To_Address (Virtual_Address (Stack_Top));
-         Info_Idx : constant Natural := Stk_64'Last - (Siginfo'Size / 64) - 1;
-         Cont_Idx : constant Natural := Info_Idx - (UContext'Size / 64) - 1;
-         Index_64 : Natural := Cont_Idx;
-         Info : Siginfo with Import, Address => Stk_64 (Info_Idx)'Address;
-         Cont : UContext with Import, Address => Stk_64 (Cont_Idx)'Address;
-         Info_Val : Siginfo;
-         Cont_Val : UContext;
-      begin
-         --  Load siginfo and context info.
-         Info_Val :=
-            (Signal_Number => Unsigned_32 (Signal_Number),
-             Signal_Code   => 0,
-             Signal_Errno  => 0,
-             Signal_PID    => Unsigned_32 (Userland.Process.Convert (Proc)),
-             Signal_UID    => 0,
-             Signal_Addr   => 0,
-             Signal_Status => 0,
-             Sival_Pointer => 0);
-         Cont_Val :=
-            (Link    => 0,
-             Stack   => 0,
-             Context =>
-               (Old_Mask => 0,
-                Regs     => [others => 0],
-                PC       => 0,
-                PR       => 0,
-                SR       => 0,
-                GBR      => 0,
-                Mach     => 0,
-                Macl     => 0,
-                FPRegs   => [others => 0],
-                XFPregs  => [others => 0],
-                FPSCR    => 0,
-                FPul     => 0,
-                FP       => 0),
-             Sigmask => 0);
-
-         if Use_Altsk then
-            --  The alternate stack is the process's own memory, taken as it
-            --  is: the frame goes on it as any copy to userland does, and a
-            --  stack that such a copy cannot write to takes no signal.
-            declare
-               package Info_Trans is new Memory.Userland_Transfer (Siginfo);
-               package Cont_Trans is new Memory.Userland_Transfer (UContext);
-               #if ArchName = """x86_64-limine""" then
-                  package Word_Trans is new Memory.Userland_Transfer
-                     (Unsigned_64);
-               #end if;
-            begin
-               Info_Trans.Paste_Into_Userland
-                  (Map, Info_Val, Stk_64 (Info_Idx)'Address, Success);
-               if Success then
-                  Cont_Trans.Paste_Into_Userland
-                     (Map, Cont_Val, Stk_64 (Cont_Idx)'Address, Success);
-               end if;
-
-               --  x86 requires the return address in the stack.
-               #if ArchName = """x86_64-limine""" then
-                  if Success then
-                     Word_Trans.Paste_Into_Userland
-                        (Map, Unsigned_64 (To_Integer (Restorer)),
-                         Stk_64 (Index_64)'Address, Success);
-                  end if;
-                  Index_64 := Index_64 - 1;
-               #end if;
-            end;
-            if not Success then
-               Thread_Pool (Th).User_Stack_Used := False;
-               return;
-            end if;
-         else
-            Info := Info_Val;
-            Cont := Cont_Val;
-
-            --  x86 requires the return address in the stack.
-            #if ArchName = """x86_64-limine""" then
-               Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
-               Index_64 := Index_64 - 1;
-            #end if;
-
-            Memory.MMU.Remap_Range
-               (Map           => Map,
-                Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
-                Length        => Storage_Offset (Stack_Size),
-                Permissions   => Stack_Permissions,
-                Success       => Success);
-            if not Success then
-               return;
-            end if;
-         end if;
-
-         Index_64 := Index_64 * 8;
-
-         --  Initialize context information.
-         --  TODO: Provide siginfo_t* and ucontext_t* on the 2nd and 3rd arg.
-         Arch.Context.Init_GP_Context
-            (GP_State,
-             To_Address (Integer_Address (Stack_Top + Unsigned_64 (Index_64))),
-             Handle,
-             Signal_Number,
-             Stack_Top + Unsigned_64 (Info_Idx),
-             Stack_Top + Unsigned_64 (Cont_Idx));
-         Arch.Context.Init_FP_Context (FP_State);
-
-         #if ArchName = """riscv64-limine""" then
-            GP_State.X1 := Unsigned_64 (To_Integer (Restorer));
+         --  The thread goes back to userland at the handler itself, on the
+         --  frame just written under it; the handler's own return goes to
+         --  the restorer, which asks for the ucontext to be put back.
+         #if ArchName = """x86_64-limine""" then
+            State.RIP    := Unsigned_64 (To_Integer (Handle));
+            State.RSP    := SP;
+            State.RDI    := Signal_Number;
+            State.RSI    := Info_Addr;
+            State.RDX    := Cont_Addr;
+            State.RAX    := 0;
+            State.RFLAGS := State.RFLAGS and not Entry_Clear_RFLAGS;
+         #elsif ArchName = """riscv64-limine""" then
+            State.SEPC := Unsigned_64 (To_Integer (Handle));
+            State.X2   := SP;
+            State.X10  := Signal_Number;
+            State.X11  := Info_Addr;
+            State.X12  := Cont_Addr;
+            State.X1   := Unsigned_64 (To_Integer (Restorer));
          #end if;
       end;
 
-      Create_User_Thread
-         (GP_State => GP_State,
-          FP_State => FP_State,
-          Map      => Map,
-          Pol      => Policy_Other,
-          PID      => Userland.Process.Convert (Proc),
-          TCB      => Arch.Local.Fetch_TCB,
-          New_TID  => New_TID);
-      if New_TID = Error_TID then
-         goto Give_Back_Stack;
-      end if;
-
-      --  A signal thread is listed in no process, so it is let go here. Its
-      --  slot is watched until it is done, so that it is not taken by a new
-      --  thread meanwhile, and its end wakes the watcher, see Bail. It goes
-      --  with the thread it interrupted, as nothing else would take it down,
-      --  see Delete_Locked, and at once if that one is doomed already.
-      Synchronization.Seize (Scheduler_Mutex);
-      Thread_Pool (New_TID).Watcher := Th;
-      if not Thread_Pool (Th).Is_Doomed then
-         Thread_Pool (New_TID).Is_Held := False;
-      else
-         Delete_Locked (New_TID);
-      end if;
-      Synchronization.Release (Scheduler_Mutex);
-      Kick (New_TID);
-
-      Begin_Wait;
-      Add_Wait_Key (Thread_Pool (New_TID)'Address, Registered);
-      loop
-         Clear_Wake;
-         Killed := Is_Doomed;
-         exit when (Killed and not Thread_Pool (New_TID).Is_Doomed) or
-                   not Thread_Pool (New_TID).Is_Present;
-         Wait_Event
-            (No_Deadline,
-             (if Registered then Woken_Sleep_Micros else Polled_Sleep_Micros));
-      end loop;
-      End_Wait;
-      Synchronization.Seize (Scheduler_Mutex);
-      if Thread_Pool (New_TID).Watcher = Th then
-         Thread_Pool (New_TID).Watcher := Error_TID;
-      end if;
-      Synchronization.Release (Scheduler_Mutex);
-
-   <<Give_Back_Stack>>
-      --  The stack goes once the handler is done with it. One taken down may
-      --  still be leaving on another core, and its process goes too.
       if Use_Altsk then
-         Thread_Pool (Th).User_Stack_Used := False;
-      elsif not Killed then
-         Memory.MMU.Unmap_Range
-            (Map           => Map,
-             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
-             Length        => Storage_Offset (Stack_Size),
-             Success       => Discard);
+         Thread_Pool (Th).User_Stack_Used := True;
       end if;
    exception
       when Constraint_Error =>
          Success := False;
-   end Launch_Signal_Thread;
+   end Enter_Signal_Handler;
 
-   procedure Exit_Signal_And_Reschedule is
+   procedure Build_Siginfo
+      (Number : Unsigned_64;
+       Code   : Unsigned_32;
+       PID    : Unsigned_32;
+       UID    : Unsigned_32;
+       Status : Unsigned_32;
+       Value  : Unsigned_64;
+       Into   : out Siginfo_Bytes)
+   is
+      Info : Siginfo with Import, Address => Into'Address;
    begin
-      Bail;
-   end Exit_Signal_And_Reschedule;
+      Into := [others => 0];
+      Info :=
+         (Number => Unsigned_32 (Number),
+          Errno  => 0,
+          Code   => Code,
+          Pad    => 0,
+          PID    => PID,
+          UID    => UID,
+          Status => Status,
+          Tail   => [others => 0]);
+
+      --  si_value shares si_status's slot, and only one of the two is ever
+      --  set, as when a handler is entered.
+      if Value /= 0 then
+         declare
+            Val_At : Unsigned_64
+               with Import, Address => Into'Address + Storage_Offset (24);
+         begin
+            Val_At := Value;
+         end;
+      end if;
+   exception
+      when Constraint_Error =>
+         Into := [others => 0];
+   end Build_Siginfo;
+
+   procedure Leave_Signal_Handler
+      (State    : in out Arch.Context.GP_Context;
+       New_Mask : out Unsigned_64;
+       Success  : out Boolean)
+   is
+      package Trans is new Memory.Userland_Transfer (UContext);
+      Th   : constant TID := Arch.Local.Get_Current_Thread;
+      Proc : constant Userland.Process.PID :=
+         Arch.Local.Get_Current_Process;
+      Own_FP : Arch.Context.FP_Context;
+      Map    : Memory.MMU.Page_Table_Acc;
+      Cont   : UContext;
+      SP     : Unsigned_64;
+    begin
+      New_Mask := 0;
+      Userland.Process.Get_Common_Map (Proc, Map);
+
+      --  Both restorers are the bare system call with no stack adjustment
+      --  of their own, so what the handler returned onto is the ucontext.
+      #if ArchName = """x86_64-limine""" then
+         SP := State.RSP;
+      #elsif ArchName = """riscv64-limine""" then
+         SP := State.X2;
+      #end if;
+
+      Trans.Take_From_Userland
+         (Map, Cont, To_Address (Integer_Address (SP)), Success);
+      if not Success then
+         return;
+      end if;
+
+      #if ArchName = """x86_64-limine""" then
+         --  The same requirement as entering one: a return address that is
+         --  not userland's is a fault of the process, never of the kernel.
+         if Cont (UC_Gregs + 16) >=
+            Unsigned_64 (Arch.MMU.Canonical_Hole_Offset)
+         then
+            Success := False;
+            return;
+         end if;
+
+         State.R8  := Cont (UC_Gregs);
+         State.R9  := Cont (UC_Gregs + 1);
+         State.R10 := Cont (UC_Gregs + 2);
+         State.R11 := Cont (UC_Gregs + 3);
+         State.R12 := Cont (UC_Gregs + 4);
+         State.R13 := Cont (UC_Gregs + 5);
+         State.R14 := Cont (UC_Gregs + 6);
+         State.R15 := Cont (UC_Gregs + 7);
+         State.RDI := Cont (UC_Gregs + 8);
+         State.RSI := Cont (UC_Gregs + 9);
+         State.RBP := Cont (UC_Gregs + 10);
+         State.RSP := Cont (UC_Gregs + 11);
+         State.RBX := Cont (UC_Gregs + 12);
+         State.RDX := Cont (UC_Gregs + 13);
+         State.RCX := Cont (UC_Gregs + 14);
+         State.RAX := Cont (UC_Gregs + 15);
+         State.RIP := Cont (UC_Gregs + 16);
+
+         --  The segments are never taken from userland, and neither are the
+         --  flags the processor does not let a program set: a handler that
+         --  rewrote its own ucontext must not be able to give itself
+         --  interrupts off or a higher I/O privilege level.
+         State.RFLAGS := (State.RFLAGS and not User_RFLAGS) or
+                         (Cont (UC_Gregs + 18) and User_RFLAGS);
+
+         --  The floating point state in the ucontext, laid over a save of
+         --  the current one, so that whatever the 512-byte image does not
+         --  describe stays consistent.
+         Arch.Context.Clone_FP_Context (Own_FP);
+         declare
+            FXSAVE : Thread_Stack (1 .. 512)
+               with Import, Address => Own_FP;
+            FP_Mem : Thread_Stack (1 .. 512)
+               with Import, Address => Cont (UC_FP_Mem)'Address;
+         begin
+            FXSAVE := FP_Mem;
+         end;
+         Arch.Context.Load_FP_Context (Own_FP);
+         Arch.Context.Destroy_FP_Context (Own_FP);
+      #elsif ArchName = """riscv64-limine""" then
+         if Cont (UC_Gregs) >=
+            Unsigned_64 (Arch.MMU.Canonical_Hole_Offset)
+         then
+            Success := False;
+            return;
+         end if;
+
+         State.SEPC := Cont (UC_Gregs);
+         State.X1   := Cont (UC_Gregs + 1);
+         State.X2   := Cont (UC_Gregs + 2);
+         State.X3   := Cont (UC_Gregs + 3);
+         State.X4   := Cont (UC_Gregs + 4);
+         State.X5   := Cont (UC_Gregs + 5);
+         State.X6   := Cont (UC_Gregs + 6);
+         State.X7   := Cont (UC_Gregs + 7);
+         State.X8   := Cont (UC_Gregs + 8);
+         State.X9   := Cont (UC_Gregs + 9);
+         State.X10  := Cont (UC_Gregs + 10);
+         State.X11  := Cont (UC_Gregs + 11);
+         State.X12  := Cont (UC_Gregs + 12);
+         State.X13  := Cont (UC_Gregs + 13);
+         State.X14  := Cont (UC_Gregs + 14);
+         State.X15  := Cont (UC_Gregs + 15);
+         State.X16  := Cont (UC_Gregs + 16);
+         State.X17  := Cont (UC_Gregs + 17);
+         State.X18  := Cont (UC_Gregs + 18);
+         State.X19  := Cont (UC_Gregs + 19);
+         State.X20  := Cont (UC_Gregs + 20);
+         State.X21  := Cont (UC_Gregs + 21);
+         State.X22  := Cont (UC_Gregs + 22);
+         State.X23  := Cont (UC_Gregs + 23);
+         State.X24  := Cont (UC_Gregs + 24);
+         State.X25  := Cont (UC_Gregs + 25);
+         State.X26  := Cont (UC_Gregs + 26);
+         State.X27  := Cont (UC_Gregs + 27);
+         State.X28  := Cont (UC_Gregs + 28);
+         State.X29  := Cont (UC_Gregs + 29);
+         State.X30  := Cont (UC_Gregs + 30);
+         State.X31  := Cont (UC_Gregs + 31);
+
+         --  SSTATUS is the kernel's and is never taken from userland.
+         Own_FP :=
+            (F0   => Cont (UC_FPRegs),      F1  => Cont (UC_FPRegs + 1),
+             F2   => Cont (UC_FPRegs + 2),  F3  => Cont (UC_FPRegs + 3),
+             F4   => Cont (UC_FPRegs + 4),  F5  => Cont (UC_FPRegs + 5),
+             F6   => Cont (UC_FPRegs + 6),  F7  => Cont (UC_FPRegs + 7),
+             F8   => Cont (UC_FPRegs + 8),  F9  => Cont (UC_FPRegs + 9),
+             F10  => Cont (UC_FPRegs + 10), F11 => Cont (UC_FPRegs + 11),
+             F12  => Cont (UC_FPRegs + 12), F13 => Cont (UC_FPRegs + 13),
+             F14  => Cont (UC_FPRegs + 14), F15 => Cont (UC_FPRegs + 15),
+             F16  => Cont (UC_FPRegs + 16), F17 => Cont (UC_FPRegs + 17),
+             F18  => Cont (UC_FPRegs + 18), F19 => Cont (UC_FPRegs + 19),
+             F20  => Cont (UC_FPRegs + 20), F21 => Cont (UC_FPRegs + 21),
+             F22  => Cont (UC_FPRegs + 22), F23 => Cont (UC_FPRegs + 23),
+             F24  => Cont (UC_FPRegs + 24), F25 => Cont (UC_FPRegs + 25),
+             F26  => Cont (UC_FPRegs + 26), F27 => Cont (UC_FPRegs + 27),
+             F28  => Cont (UC_FPRegs + 28), F29 => Cont (UC_FPRegs + 29),
+             F30  => Cont (UC_FPRegs + 30), F31 => Cont (UC_FPRegs + 31),
+             FCSR => Cont (UC_FPRegs + 32));
+         Arch.Context.Load_FP_Context (Own_FP);
+         Arch.Context.Destroy_FP_Context (Own_FP);
+      #end if;
+
+      --  The mask the handler interrupted goes back with it, and so does
+      --  whether that was on the alternate stack, which is what gives a
+      --  nested handler's stack back to the one it interrupted.
+      New_Mask := Cont (UC_Sigmask);
+      Thread_Pool (Th).User_Stack_Used :=
+         (Cont (UC_Stack + 2) and SS_ONSTACK) /= 0;
+      Success := True;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Leave_Signal_Handler;
    ----------------------------------------------------------------------------
    procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32) is
       pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
@@ -1727,11 +2030,16 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       --  The thread is checked and the core marked waiting under the lock a
       --  wake takes, so a wake either ends the suspension before the check
-      --  or finds the core waiting and interrupts it, see Kick.
+      --  or finds the core waiting and interrupts it, see Kick. It is asked
+      --  what the pickers ask (Evaluate_Suspended), so a signal it can take
+      --  ends the sleep too.
       Arch.Snippets.Disable_Interrupts;
       Synchronization.Seize (Scheduler_Mutex);
       Time.Get_Time (Thread_Pool (Thread).Start_Clock, Curr);
-      Stop := Thread_Pool (Thread).Start_Time > Curr;
+      Stop := Thread_Pool (Thread).Start_Time > Curr and then
+              not Userland.Process.Has_Deliverable_Signal
+                 (Thread_Pool (Thread).Process, Thread,
+                  Thread_Pool (Thread).Masked_Signals);
       if Stop then
          --  The core also wakes for the other threads, as an idle one does.
          Next_Wake
@@ -1770,26 +2078,36 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       Micros := Max_Micros;
       Time.Get_Time (Time.Monotonic_Clock, Mono);
-      for T of Thread_Pool.all loop
-         if T.Is_Present and not T.Is_Running and not T.Is_Held then
-            if T.Start_Clock = Time.Monotonic_Clock then
-               Curr := Mono;
-            else
-               Time.Get_Time (T.Start_Clock, Curr);
-            end if;
-            if T.Start_Time > Curr then
-               Left := T.Start_Time - Curr;
-               if Left.Seconds = 0 and
-                  Left.Nanoseconds < Unsigned_64 (Micros) * 1_000
-               then
-                  Micros := Natural (Left.Nanoseconds / 1_000) + 1;
+      for I in Thread_Pool'Range loop
+         declare
+            T : Thread_Info renames Thread_Pool (I);
+         begin
+            if T.Is_Present and not T.Is_Running and not T.Is_Held then
+               if T.Start_Clock = Time.Monotonic_Clock then
+                  Curr := Mono;
+               else
+                  Time.Get_Time (T.Start_Clock, Curr);
                end if;
-            else
-               --  One made runnable since the last search for a thread,
-               --  which a kick may have missed, is due at once.
-               Micros := 1;
+
+               --  One with a signal it can take is not asleep, as the
+               --  pickers see it (Evaluate_Suspended).
+               if T.Start_Time > Curr and then
+                  not Userland.Process.Has_Deliverable_Signal
+                     (T.Process, I, T.Masked_Signals)
+               then
+                  Left := T.Start_Time - Curr;
+                  if Left.Seconds = 0 and
+                     Left.Nanoseconds < Unsigned_64 (Micros) * 1_000
+                  then
+                     Micros := Natural (Left.Nanoseconds / 1_000) + 1;
+                  end if;
+               else
+                  --  One made runnable since the last search for a thread,
+                  --  which a kick may have missed, is due at once.
+                  Micros := 1;
+               end if;
             end if;
-         end if;
+         end;
       end loop;
    exception
       when Constraint_Error =>
@@ -1872,6 +2190,17 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       Time.Get_Time (Thread_Pool (T).Start_Clock, Curr);
       Suspended := Thread_Pool (T).Start_Time > Curr;
+
+      --  A sleeping thread is not scheduled at all, so one with a signal it
+      --  can take has to stop being suspended, or it would never run to give
+      --  its wait up and let the signal be delivered on the way out. The
+      --  signal is looked for without a lock, see Has_Deliverable_Signal.
+      if Suspended and then
+         Userland.Process.Has_Deliverable_Signal
+            (Thread_Pool (T).Process, T, Thread_Pool (T).Masked_Signals)
+      then
+         Suspended := False;
+      end if;
    exception
       when Constraint_Error =>
          Suspended := False;

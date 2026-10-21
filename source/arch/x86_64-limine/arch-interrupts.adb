@@ -31,6 +31,8 @@ with Userland.Process;
 with System.Atomic_Operations;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
+   use type Scheduler.TID;
+
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
       --  The one instruction of Snippets.Copy_Userland that touches userland,
@@ -46,7 +48,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
               External_Name => "arch_copy_userland_fixup";
 
       Signal : Userland.Process.Signal;
+      Code   : Unsigned_32;
       Addr   : Unsigned_64;
+      Taken  : Boolean;
 
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=
          [0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
@@ -64,10 +68,44 @@ package body Arch.Interrupts with SPARK_Mode => Off is
 
       --  Check whether we have to panic or just exit the thread.
       if State.CS = (GDT.User_Code64_Segment or 3) then
-         Signal := (case Num is
-            when       6 => Userland.Process.Signal_Illegal_Instruction,
-            when 16 | 19 => Userland.Process.Signal_FP_Exception,
-            when  others => Userland.Process.Signal_Segmentation_Fault);
+         Signal :=
+            (case Num is
+               when       0 => Userland.Process.Signal_FP_Exception,
+               when   1 | 3 => Userland.Process.Signal_Tracepoint,
+               when       6 => Userland.Process.Signal_Illegal_Instruction,
+               when      17 => Userland.Process.Signal_Bad_Memory,
+               when 16 | 19 => Userland.Process.Signal_FP_Exception,
+               when  others => Userland.Process.Signal_Segmentation_Fault);
+         Code :=
+            (case Num is
+               when       0 => FPE_INTDIV,
+               when       1 => TRAP_TRACE,
+               when       3 => TRAP_BRKPT,
+               when       6 => ILL_ILLOPN,
+               when      14 => (if (State.Error_Code and 1) /= 0
+                                then SEGV_ACCERR else SEGV_MAPERR),
+               when      17 => BUS_ADRALN,
+               when  others => SI_KERNEL);
+
+         --  A page fault reports the memory it could not reach.
+         if Num /= 14 then
+            Addr :=
+               (case Num is
+                  when 0 | 6 | 16 | 19 => State.RIP,
+                  when others          => 0);
+         end if;
+
+         --  Taking the fault to the program needs its tables read and its
+         --  stack written, neither of which may be done with interrupts off.
+         --  They are off again before the thunk's swapgs, since an interrupt
+         --  between that and its iretq would run with the program's GS base.
+         Arch.Snippets.Enable_Interrupts;
+         Deliver_Fault
+            (Context.GP_Context (State.all), Signal, Addr, Code, Taken);
+         if Taken then
+            Arch.Snippets.Disable_Interrupts;
+            return;
+         end if;
 
          Messages.Put_Line
             ("Userland " & Exception_Text (Num) &
@@ -94,6 +132,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Returned : Unsigned_64;
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
+      Restored : Boolean := False;
    begin
       Arch.Snippets.Enable_Interrupts;
 
@@ -349,7 +388,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Create_Thread
                (State.RDI, State.RSI, State.RDX, State.R12, Returned, Errno);
          when 101 =>
-            Signal_Return (Returned, Errno);
+            Signal_Return
+               (Context.GP_Context (State.all), Returned, Errno, Restored);
          when 102 =>
             Sigaltstack (State.RDI, State.RSI, Returned, Errno);
          when 103 =>
@@ -441,9 +481,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Errno    := Error_Not_Implemented;
       end case;
 
-      --  Assign the return values.
-      State.RAX := Returned;
-      State.RDX := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
+      --  Assign the return values, unless a signal return put back the
+      --  whole frame a handler had interrupted, whose own answer is in it.
+      if not Restored then
+         State.RAX := Returned;
+         State.RDX := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
+      end if;
 
       --  Post syscall hook.
       Post_Syscall_Hook (Context.GP_Context (State.all));
@@ -454,9 +497,13 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
       pragma Unreferenced (Num);
+      Thread : constant Scheduler.TID := Local.Get_Current_Thread;
    begin
       Arch.APIC.LAPIC_EOI;
       Scheduler.Scheduler_ISR (Context.GP_Context (State.all));
+      if Local.Get_Current_Thread = Thread then
+         Interrupt_Return_Hook (Context.GP_Context (State.all));
+      end if;
    end Scheduler_Handler;
 
    procedure Panic_Handler is

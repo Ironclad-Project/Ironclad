@@ -268,7 +268,7 @@ to get Ironclad running on those platforms.
 
 Ironclad hardware support is divided in targets, which are combos of
 an architecture and board that are supported in tandem, along with any
-accompanying hardware, some hardware is supported regardless of the underlying
+accompaning hardware, some hardware is supported regardless of the underlying
 target, @ref{Common devices}.
 
 @node riscv64-limine support
@@ -914,7 +914,7 @@ Limit of CPU time a process can consume in seconds, by default -1 (max value).
 @item RLIMIT_DATA
 Traditionally the limit of the data segment of a process. Given Ironclad does
 not support @code{brk}/@code{sbrk}, which are the syscalls that usually care
-about this, this is implemented as a synonym of @code{RLIMIT_AS} for POSIX
+about this, this is implemented as a synonim of @code{RLIMIT_AS} for POSIX
 completion.
 
 @item RLIMIT_FSIZE
@@ -4066,6 +4066,7 @@ struct sigaction @{
 
 #define SA_ONSTACK   0b0000010
 #define SA_RESETHAND 0b0000100
+#define SA_RESTART   0b0001000
 #define SA_NODEFER   0b1000000
 
 int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
@@ -4088,13 +4089,19 @@ signal, they are:
 @item SA_ONSTACK
 Run the handler on the alternate stack, @ref{sigaltstack}.
 
-@item SA_NODEFER
-Do not add the signal to the thread's signal mask while the handler is
-executing, unless the signal is specified in @code{sa_mask}.
 
 @item SA_RESETHAND
 Restore the signal action to the default upon entry to the signal handler.
 This flag is meaningful only when establishing a signal handler.
+
+@item SA_RESTART
+Have a system call this signal interrupted issued again from the start,
+rather than answering @code{EINTR}. The call is repeated with the arguments
+it was given, once the handler returns.
+
+@item SA_NODEFER
+Do not add the signal to the thread's signal mask while the handler is
+executing, unless the signal is specified in @code{sa_mask}.
 @end table
 
 It returns @code{0} on success or @code{-1} on failure, with the following

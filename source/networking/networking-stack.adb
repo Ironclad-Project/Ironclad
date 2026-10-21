@@ -551,7 +551,8 @@ package body Networking.Stack with SPARK_Mode => Off is
        Data        : out Devices.Operation_Data;
        Received    : out Natural;
        Is_Blocking : Boolean;
-       Success     : out Boolean)
+       Success     : out Boolean;
+       Interrupted : out Boolean)
    is
       use Time;
 
@@ -565,6 +566,7 @@ package body Networking.Stack with SPARK_Mode => Off is
       Data := [others => 0];
       Received := 0;
       Success := False;
+      Interrupted := False;
 
       if Handle = Invalid_TCP_Handle or else
          not TCP_Connections (Handle).In_Use
@@ -634,7 +636,12 @@ package body Networking.Stack with SPARK_Mode => Off is
             end if;
          end if;
 
-         --  Yield to allow interrupt handler to process incoming packets.
+         --  Yield to allow interrupt handler to process incoming packets,
+         --  unless the wait has to be given up.
+         if Scheduler.Is_Interrupted then
+            Interrupted := True;
+            return;
+         end if;
          Scheduler.Yield_If_Able;
       end loop;
 
@@ -918,7 +925,8 @@ package body Networking.Stack with SPARK_Mode => Off is
        Src_IP      : out IPv4_Address;
        Src_Port    : out Unsigned_16;
        Is_Blocking : Boolean;
-       Success     : out Boolean)
+       Success     : out Boolean;
+       Interrupted : out Boolean)
    is
       Dev       : Devices.Device_Handle;
       Recv_Buf  : Devices.Operation_Data (1 .. 1518);
@@ -930,6 +938,7 @@ package body Networking.Stack with SPARK_Mode => Off is
       Src_IP := [others => 0];
       Src_Port := 0;
       Success := False;
+      Interrupted := False;
 
       if Handle = Invalid_UDP_Handle or else not UDP_Sockets (Handle).In_Use
       then
@@ -965,7 +974,13 @@ package body Networking.Stack with SPARK_Mode => Off is
             Process_Received_Frame (Dev, Recv_Buf (1 .. Recv_Cnt));
          end if;
 
-         exit when not Is_Blocking or Scheduler.Is_Doomed;
+         exit when not Is_Blocking;
+         if Recv_Stat = Devices.Dev_Interrupted or else
+            Scheduler.Is_Interrupted
+         then
+            Interrupted := True;
+            return;
+         end if;
          Scheduler.Yield_If_Able;
       end loop;
    exception

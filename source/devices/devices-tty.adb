@@ -65,7 +65,13 @@ package body Devices.TTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
+      if Succ = PTY_Success then
+         Success := Dev_Success;
+      elsif Succ = PTY_Interrupted then
+         Success := Dev_Interrupted;
+      else
+         Success := Dev_IO_Failure;
+      end if;
    end Read;
 
    procedure Write
@@ -94,7 +100,13 @@ package body Devices.TTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
+      if Succ = PTY_Success then
+         Success := Dev_Success;
+      elsif Succ = PTY_Interrupted then
+         Success := Dev_Interrupted;
+      else
+         Success := Dev_IO_Failure;
+      end if;
    end Write;
 
    procedure IO_Control

@@ -170,6 +170,12 @@ package body IPC.FIFO is
                return;
             end if;
             Synchronization.Release (To_Read.Mutex);
+            if Scheduler.Is_Interrupted then
+               Scheduler.End_Wait;
+               Ret_Count := 0;
+               Success   := Interrupted_Failure;
+               return;
+            end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros

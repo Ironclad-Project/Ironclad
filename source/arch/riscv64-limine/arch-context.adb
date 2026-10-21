@@ -73,6 +73,22 @@ package body Arch.Context with SPARK_Mode => Off is
       Ctx.X10 := 0;
    end Success_Fork_Result;
 
+   procedure Repeat_Syscall (Ctx : in out GP_Context; Entry_Ctx : GP_Context)
+   is
+   begin
+      if Ctx.SEPC = Entry_Ctx.SEPC then
+         Ctx.SEPC := Ctx.SEPC - 4;
+         Ctx.X17  := Entry_Ctx.X17;
+         Ctx.X10  := Entry_Ctx.X10;
+         Ctx.X11  := Entry_Ctx.X11;
+      end if;
+   end Repeat_Syscall;
+
+   function Syscall_Errno (Ctx : GP_Context) return Unsigned_64 is
+   begin
+      return Ctx.X11;
+   end Syscall_Errno;
+
    function Is_User_Context (Ctx : GP_Context) return Boolean is
    begin
       --  SPP, the privilege the trap was taken from, is clear for userland.

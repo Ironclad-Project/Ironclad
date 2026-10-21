@@ -54,6 +54,13 @@ syscall_entry:
     add $8, %rsp
 
     # Pop back state.
+    mov 16(%rsp), %rcx
+    cmp 128(%rsp), %rcx
+    jne 1f
+    mov 80(%rsp), %r11
+    cmp 144(%rsp), %r11
+    jne 1f
+
     pop %rax
     pop %rbx
     pop %rcx
@@ -69,8 +76,32 @@ syscall_entry:
     pop %r13
     pop %r14
     pop %r15
+    add $8, %rsp
+    pop %rcx
+    add $8, %rsp
+    pop %r11
     pop %rsp
 
     # Swap context back and return.
     swapgs
     sysretq
+
+1:
+    pop %rax
+    pop %rbx
+    pop %rcx
+    pop %rdx
+    pop %rsi
+    pop %rdi
+    pop %rbp
+    pop %r8
+    pop %r9
+    pop %r10
+    pop %r11
+    pop %r12
+    pop %r13
+    pop %r14
+    pop %r15
+    add $8, %rsp        # The error code, which a system call has none of.
+    swapgs
+    iretq

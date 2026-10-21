@@ -253,6 +253,12 @@ package body Devices.PS2 with SPARK_Mode => Off is
             Temp := Kb_Has_Data;
             exit when Temp or Scheduler.Is_Doomed;
             Synchronization.Release (Kb_Data_Mutex);
+            if Scheduler.Is_Interrupted then
+               Scheduler.End_Wait;
+               Ret_Count := 0;
+               Success   := Dev_Interrupted;
+               return;
+            end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -333,6 +339,12 @@ package body Devices.PS2 with SPARK_Mode => Off is
             Temp := Ms_Queue_Count /= 0;
             exit when Temp or Scheduler.Is_Doomed;
             Synchronization.Release (Ms_Data_Mutex);
+            if Scheduler.Is_Interrupted then
+               Scheduler.End_Wait;
+               Ret_Count := 0;
+               Success   := Dev_Interrupted;
+               return;
+            end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros

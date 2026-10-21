@@ -45,7 +45,8 @@ package IPC.Socket is
        Is_Bad_Type,   --  A listener is needed but the socket is not one, etc.
        Is_Broken,     --  The other end of the connection is gone for good.
        Would_Block,   --  The socket would block, and we don't want that.
-       Is_Too_Big);   --  The message is bigger than the socket can take.
+       Is_Too_Big,    --  The message is bigger than the socket can take.
+       Is_Interrupted); --  A blocking wait was given up, see Scheduler.
 
    --  Default size in bytes of a socket buffer.
    Default_Socket_Size : constant Natural;

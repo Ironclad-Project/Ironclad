@@ -40,7 +40,7 @@ package IPC.PTY is
    type Inner_Acc is access all Inner;
 
    --  Results from operations on PTYs.
-   type Status is (PTY_Success, PTY_Would_Block);
+   type Status is (PTY_Success, PTY_Would_Block, PTY_Interrupted);
 
    --  Create a fresh PTY with 1 refcount.
    procedure Create (Result : out Inner_Acc);
@@ -203,7 +203,8 @@ private
        Is_Able_To  : Boolean;
        Key         : System.Address;
        Data        : out Devices.Operation_Data;
-       Ret_Count   : out Natural);
+       Ret_Count   : out Natural;
+       Interrupted : out Boolean);
 
    procedure Write_To_End
       (End_Mutex     : aliased in out Synchronization.Binary_Semaphore;
@@ -215,7 +216,8 @@ private
        Data          : Devices.Operation_Data;
        Termios       : Devices.TermIOs.Main_Data;
        Is_To_Primary : Boolean;
-       Ret_Count     : out Natural);
+       Ret_Count     : out Natural;
+       Interrupted   : out Boolean);
    ----------------------------------------------------------------------------
    procedure Dev_Read
       (Key         : System.Address;

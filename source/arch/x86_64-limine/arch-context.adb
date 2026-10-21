@@ -64,6 +64,21 @@ package body Arch.Context with SPARK_Mode => Off is
       Ctx.RAX := 0;
    end Success_Fork_Result;
 
+   procedure Repeat_Syscall (Ctx : in out GP_Context; Entry_Ctx : GP_Context)
+   is
+   begin
+      if Ctx.RIP = Entry_Ctx.RIP then
+         Ctx.RIP := Ctx.RIP - 2;
+         Ctx.RAX := Entry_Ctx.RAX;
+         Ctx.RDX := Entry_Ctx.RDX;
+      end if;
+   end Repeat_Syscall;
+
+   function Syscall_Errno (Ctx : GP_Context) return Unsigned_64 is
+   begin
+      return Ctx.RDX;
+   end Syscall_Errno;
+
    function Is_User_Context (Ctx : GP_Context) return Boolean is
    begin
       return (Ctx.CS and 3) = 3;

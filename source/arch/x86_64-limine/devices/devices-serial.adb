@@ -141,8 +141,8 @@ package body Devices.Serial with SPARK_Mode => Off is
             end if;
             Synchronization.Release (COM.Mutex);
             exit when Ready or Ret_Count /= 0 or not Is_Blocking;
-            if Scheduler.Is_Doomed then
-               Success := Dev_IO_Failure;
+            if Scheduler.Is_Interrupted then
+               Success := Dev_Interrupted;
                return;
             end if;
 

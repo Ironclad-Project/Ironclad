@@ -140,12 +140,15 @@ package body IPC.PTY is
        Ret_Count   : out Natural;
        Success     : out Status)
    is
+      Cut : Boolean;
    begin
       Read_From_End
          (To_Read.Primary_Mutex, To_Read.Primary_Length,
           To_Read.Primary_Data, Is_Blocking,
-          To_Read.Primary_Read, Wait_Key (To_Read), Data, Ret_Count);
-      if not Is_Blocking and Ret_Count = 0 then
+          To_Read.Primary_Read, Wait_Key (To_Read), Data, Ret_Count, Cut);
+      if Cut then
+         Success := PTY_Interrupted;
+      elsif not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
@@ -162,13 +165,16 @@ package body IPC.PTY is
        Ret_Count   : out Natural;
        Success     : out Status)
    is
+      Cut : Boolean;
    begin
       Write_To_End
          (To_Write.Secondary_Mutex, To_Write.Secondary_Length,
           To_Write.Secondary_Data, Is_Blocking,
           To_Write.Primary_Transmit, Wait_Key (To_Write), Data,
-          To_Write.Term_Info, False, Ret_Count);
-      if not Is_Blocking and Ret_Count = 0 then
+          To_Write.Term_Info, False, Ret_Count, Cut);
+      if Cut then
+         Success := PTY_Interrupted;
+      elsif not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
@@ -185,12 +191,15 @@ package body IPC.PTY is
        Ret_Count   : out Natural;
        Success     : out Status)
    is
+      Cut : Boolean;
    begin
       Read_From_End
          (To_Read.Secondary_Mutex, To_Read.Secondary_Length,
           To_Read.Secondary_Data, Is_Blocking,
-          To_Read.Secondary_Read, Wait_Key (To_Read), Data, Ret_Count);
-      if not Is_Blocking and Ret_Count = 0 then
+          To_Read.Secondary_Read, Wait_Key (To_Read), Data, Ret_Count, Cut);
+      if Cut then
+         Success := PTY_Interrupted;
+      elsif not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
@@ -207,13 +216,16 @@ package body IPC.PTY is
        Ret_Count   : out Natural;
        Success     : out Status)
    is
+      Cut : Boolean;
    begin
       Write_To_End
          (To_Write.Primary_Mutex, To_Write.Primary_Length,
           To_Write.Primary_Data, Is_Blocking,
           To_Write.Secondary_Transmit, Wait_Key (To_Write), Data,
-          To_Write.Term_Info, True, Ret_Count);
-      if not Is_Blocking and Ret_Count = 0 then
+          To_Write.Term_Info, True, Ret_Count, Cut);
+      if Cut then
+         Success := PTY_Interrupted;
+      elsif not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
       else
          Success := PTY_Success;
@@ -529,11 +541,13 @@ package body IPC.PTY is
        Is_Able_To  : Boolean;
        Key         : System.Address;
        Data        : out Devices.Operation_Data;
-       Ret_Count   : out Natural)
+       Ret_Count   : out Natural;
+       Interrupted : out Boolean)
    is
       Registered : Boolean;
    begin
       Data := [others => 0];
+      Interrupted := False;
       if not Is_Able_To then
          Ret_Count := 0;
          return;
@@ -548,6 +562,12 @@ package body IPC.PTY is
                Synchronization.Seize (End_Mutex);
                exit when Inner_Len /= 0 or Scheduler.Is_Doomed;
                Synchronization.Release (End_Mutex);
+            end if;
+            if Scheduler.Is_Interrupted then
+               Scheduler.End_Wait;
+               Ret_Count   := 0;
+               Interrupted := True;
+               return;
             end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
@@ -599,11 +619,13 @@ package body IPC.PTY is
        Data          : Devices.Operation_Data;
        Termios       : Devices.TermIOs.Main_Data;
        Is_To_Primary : Boolean;
-       Ret_Count     : out Natural)
+       Ret_Count     : out Natural;
+       Interrupted   : out Boolean)
    is
       Final      : Natural;
       Registered : Boolean;
    begin
+      Interrupted := False;
       if Is_To_Primary                         and then
          (Termios.Output_Modes and OPOST) /= 0 and then
          (Termios.Output_Modes and ONLCR) /= 0
@@ -623,6 +645,7 @@ package body IPC.PTY is
             Exp_Len    : Natural;
             Written    : Natural;
             Taken      : Natural;
+            Cut        : Boolean;
             First      : Natural := Data'First;
             Last       : Natural;
          begin
@@ -653,7 +676,8 @@ package body IPC.PTY is
                    Data          => Expanded (1 .. Exp_Len),
                    Termios       => Plain,
                    Is_To_Primary => Is_To_Primary,
-                   Ret_Count     => Written);
+                   Ret_Count     => Written,
+                   Interrupted   => Cut);
 
                --  The readers are told of every piece, as the next one may
                --  wait for them to make room.
@@ -668,6 +692,11 @@ package body IPC.PTY is
                   Ret_Count := Ret_Count + 1;
                end loop;
 
+               --  Given up after earlier pieces, the write is only shorter.
+               if Cut then
+                  Interrupted := Ret_Count = 0;
+                  exit;
+               end if;
                exit when Written /= Exp_Len or Last = Data'Last;
                First := Last + 1;
             end loop;
@@ -689,6 +718,12 @@ package body IPC.PTY is
                Synchronization.Seize (End_Mutex);
                exit when Inner_Len /= Inner_Data'Length or Scheduler.Is_Doomed;
                Synchronization.Release (End_Mutex);
+            end if;
+            if Scheduler.Is_Interrupted then
+               Scheduler.End_Wait;
+               Ret_Count   := 0;
+               Interrupted := True;
+               return;
             end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
@@ -743,7 +778,11 @@ package body IPC.PTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
+      Success :=
+         (case Succ is
+             when PTY_Success     => Dev_Success,
+             when PTY_Interrupted => Dev_Interrupted,
+             when PTY_Would_Block => Dev_IO_Failure);
    end Dev_Read;
 
    procedure Dev_Write
@@ -764,7 +803,11 @@ package body IPC.PTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
+      Success :=
+         (case Succ is
+             when PTY_Success     => Dev_Success,
+             when PTY_Interrupted => Dev_Interrupted,
+             when PTY_Would_Block => Dev_IO_Failure);
    end Dev_Write;
 
    procedure Dev_IO_Control

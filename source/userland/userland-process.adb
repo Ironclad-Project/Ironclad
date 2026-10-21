@@ -50,6 +50,19 @@ package body Userland.Process with SPARK_Mode => Off is
    --  The 38 signals of Signal_Bitmap as one word.
    type Unsigned_38 is mod 2 ** 38;
 
+   --  A signal's place in the word userland passes, where bit N - 1 stands
+   --  for signal N. The representation is the position plus one, so the
+   --  position is the bit.
+   function Bit_Of (Sig : Signal) return Unsigned_64;
+
+   function Bit_Of (Sig : Signal) return Unsigned_64 is
+   begin
+      return Shift_Left (Unsigned_64 (1), Signal'Pos (Sig));
+   exception
+      when Constraint_Error =>
+         return 0;
+   end Bit_Of;
+
    Do_ASLR : Boolean := True;
 
    procedure Init is
@@ -136,6 +149,7 @@ package body Userland.Process with SPARK_Mode => Off is
                (Data_Mutex      => Synchronization.Unlocked_Mutex,
                 Controlling_TTY => null,
                 Raised_Signals  => [others => False],
+                Pending_Bits    => 0,
                 Signal_Handlers => Default_Signal_Handlers,
                 Prio            => Scheduler.Default_Priority,
                 Niceness        => Scheduler.Default_Niceness,
@@ -545,6 +559,7 @@ package body Userland.Process with SPARK_Mode => Off is
       --  POSIX specifies that signal handlers that are either default or
       --  ignored are copied. Raised signals are also to be cleared
       Registry (Process).Raised_Signals := [others => False];
+      Registry (Process).Pending_Bits    := 0;
       for Handler of Registry (Process).Signal_Handlers loop
          Handler :=
             (Is_Ignored    => Handler.Is_Ignored,
@@ -1723,6 +1738,29 @@ package body Userland.Process with SPARK_Mode => Off is
          Sig := [others => False];
    end Get_Thread_Mask;
 
+   function Has_Deliverable_Signal
+      (Proc   : PID;
+       Thread : Scheduler.TID;
+       Masked : Unsigned_64) return Boolean
+   is
+      pragma Unreferenced (Thread);
+      Pending : Unsigned_64 := 0;
+   begin
+      --  Read with no lock at all: the caller may be the scheduler, from
+      --  inside its own critical section, and a wait on this process's
+      --  mutex would suspend the very thread whose sleep is being judged.
+      if Registry = null or else Proc = Error_PID or else
+         Registry (Proc) = null
+      then
+         return False;
+      end if;
+      Pending := Registry (Proc).Pending_Bits;
+      return (Pending and not Masked) /= 0;
+   exception
+      when Constraint_Error =>
+         return False;
+   end Has_Deliverable_Signal;
+
    procedure Set_Thread_Mask
       (Thread : Scheduler.TID;
        Sig    : Signal_Bitmap)
@@ -1739,6 +1777,7 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Raise_Signal (Proc : PID; Sig : Signal) is
       use System;
       Has_Handler : Boolean;
+      Pended      : Boolean := False;
    begin
       if Sig = Signal_Kill then
          Exit_Process (Proc, Signal_Kill);
@@ -1756,9 +1795,19 @@ package body Userland.Process with SPARK_Mode => Off is
             (Sig /= Signal_Urgent or else Has_Handler)
          then
             Registry (Proc).Raised_Signals (Sig) := True;
+            Registry (Proc).Pending_Bits :=
+               Registry (Proc).Pending_Bits or Bit_Of (Sig);
+            Pended := True;
          end if;
          Synchronization.Release (Registry (Proc).Data_Mutex);
          Scheduler.Wake_Event (Get_Wait_Key (Proc));
+
+         --  A thread asleep, in a wait or not, has to get to the edge of its
+         --  call for the signal to be taken, and it sleeps on a core that
+         --  may be halted, or on none.
+         if Pended then
+            Scheduler.Wake_For_Signal (Convert (Proc), Scheduler.Error_TID);
+         end if;
       end if;
    exception
       when Constraint_Error =>
@@ -1905,6 +1954,8 @@ package body Userland.Process with SPARK_Mode => Off is
          --  going to harcode the signal clearing.
          if Sig = Signal_Child or Sig = Signal_Urgent then
             Registry (Proc).Raised_Signals (Sig) := False;
+            Registry (Proc).Pending_Bits :=
+               Registry (Proc).Pending_Bits and not Bit_Of (Sig);
          end if;
       elsif Is_Ignored then
          Registry (Proc).Signal_Handlers (Sig) :=
@@ -1914,6 +1965,8 @@ package body Userland.Process with SPARK_Mode => Off is
              Mask          => Mask,
              Flags         => Flags);
          Registry (Proc).Raised_Signals (Sig) := False;
+         Registry (Proc).Pending_Bits :=
+            Registry (Proc).Pending_Bits and not Bit_Of (Sig);
       else
          Registry (Proc).Signal_Handlers (Sig) :=
             (Is_Ignored    => False,
@@ -1960,6 +2013,8 @@ package body Userland.Process with SPARK_Mode => Off is
             No_Sig   := False;
 
             Registry (Proc).Raised_Signals (I) := False;
+            Registry (Proc).Pending_Bits :=
+               Registry (Proc).Pending_Bits and not Bit_Of (I);
             exit;
          end if;
       end loop;

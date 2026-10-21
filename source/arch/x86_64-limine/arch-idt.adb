@@ -105,6 +105,9 @@ package body Arch.IDT with SPARK_Mode => Off is
              (if (I = 9) or (I = 19) then 1 else 0));
       end loop;
 
+      --  A program can raise #BP on purpose.
+      Global_IDT (4).DPL := 3;
+
       --  Some special entries for several hardcoded hardware and syscalls.
       Load_ISR (Interrupts.Scheduler_Interrupt,
                 Interrupts.Scheduler_Handler'Address);

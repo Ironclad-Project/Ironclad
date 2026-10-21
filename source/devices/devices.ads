@@ -42,7 +42,8 @@ package Devices is
        Dev_Invalid_Value, --  One of the passed values is no good.
        Dev_Not_Supported, --  The operation is not supported by the device.
        Dev_IO_Failure,    --  The underlying hardware errored out.
-       Dev_Full);         --  A write was completely out of capacity bounds.
+       Dev_Full,          --  A write was completely out of capacity bounds.
+       Dev_Interrupted);  --  A blocking wait was given up, see Scheduler.
 
    --  How an IO_Control request uses its argument, so that the memory it
    --  names can be checked before the request runs.

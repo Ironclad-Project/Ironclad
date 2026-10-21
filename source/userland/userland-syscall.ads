@@ -1145,7 +1145,16 @@ package Userland.Syscall is
    SIG_DFL : constant := Integer_Address'Last - 2;
    SA_ONSTACK   : constant := 2#0000010#;
    SA_RESETHAND : constant := 2#0000100#;
+   SA_RESTART   : constant := 2#0001000#;
    SA_NODEFER   : constant := 2#1000000#;
+   SI_KERNEL    : constant := 16#80#;
+   SEGV_MAPERR  : constant := 1;
+   SEGV_ACCERR  : constant := 2;
+   BUS_ADRALN   : constant := 1;
+   ILL_ILLOPN   : constant := 2;
+   FPE_INTDIV   : constant := 1;
+   TRAP_BRKPT   : constant := 1;
+   TRAP_TRACE   : constant := 2;
    type Sigaction_Info is record
       Handler  : System.Address; --  void handler(int, siginfo_t *, void *);
       Restorer : System.Address; --  void restorer(void);
@@ -1354,11 +1363,14 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    procedure Signal_Return
-      (Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+      (State    : in out Arch.Context.GP_Context;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value;
+       Restored : out Boolean);
 
    SS_ONSTACK : constant := 1;
    SS_DISABLE : constant := 2;
+   MINSIGSTKSZ : constant := 8192;
    type Stack is record
       Addr  : System.Address;
       Size  : Unsigned_64;
@@ -1588,7 +1600,24 @@ package Userland.Syscall is
    ----------------------------------------------------------------------------
    --  Pre and post syscall hook.
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context);
-   procedure Post_Syscall_Hook (State : Arch.Context.GP_Context);
+   procedure Post_Syscall_Hook (State : in out Arch.Context.GP_Context);
+
+   --  Take a signal to a thread going back to its own code from an interrupt
+   --  that came in while it ran that code, as the way out of a call does, so
+   --  that a thread making no call takes its signals too: the time between a
+   --  signal's generation and its delivery ordinarily cannot be seen by a
+   --  program.
+   procedure Interrupt_Return_Hook (State : in out Arch.Context.GP_Context);
+
+   --  Give a signal a hardware fault raised to the very thread that faulted,
+   --  on the frame it faulted with, so that a program may catch it and see
+   --  where it happened.
+   procedure Deliver_Fault
+      (State : in out Arch.Context.GP_Context;
+       Sig   : Userland.Process.Signal;
+       Addr  : Unsigned_64;
+       Code  : Unsigned_32;
+       Taken : out Boolean);
 
    --  Check whether an address may be mapped by the user.
    procedure Check_Userland_Mappability
@@ -1666,7 +1695,16 @@ private
        Sig     : out Signal;
        Success : out Boolean);
 
-   procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean);
+   --  Take a signal the calling thread can take, if any: enter its handler
+   --  on State, or take its default action. In_Call says whether State is
+   --  the frame of a call, which a signal may ask to be issued again and
+   --  whose own mask is the one to put back, or that of an interrupt.
+   procedure Clear_Process_Signals
+      (Proc        : PID;
+       State       : in out Arch.Context.GP_Context;
+       In_Call     : Boolean;
+       Has_Handled : out Boolean);
+
 
    function Is_Valid_Clock (ID : Unsigned_64) return Boolean;
 

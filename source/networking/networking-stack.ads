@@ -149,12 +149,14 @@ package Networking.Stack is
    --  @param Received    Number of bytes received.
    --  @param Is_Blocking If True, wait for data.
    --  @param Success     True if receive succeeded.
+   --  @param Interrupted True if the wait was given up, see Scheduler.
    procedure TCP_Recv
       (Handle      : TCP_Conn_Handle;
        Data        : out Devices.Operation_Data;
        Received    : out Natural;
        Is_Blocking : Boolean;
-       Success     : out Boolean);
+       Success     : out Boolean;
+       Interrupted : out Boolean);
 
    --  Close a TCP connection.
    --  Performs graceful shutdown with FIN handshake.
@@ -223,6 +225,7 @@ package Networking.Stack is
    --  @param Src_Port    Source port of datagram.
    --  @param Is_Blocking If True, wait for data.
    --  @param Success     True if receive succeeded.
+   --  @param Interrupted True if the wait was given up, see Scheduler.
    procedure UDP_Recvfrom
       (Handle      : UDP_Socket_Handle;
        Data        : out Devices.Operation_Data;
@@ -230,7 +233,8 @@ package Networking.Stack is
        Src_IP      : out IPv4_Address;
        Src_Port    : out Unsigned_16;
        Is_Blocking : Boolean;
-       Success     : out Boolean);
+       Success     : out Boolean;
+       Interrupted : out Boolean);
 
    --  Close a UDP socket.
    --  @param Handle Socket handle to close.

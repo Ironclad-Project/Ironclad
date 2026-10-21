@@ -1336,7 +1336,10 @@ package body Userland.Syscall is
                goto Child_Error;
             end if;
 
-            exit when Dont_Hang or Scheduler.Is_Doomed;
+            exit when Dont_Hang;
+            if Scheduler.Is_Interrupted then
+               goto Interrupted_Error;
+            end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1358,7 +1361,10 @@ package body Userland.Syscall is
                goto Child_Error;
             end if;
 
-            exit when Dont_Hang or Scheduler.Is_Doomed;
+            exit when Dont_Hang;
+            if Scheduler.Is_Interrupted then
+               goto Interrupted_Error;
+            end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1381,7 +1387,10 @@ package body Userland.Syscall is
             if Did_Exit then
                goto Waited_Exited;
             end if;
-            exit when Dont_Hang or Scheduler.Is_Doomed;
+            exit when Dont_Hang;
+            if Scheduler.Is_Interrupted then
+               goto Interrupted_Error;
+            end if;
             Scheduler.Wait_Event
                (Scheduler.No_Deadline,
                 (if Registered then Scheduler.Woken_Sleep_Micros
@@ -1428,6 +1437,12 @@ package body Userland.Syscall is
    <<Child_Error>>
       Scheduler.End_Wait;
       Errno    := Error_Child;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Interrupted_Error>>
+      Scheduler.End_Wait;
+      Errno    := Error_Interrupted;
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
@@ -4938,11 +4953,10 @@ package body Userland.Syscall is
       Curr       : Time.Timestamp;
       Final      : Time.Timestamp;
       Th         : constant TID := Arch.Local.Get_Current_Thread;
-      Old_Set    : Signal_Bitmap;
+      Old_Bits   : Unsigned_64;
       Map        : Page_Table_Acc;
       Success    : Boolean;
-      Handled    : Boolean := False;
-      Mask_Set   : Boolean := False;
+      Cut        : Boolean := False;
       Tim        : Time_Spec;
       Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
       Wake_Key   : System.Address;
@@ -4966,9 +4980,9 @@ package body Userland.Syscall is
             if not Success then
                goto Would_Fault_Error;
             end if;
-            Get_Thread_Mask (Th, Old_Set);
+            Scheduler.Get_Masked_Signals (Th, Old_Bits);
+            Scheduler.Set_Saved_Mask (Th, Old_Bits);
             Set_Thread_Mask (Th, C1 (Passed_Set));
-            Mask_Set := True;
          end;
       end if;
 
@@ -4990,9 +5004,8 @@ package body Userland.Syscall is
          loop
             Scheduler.Clear_Wake;
             Time.Get_Time (Time.Monotonic_Clock, Curr);
-            Clear_Process_Signals (Proc, Handled);
-            exit when Handled or else Curr >= Final or else
-               Scheduler.Is_Doomed;
+            Cut := Scheduler.Is_Interrupted;
+            exit when Cut or else Curr >= Final;
             Scheduler.Wait_Event
                (Final,
                 (if Is_Wired then Scheduler.Woken_Sleep_Micros
@@ -5123,9 +5136,8 @@ package body Userland.Syscall is
             end loop;
 
             Time.Get_Time (Time.Monotonic_Clock, Curr);
-            Clear_Process_Signals (Proc, Handled);
-            exit when Handled or else Count /= 0 or else Curr >= Final or else
-               Scheduler.Is_Doomed;
+            Cut := Count = 0 and then Scheduler.Is_Interrupted;
+            exit when Cut or else Count /= 0 or else Curr >= Final;
             Scheduler.Wait_Event
                (Final,
                 (if Is_Wired then Scheduler.Woken_Sleep_Micros
@@ -5140,11 +5152,7 @@ package body Userland.Syscall is
       end;
 
    <<Success_Return>>
-      if S_IAddr /= 0 then
-         Set_Thread_Mask (Th, Old_Set);
-      end if;
-
-      if Handled then
+      if Cut then
          Errno    := Error_Interrupted;
          Returned := Unsigned_64'Last;
       else
@@ -5154,16 +5162,10 @@ package body Userland.Syscall is
       return;
 
    <<Would_Fault_Error>>
-      if Mask_Set then
-         Set_Thread_Mask (Th, Old_Set);
-      end if;
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    exception
       when others =>
-         if Mask_Set then
-            Set_Thread_Mask (Th, Old_Set);
-         end if;
          Messages.Put_Line ("Exception while executing PPoll");
          Put_File (File);
          Errno    := Error_Would_Block;
@@ -6035,6 +6037,9 @@ package body Userland.Syscall is
       Success  : Boolean;
       Clock : Time.Clock_Type;
       Final : Time.Timestamp;
+      Curr  : Time.Timestamp;
+      Left  : Time.Timestamp;
+      Is_Relative : constant Boolean := (Flags and TIMER_ABSTIME) = 0;
    begin
       if not Get_Capabilities (Proc).Can_Use_Clocks then
          Errno := Error_Bad_Access;
@@ -6066,7 +6071,7 @@ package body Userland.Syscall is
          goto Would_Fault_Error;
       end if;
 
-      if (Flags and TIMER_ABSTIME) /= 0 then
+      if not Is_Relative then
          Final := (Req.Seconds, Req.Nanoseconds);
       else
          Time.Get_Time (Clock, Final);
@@ -6075,7 +6080,25 @@ package body Userland.Syscall is
 
       Scheduler.Suspend_Until (Clock, Final);
 
-      if RemIAddr /= 0 then
+      --  Given up before its time, the sleep is interrupted, and a relative
+      --  one tells what is left of it. An absolute one leaves rmtp alone.
+      Time.Get_Time (Clock, Curr);
+      if Final > Curr and then Scheduler.Is_Interrupted then
+         if RemIAddr /= 0 and Is_Relative then
+            Left := Final - Curr;
+            Re   := (Left.Seconds, Left.Nanoseconds);
+            Trans.Paste_Into_Userland
+               (Map, Re, To_Address (RemIAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
+         end if;
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Interrupted;
+         return;
+      end if;
+
+      if RemIAddr /= 0 and Is_Relative then
          Re := (0, 0);
          Trans.Paste_Into_Userland (Map, Re, To_Address (RemIAddr), Success);
          if not Success then
@@ -8146,13 +8169,40 @@ package body Userland.Syscall is
    end Create_Thread;
 
    procedure Signal_Return
-      (Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (State    : in out Arch.Context.GP_Context;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value;
+       Restored : out Boolean)
    is
+      type Unsigned_38 is mod 2 ** 38;
+      function To_Bitmap is new Ada.Unchecked_Conversion
+         (Unsigned_38, Process.Signal_Bitmap);
+
+      Proc     : constant PID := Arch.Local.Get_Current_Process;
+      Th       : constant TID := Arch.Local.Get_Current_Thread;
+      New_Mask : Unsigned_64;
    begin
-      Scheduler.Exit_Signal_And_Reschedule;
-      Errno    := Error_Would_Block;
       Returned := Unsigned_64'Last;
+      Errno    := Error_No_Error;
+
+      Scheduler.Leave_Signal_Handler (State, New_Mask, Restored);
+      if not Restored then
+         --  There is no frame to go back to, so there is nothing to return:
+         --  the process ends of the fault it would have taken.
+         Errno := Error_Would_Fault;
+         Exit_Process (Proc, Process.Signal_Segmentation_Fault);
+         return;
+      end if;
+
+      --  The thread's mask becomes whatever the ucontext says, which a
+      --  handler may legitimately have edited.
+      Process.Set_Thread_Mask
+         (Th, To_Bitmap (Unsigned_38 (New_Mask and 16#3F_FFFF_FFFF#)));
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         Restored := False;
    end Signal_Return;
 
    procedure Sigaltstack
@@ -8171,6 +8221,8 @@ package body Userland.Syscall is
       Is_Disb   : Boolean;
       Is_Used   : Boolean;
       Success   : Boolean;
+      Cur_Addr  : System.Address;
+      Cur_Size  : Unsigned_64;
    begin
       Get_Common_Map (Proc, Map);
 
@@ -8190,6 +8242,26 @@ package body Userland.Syscall is
          Trans.Take_From_Userland (Map, Stk, To_Address (New_IAddr), Success);
          if not Success then
             goto Would_Fault_Error;
+         end if;
+
+         if (Stk.Flags and SS_DISABLE) /= Stk.Flags then
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         Scheduler.Get_Signal_Stack
+            (Th, Cur_Addr, Cur_Size, Is_Disb, Is_Used);
+         if Is_Used then
+            Errno    := Error_Bad_Permissions;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         if (Stk.Flags and SS_DISABLE) = 0 and then Stk.Size < MINSIGSTKSZ then
+            Errno    := Error_No_Memory;
+            Returned := Unsigned_64'Last;
+            return;
          end if;
 
          Scheduler.Set_Signal_Stack
@@ -9610,18 +9682,79 @@ package body Userland.Syscall is
       end if;
    end Pre_Syscall_Hook;
 
-   procedure Post_Syscall_Hook (State : Arch.Context.GP_Context) is
-      Thread  : constant TID := Arch.Local.Get_Current_Thread;
+   procedure Post_Syscall_Hook (State : in out Arch.Context.GP_Context) is
+      Thread    : constant TID := Arch.Local.Get_Current_Thread;
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      Delivered : Boolean;
+      Mask      : Unsigned_64;
+      Valid     : Boolean;
    begin
       if Scheduler.Is_Doomed then
          Scheduler.Bail;
       end if;
+
+      --  What the call is entered with is what it has to be aimed back at
+      --  if it is interrupted and its action asked to be restarted, since
+      --  the registers it answers in double as arguments.
+      Scheduler.Set_Syscall_State (Thread, State);
       Common_Syscall_Hook (Thread, State);
+
+      --  A caught signal is delivered here, or on the way back from an
+      --  interrupt (Interrupt_Return_Hook). The call has answered, so what
+      --  it answered is in the frame already and the frame may be aimed at
+      --  the handler without losing it; the entry hook cannot do this, since
+      --  the dispatch has not read its arguments out of the frame yet.
+      Clear_Process_Signals (Proc, State, True, Delivered);
+
+      --  A call that wore a mask of its own for its duration gets it taken
+      --  off here, unless a handler is entered: the ucontext then carries
+      --  the mask from before the call and the handler's return puts it
+      --  back, so that a signal the call unblocked is taken under the
+      --  call's own mask.
+      if not Delivered then
+         Scheduler.Take_Saved_Mask (Thread, Mask, Valid);
+         if Valid then
+            Scheduler.Set_Masked_Signals (Thread, Mask);
+         end if;
+      end if;
+
       if Scheduler.Is_Doomed then
          Scheduler.Bail;
       end if;
       Scheduler.Signal_Kernel_Exit (Thread);
    end Post_Syscall_Hook;
+
+   procedure Interrupt_Return_Hook (State : in out Arch.Context.GP_Context) is
+      Thread    : constant TID := Arch.Local.Get_Current_Thread;
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      Masked    : Unsigned_64;
+      Delivered : Boolean;
+   begin
+      if Thread = Error_TID or else
+         not Arch.Context.Is_User_Context (State)
+      then
+         return;
+      end if;
+
+      --  Nearly every interrupt finds nothing, which is seen without a lock.
+      Scheduler.Get_Masked_Signals (Thread, Masked);
+      if not Process.Has_Deliverable_Signal (Proc, Thread, Masked) then
+         return;
+      end if;
+
+      --  A handler's frame is written to the thread's stack and a default
+      --  action ends the process, neither of which may be done with
+      --  interrupts off. What the thread did before the interrupt counts as
+      --  its own time, and the delivery as the kernel's.
+      Arch.Snippets.Enable_Interrupts;
+      Scheduler.Signal_Kernel_Entry (Thread);
+      Clear_Process_Signals (Proc, State, False, Delivered);
+      if Scheduler.Is_Doomed then
+         Scheduler.Bail;
+      end if;
+      Scheduler.Signal_Kernel_Exit (Thread);
+      Arch.Snippets.Disable_Interrupts;
+   end Interrupt_Return_Hook;
    ----------------------------------------------------------------------------
    function Ntohs (Port : Unsigned_16) return Unsigned_16 is
    begin
@@ -9646,9 +9779,6 @@ package body Userland.Syscall is
       Is_Traced     : Boolean;
       TInfo         : Trace_Info;
    begin
-      --  Solve signals first.
-      Clear_Process_Signals (Proc, Is_Traced);
-
       --  Take care of syscall tracing.
       Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
       if Is_Traced then
@@ -9703,6 +9833,7 @@ package body Userland.Syscall is
          when VFS.FS_Full          => Errno := Error_No_Space;
          when VFS.FS_Not_Empty     => Errno := Error_Not_Empty;
          when VFS.FS_Not_Found     => Errno := Error_No_Entity;
+         when VFS.FS_Interrupted   => Errno := Error_Interrupted;
          when VFS.FS_Too_Many_Links => Errno := Error_Too_Many_Links;
       end case;
       Returned := Unsigned_64'Last;
@@ -9731,6 +9862,7 @@ package body Userland.Syscall is
             Raise_Signal (Arch.Local.Get_Current_Process, Signal_Broken_Pipe);
          when Would_Block   => Errno := Error_Would_Block;
          when Is_Too_Big    => Errno := Error_Message_Too_Long;
+         when Is_Interrupted => Errno := Error_Interrupted;
       end case;
       Returned := Unsigned_64'Last;
    exception
@@ -9756,6 +9888,7 @@ package body Userland.Syscall is
             Errno := Error_Broken_Pipe;
             Raise_Signal (Arch.Local.Get_Current_Process, Signal_Broken_Pipe);
          when Would_Block_Failure => Errno := Error_Would_Block;
+         when Interrupted_Failure => Errno := Error_Interrupted;
       end case;
       Returned := Unsigned_64'Last;
    exception
@@ -9778,6 +9911,9 @@ package body Userland.Syscall is
             Returned := Success_Return;
          when IPC.PTY.PTY_Would_Block =>
             Errno    := Error_Would_Block;
+            Returned := Unsigned_64'Last;
+         when IPC.PTY.PTY_Interrupted =>
+            Errno    := Error_Interrupted;
             Returned := Unsigned_64'Last;
       end case;
    exception
@@ -10035,7 +10171,109 @@ package body Userland.Syscall is
          Success := False;
    end Translate_Signal;
 
-   procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean) is
+   procedure Deliver_Fault
+      (State : in out Arch.Context.GP_Context;
+       Sig   : Userland.Process.Signal;
+       Addr  : Unsigned_64;
+       Code  : Unsigned_32;
+       Taken : out Boolean)
+   is
+      type Unsigned_38 is mod 2 ** 38;
+      function To_Bitmap is new Ada.Unchecked_Conversion
+         (Unsigned_38, Process.Signal_Bitmap);
+      function To_Word is new Ada.Unchecked_Conversion
+         (Process.Signal_Bitmap, Unsigned_38);
+
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Th   : constant TID := Arch.Local.Get_Current_Thread;
+      Is_Default, Is_Ignored, Discard : Boolean;
+      Handler, Restorer : System.Address;
+      Sig_Mask  : Unsigned_64;
+      Sig_Flags : Unsigned_32;
+      Mask, Blocked : Process.Signal_Bitmap;
+      Mask_Bits : Unsigned_64 := 0;
+   begin
+      Taken := False;
+      Process.Get_Signal_Handlers
+         (Proc       => Proc,
+          Sig        => Sig,
+          Is_Default => Is_Default,
+          Is_Ignored => Is_Ignored,
+          Handler    => Handler,
+          Restorer   => Restorer,
+          Mask       => Sig_Mask,
+          Flags      => Sig_Flags);
+      Process.Get_Thread_Mask (Th, Mask);
+
+      --  A fault a thread cannot take is not something it can be resumed
+      --  from: the instruction would fault again for ever. What follows is
+      --  undefined (POSIX.1-2024, XSH 2.4.3 and pthread_sigmask), and the
+      --  default action is taken, which here is to end the process.
+      if Handler = System.Null_Address or else Is_Ignored or else Mask (Sig)
+      then
+         return;
+      end if;
+
+      for S in Mask'Range loop
+         if Mask (S) then
+            Mask_Bits := Mask_Bits or
+               Shift_Left (1, Natural (Process.Signal'Enum_Rep (S) - 1));
+         end if;
+      end loop;
+
+      Blocked := To_Bitmap
+         (To_Word (Mask) or Unsigned_38 (Sig_Mask and 16#3F_FFFF_FFFF#));
+      if (Sig_Flags and SA_NODEFER) = 0 then
+         Blocked (Sig) := True;
+      end if;
+      Process.Set_Thread_Mask (Th, Blocked);
+
+      if (Sig_Flags and SA_RESETHAND) /= 0 then
+         Process.Set_Signal_Handlers
+            (Proc       => Proc,
+             Sig        => Sig,
+             Is_Default => True,
+             Is_Ignored => False,
+             Handler    => System.Null_Address,
+             Restorer   => Restorer,
+             Mask       => 0,
+             Flags      => 0,
+             Success    => Discard);
+      end if;
+
+      Scheduler.Enter_Signal_Handler
+         (State         => State,
+          Signal_Number => Unsigned_64 (Process.Signal'Enum_Rep (Sig)),
+          Handle        => Handler,
+          Restorer      => Restorer,
+          Is_Altstack   => (Sig_Flags and SA_ONSTACK) /= 0,
+          Info_Code     => Code,
+          Info_PID      => 0,
+          Info_UID      => 0,
+          Info_Status   => 0,
+          Info_Value    => 0,
+          Old_Mask      => Mask_Bits,
+          Fault_Addr    => Addr,
+          Is_Fault      => True,
+          Success       => Taken);
+
+      --  The handler's stack could not be written (a stack overflow with no
+      --  alternate stack is exactly that), so the process ends of the fault
+      --  after all.
+      if not Taken then
+         Process.Set_Thread_Mask (Th, Mask);
+      end if;
+   exception
+      when Constraint_Error =>
+         Taken := False;
+   end Deliver_Fault;
+
+   procedure Clear_Process_Signals
+      (Proc        : PID;
+       State       : in out Arch.Context.GP_Context;
+       In_Call     : Boolean;
+       Has_Handled : out Boolean)
+   is
       type Unsigned_38 is mod 2 ** 38;
       function To_Bitmap is new Ada.Unchecked_Conversion
          (Unsigned_38, Process.Signal_Bitmap);
@@ -10050,6 +10288,9 @@ package body Userland.Syscall is
       Sig_Mask      : Unsigned_64;
       Sig_Flags     : Unsigned_32;
       Mask, Blocked : Process.Signal_Bitmap;
+      Mask_Bits     : Unsigned_64 := 0;
+      Old_Bits      : Unsigned_64;
+      Has_Saved     : Boolean;
       Discard       : Boolean;
    begin
       Has_Handled := False;
@@ -10067,38 +10308,79 @@ package body Userland.Syscall is
           No_Sig   => No_Signal,
           Sig_Mask => Sig_Mask,
           Flags    => Sig_Flags);
-      if not No_Signal then
-         --  Handle signals.
-         if Signal_Addr /= System.Null_Address then
-            Blocked := To_Bitmap
-               (To_Word (Mask) or Unsigned_38 (Sig_Mask and 16#3F_FFFF_FFFF#));
-            if (Sig_Flags and SA_NODEFER) = 0 then
-               Blocked (Raised_Signal) := True;
-            end if;
-            Process.Set_Thread_Mask (Th, Blocked);
 
-            if (Sig_Flags and SA_RESETHAND) /= 0 then
-               Process.Set_Signal_Handlers
-                  (Proc       => Proc,
-                   Sig        => Raised_Signal,
-                   Is_Default => True,
-                   Is_Ignored => False,
-                   Handler    => System.Null_Address,
-                   Restorer   => Restorer_Addr,
-                   Mask       => 0,
-                   Flags      => 0,
-                   Success    => Discard);
-            end if;
-         else
-            Exit_Process (Proc, Raised_Signal);
-         end if;
+      if No_Signal then
+         return;
+      elsif Signal_Addr = System.Null_Address then
+         --  No handler, so the default action, which for every signal the
+         --  kernel does not ignore at the raise is to end the process.
+         Exit_Process (Proc, Raised_Signal);
+         return;
+      end if;
 
-         --  Restore old signals if we were successful.
-         if Has_Handled then
-            Process.Set_Thread_Mask (Th, Mask);
+      for S in Mask'Range loop
+         if Mask (S) then
+            Mask_Bits := Mask_Bits or
+               Shift_Left (1, Natural (Process.Signal'Enum_Rep (S) - 1));
          end if;
-      else
-         Has_Handled := False;
+      end loop;
+
+      --  The handler's return puts back the mask from before the call,
+      --  which is the one in force unless the call wore one of its own for
+      --  its duration, as ppoll does. Only a call has one.
+      Has_Saved := False;
+      if In_Call then
+         Scheduler.Take_Saved_Mask (Th, Old_Bits, Has_Saved);
+      end if;
+      if not Has_Saved then
+         Old_Bits := Mask_Bits;
+      end if;
+
+      Blocked := To_Bitmap
+         (To_Word (Mask) or Unsigned_38 (Sig_Mask and 16#3F_FFFF_FFFF#));
+      if (Sig_Flags and SA_NODEFER) = 0 then
+         Blocked (Raised_Signal) := True;
+      end if;
+      Process.Set_Thread_Mask (Th, Blocked);
+
+      if (Sig_Flags and SA_RESETHAND) /= 0 then
+         Process.Set_Signal_Handlers
+            (Proc       => Proc,
+             Sig        => Raised_Signal,
+             Is_Default => True,
+             Is_Ignored => False,
+             Handler    => System.Null_Address,
+             Restorer   => Restorer_Addr,
+             Mask       => 0,
+             Flags      => 0,
+             Success    => Discard);
+      end if;
+
+      if In_Call and then (Sig_Flags and SA_RESTART) /= 0 and then
+         Arch.Context.Syscall_Errno (State) =
+            Unsigned_64 (Errno_Value'Enum_Rep (Error_Interrupted))
+      then
+         Scheduler.Restart_Syscall (Th, State);
+      end if;
+
+      Scheduler.Enter_Signal_Handler
+         (State         => State,
+          Signal_Number => Unsigned_64
+             (Process.Signal'Enum_Rep (Raised_Signal)),
+          Handle        => Signal_Addr,
+          Restorer      => Restorer_Addr,
+          Is_Altstack   => (Sig_Flags and SA_ONSTACK) /= 0,
+          Info_Code     => 0,
+          Info_PID      => Unsigned_32 (Convert (Proc)),
+          Info_UID      => 0,
+          Info_Status   => 0,
+          Info_Value    => 0,
+          Old_Mask      => Old_Bits,
+          Success       => Has_Handled);
+
+      if not Has_Handled then
+         Process.Set_Thread_Mask (Th, Mask);
+         Exit_Process (Proc, Process.Signal_Segmentation_Fault);
       end if;
    exception
       when Constraint_Error =>

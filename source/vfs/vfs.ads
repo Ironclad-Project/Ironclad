@@ -93,6 +93,7 @@ package VFS is
        FS_Loop,          --  Too many symlinks were encountered resolving path.
        FS_Full,          --  The file or device is full.
        FS_Not_Empty,     --  A directory was to be removed with files inside.
+       FS_Interrupted,   --  A blocking wait was given up.
        FS_Too_Many_Links); --  A file would get more links than it can have.
 
    --  Access time update policies supported.
