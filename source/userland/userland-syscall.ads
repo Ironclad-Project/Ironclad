@@ -188,6 +188,11 @@ package Userland.Syscall is
    SEEK_SET     : constant := 1;
    SEEK_CURRENT : constant := 2;
    SEEK_END     : constant := 4;
+
+   --  A file offset is signed, so one with this bit set is negative, and
+   --  the largest one that fits is the rest.
+   Offset_Sign : constant := 16#8000_0000_0000_0000#;
+   Max_Offset  : constant := 16#7FFF_FFFF_FFFF_FFFF#;
    procedure Seek
       (File_D   : Unsigned_64;
        Offset   : Unsigned_64;
@@ -1139,6 +1144,61 @@ package Userland.Syscall is
        Old_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   --  Store the signals blocked from delivery to the calling thread that
+   --  are pending on it or on its process (POSIX.1-2024, sigpending). The
+   --  set has the shape sigprocmask's has: bit N - 1 stands for signal N,
+   --  and the C library widens it into the sigset_t a program sees.
+   procedure Sig_Pending
+      (Set_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   --  Raise a signal for one thread of a process, which is what
+   --  pthread_kill is built on and what the C library knows as tgkill: a
+   --  signal sent this way waits for that thread alone, where one sent to
+   --  the process may be taken by any thread that does not block it. The
+   --  action is the process's either way. A signal of 0 asks whether the
+   --  thread could be signalled without sending one. A thread number means
+   --  nothing outside its own process, so Group must be the caller's.
+   procedure Send_Thread_Signal
+      (Group    : Unsigned_64;
+       Thread   : Unsigned_64;
+       Signal   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   --  Queue a signal to a process with a value of the sender's choosing,
+   --  which is what sigqueue does. Where send_signal only marks a signal
+   --  pending, this keeps each occurrence and its value, so several of one
+   --  signal reach the target in the order sent (POSIX.1-2024, XSH 2.4.2).
+   --  A signal of 0 asks whether one could be sent without sending it. The
+   --  code is the si_code the receiver is to see, and must be negative:
+   --  <signal.h> reserves the positive values for signals the kernel itself
+   --  generates, so a program may not pass a signal off as the kernel's.
+   procedure Sig_Queue
+      (Target   : Unsigned_64;
+       Signal   : Unsigned_64;
+       Value    : Unsigned_64;
+       Code     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   --  Accept a pending signal instead of letting it be delivered, which is
+   --  what sigwaitinfo and sigtimedwait do: no handler runs and no default
+   --  action is taken, the signal is taken off the pending set and reported
+   --  with its siginfo. The caller is expected to have the signals it names
+   --  blocked, since otherwise they are delivered before this can see them.
+   --  Set_Addr names the signals to accept, in the bitmap shape sigprocmask
+   --  uses. Info_Addr takes the siginfo_t, and may be 0 for none. Time_Addr
+   --  names how long to wait, and may be 0 to wait for as long as it takes,
+   --  which is sigwaitinfo. The signal accepted is the return value.
+   procedure Sig_Timed_Wait
+      (Set_Addr  : Unsigned_64;
+       Info_Addr : Unsigned_64;
+       Time_Addr : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    SIG_ERR : constant := Integer_Address'Last;
    SIG_IGN : constant := Integer_Address'Last - 1;

@@ -1108,6 +1108,10 @@ package body Userland.Syscall is
                   Set_Identifier (Proc, Args (1).all);
                end if;
 
+               --  The signals pending on this thread are for the new
+               --  image.
+               Userland.Process.Absorb_Thread_Signals (Proc, Th);
+
                --  Start the actual program.
                Userland.Loader.Start_Program
                   (Exec_Path   => Path,
@@ -6838,6 +6842,309 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    end Sigprocmask;
 
+   procedure Sig_Pending
+      (Set_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      package Trans is new Memory.Userland_Transfer (Signal_Bitmap);
+
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr   : constant Integer_Address := Integer_Address (Set_Addr);
+      SAddr   : constant  System.Address := To_Address (IAddr);
+      Th      : constant             TID := Arch.Local.Get_Current_Thread;
+      Pending : Signal_Bitmap;
+      Success : Boolean;
+      Map     : Page_Table_Acc;
+   begin
+      if IAddr = 0 then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+      Get_Pending_Signals (Proc, Th, Pending);
+      Trans.Paste_Into_Userland (Map, Pending, SAddr, Success);
+      if not Success then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end Sig_Pending;
+
+   procedure Send_Thread_Signal
+      (Group    : Unsigned_64;
+       Thread   : Unsigned_64;
+       Signal   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Send    : constant Boolean := Signal /= 0;
+      Target  : Scheduler.TID;
+      Actual  : Process.Signal;
+      Success : Boolean;
+      Found   : Boolean;
+      Origin  : Signal_Origin;
+   begin
+      if Send then
+         Translate_Signal (Signal, Actual, Success);
+         if not Success then
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      else
+         Actual := Process.Signal_Kill;
+      end if;
+
+      if Group /= Unsigned_64 (Convert (Proc)) or else
+         Thread > Unsigned_64 (Scheduler.Max_Thread_Number)
+      then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+      Target := Scheduler.Convert (Natural (Thread));
+      if not Scheduler.Is_Alive (Target, Convert (Proc)) then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if not Send then
+         Errno    := Error_No_Error;
+         Returned := 0;
+         return;
+      end if;
+
+      Origin := (Origin_Thread, Unsigned_32 (Convert (Proc)), 0, 0, 0);
+      Get_UID (Proc, Origin.UID);
+      Raise_Signal (Target, Actual, Origin, Found);
+      if not Found then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+   end Send_Thread_Signal;
+
+   procedure Sig_Queue
+      (Target   : Unsigned_64;
+       Signal   : Unsigned_64;
+       Value    : Unsigned_64;
+       Code     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Send    : constant Boolean := Signal /= 0;
+      Bypass  : constant Boolean :=
+         Get_Capabilities (Proc).Can_Signal_All;
+      Tgt     : PID;
+      Actual  : Process.Signal;
+      Success : Boolean;
+      Origin  : Signal_Origin;
+      EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
+   begin
+      if Send then
+         Translate_Signal (Signal, Actual, Success);
+         if not Success then
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      else
+         Actual := Process.Signal_Kill;
+      end if;
+
+      --  The code must be one a process may claim: bits/siginfo-consts.h
+      --  reserves positive values for kernel-generated signals, so a program
+      --  may only ask for a negative one, and SI_USER (0) and SI_KERNEL are
+      --  the kernel's to write.
+      if (Code and 16#8000_0000#) = 0 then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if (Target and 16#8000_0000#) /= 0 or else Target = 0 then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+      Tgt := Convert (Natural (Target and 16#FFFF_FFFF#));
+      if Tgt = Error_PID then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if not Bypass then
+         Get_Effective_UID (Proc, EUID);
+         Get_UID (Tgt, Tgt_UID);
+         Get_Effective_UID (Tgt, Tgt_EUID);
+         if EUID /= Tgt_UID and EUID /= Tgt_EUID then
+            Errno    := Error_Bad_Permissions;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
+      if not Send then
+         Errno    := Error_No_Error;
+         Returned := 0;
+         return;
+      end if;
+
+      Origin :=
+         (Code   => Unsigned_32 (Code and 16#FFFF_FFFF#),
+          PID    => Unsigned_32 (Convert (Proc)),
+          UID    => 0,
+          Status => 0,
+          Value  => Value);
+      Get_UID (Proc, Origin.UID);
+
+      Queue_Signal (Tgt, Actual, Origin, Success);
+      if not Success then
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+   end Sig_Queue;
+
+   procedure Sig_Timed_Wait
+      (Set_Addr  : Unsigned_64;
+       Info_Addr : Unsigned_64;
+       Time_Addr : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      package Trans_S is new Memory.Userland_Transfer (Signal_Bitmap);
+      package Trans_T is new Memory.Userland_Transfer (Time_Spec);
+      package Trans_I is new Memory.Userland_Transfer
+         (Scheduler.Siginfo_Bytes);
+
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      Th      : constant             TID := Arch.Local.Get_Current_Thread;
+      S_IAddr : constant Integer_Address := Integer_Address (Set_Addr);
+      I_IAddr : constant Integer_Address := Integer_Address (Info_Addr);
+      T_IAddr : constant Integer_Address := Integer_Address (Time_Addr);
+      Wanted  : Signal_Bitmap;
+      Tim     : Time_Spec;
+      Sig     : Process.Signal;
+      Origin  : Signal_Origin;
+      Info    : Scheduler.Siginfo_Bytes;
+      Curr, Final : Time.Timestamp;
+      Forever : Boolean;
+      Success : Boolean;
+      Got     : Boolean;
+      Map     : Page_Table_Acc;
+   begin
+      if S_IAddr = 0 then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+      Trans_S.Take_From_Userland (Map, Wanted, To_Address (S_IAddr), Success);
+      if not Success then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Wanted (Process.Signal_Kill) := False;
+      Wanted (Process.Signal_Stop) := False;
+
+      Forever := T_IAddr = 0;
+      if not Forever then
+         Trans_T.Take_From_Userland
+            (Map, Tim, To_Address (T_IAddr), Success);
+         if not Success then
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         if (Tim.Seconds and Offset_Sign) /= 0 or else
+            Tim.Nanoseconds >= 1_000_000_000
+         then
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         Time.Get_Time (Time.Monotonic_Clock, Final);
+         Final := Final + (Tim.Seconds, Tim.Nanoseconds);
+      end if;
+
+      loop
+         Accept_Signal (Proc, Th, Wanted, Sig, Origin, Got);
+         exit when Got;
+
+         if Scheduler.Is_Interrupted then
+            Errno    := Error_Interrupted;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         if not Forever then
+            Time.Get_Time (Time.Monotonic_Clock, Curr);
+            if Curr >= Final then
+               Errno    := Error_Would_Block;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end if;
+
+         Scheduler.Yield_If_Able;
+      end loop;
+
+      if I_IAddr /= 0 then
+         Scheduler.Build_Siginfo
+            (Number => Unsigned_64 (Process.Signal'Enum_Rep (Sig)),
+             Code   => Origin.Code,
+             PID    => Origin.PID,
+             UID    => Origin.UID,
+             Status => Origin.Status,
+             Value  => Origin.Value,
+             Into   => Info);
+         Trans_I.Paste_Into_Userland
+            (Map, Info, To_Address (I_IAddr), Success);
+         if not Success then
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := Unsigned_64 (Process.Signal'Enum_Rep (Sig));
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+   end Sig_Timed_Wait;
+
    procedure Sigaction
       (Signal   : Unsigned_64;
        Act_Addr : Unsigned_64;
@@ -6970,6 +7277,7 @@ package body Userland.Syscall is
       Actual  : Process.Signal;
       Signed_Target : Signed_32;
       EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
+      Origin  : Signal_Origin;
    begin
       if Actually_Send then
          Translate_Signal (Signal, Actual, Success);
@@ -6981,6 +7289,8 @@ package body Userland.Syscall is
       end if;
 
       Get_Effective_UID (Proc, EUID);
+      Origin := (Origin_User, Unsigned_32 (Convert (Proc)), 0, 0, 0);
+      Get_UID (Proc, Origin.UID);
 
       --  If < -1: send to the processes in abs number as process group id.
       --  If = -1: send to any process we can signal in the system.
@@ -6999,7 +7309,8 @@ package body Userland.Syscall is
                (Sig        => Actual,
                 Sender_UID => EUID,
                 Bypass_UID => Override_Checks,
-                Group      => Tgt_EUID);
+                Group      => Tgt_EUID,
+                Origin     => Origin);
          end if;
       elsif Signed_Target = -1 then
          if Actually_Send then
@@ -7007,7 +7318,8 @@ package body Userland.Syscall is
                (Process    => Proc,
                 Sig        => Actual,
                 Sender_UID => EUID,
-                Bypass_UID => Override_Checks);
+                Bypass_UID => Override_Checks,
+                Origin     => Origin);
          end if;
       else
          Tgt := Convert (Natural (Signed_Target));
@@ -7028,7 +7340,7 @@ package body Userland.Syscall is
          end if;
 
          if Actually_Send then
-            Raise_Signal (Tgt, Actual);
+            Raise_Signal (Tgt, Actual, Origin);
          end if;
       end if;
 
@@ -10288,6 +10600,7 @@ package body Userland.Syscall is
       Sig_Mask      : Unsigned_64;
       Sig_Flags     : Unsigned_32;
       Mask, Blocked : Process.Signal_Bitmap;
+      Origin        : Process.Signal_Origin;
       Mask_Bits     : Unsigned_64 := 0;
       Old_Bits      : Unsigned_64;
       Has_Saved     : Boolean;
@@ -10301,13 +10614,15 @@ package body Userland.Syscall is
       Process.Get_Thread_Mask (Th, Mask);
       Process.Get_Raised_Signal_Actions
          (Proc     => Proc,
+          Thread   => Th,
           Masked   => Mask,
           Sig      => Raised_Signal,
           Handler  => Signal_Addr,
           Restorer => Restorer_Addr,
           No_Sig   => No_Signal,
           Sig_Mask => Sig_Mask,
-          Flags    => Sig_Flags);
+          Flags    => Sig_Flags,
+          Origin   => Origin);
 
       if No_Signal then
          return;
@@ -10370,11 +10685,11 @@ package body Userland.Syscall is
           Handle        => Signal_Addr,
           Restorer      => Restorer_Addr,
           Is_Altstack   => (Sig_Flags and SA_ONSTACK) /= 0,
-          Info_Code     => 0,
-          Info_PID      => Unsigned_32 (Convert (Proc)),
-          Info_UID      => 0,
-          Info_Status   => 0,
-          Info_Value    => 0,
+          Info_Code     => Origin.Code,
+          Info_PID      => Origin.PID,
+          Info_UID      => Origin.UID,
+          Info_Status   => Origin.Status,
+          Info_Value    => Origin.Value,
           Old_Mask      => Old_Bits,
           Success       => Has_Handled);
 

@@ -175,10 +175,14 @@ Syscalls
 * getrusage::               Get resource usage for the process.
 * recvfrom/sendto::         Socket IO support functions.
 * config_netinter::         Configure network interfaces.
+* send_thread_signal::      Send a signal to one thread of a process.
+* sigqueue::                Queue a signal to a process with a value.
+* sigtimedwait::            Accept a pending signal instead of taking it.
 * utimes::                  Modify timestamps for a file.
 * get/set_scheduler::       Get and set scheduling details for a process.
 * get_priority_limits::     Get the minimum and maximum scheduler priorities.
 * sigprocmask::             Fetch and change a thread's blocked signals.
+* sigpending::              Fetch the signals waiting on a thread.
 * sigaction::               Fetch and change a signal's action.
 * send_signal::             Send a signal to a process.
 * getprio/setprio::         Get / Set the niceness of some entities.
@@ -1270,13 +1274,13 @@ Empty.
 @item
 @ref{pci_read/pci_write, pci_write}.
 @item
-Empty.
+@ref{sigpending}.
 @item
-Empty.
+@ref{send_thread_signal}.
 @item
-Empty.
+@ref{sigqueue}.
 @item
-Empty.
+@ref{sigtimedwait}.
 @item
 @ref{statvfs}.
 @end enumerate
@@ -3930,6 +3934,128 @@ A lease was asked for on an interface that is blocked.
 A lease was asked for and no server answered.
 @end table
 
+@node send_thread_signal
+@section send_thread_signal
+
+@example c
+int send_thread_signal(int group, int thread, int signal);
+@end example
+
+This syscall raises a signal for one thread of a process. A signal raised this
+way waits for that thread alone, where one raised with @ref{send_signal} may be
+taken by any thread of the process that does not block it.
+
+The action is still the process's, a signal left to its default action acts
+on the whole process, and only which thread runs a handler is decided here.
+
+@code{thread} is a thread identifier as @code{gettid} reports, and
+@code{group} must be the caller's own process, as a thread identifier means
+nothing outside it.
+
+A @code{signal} of @code{0} asks whether the thread could be signalled
+without raising anything.
+
+It returns @code{0} on success and @code{-1} on failure, with the following
+errno:
+
+@table @code
+@item EINVAL
+@code{signal} is not a signal.
+
+@item ESRCH
+@code{group} is not the caller's process, or it has no such thread.
+@end table
+
+@node sigqueue
+@section sigqueue
+
+@example c
+int sigqueue(int pid, int signal, unsigned long value, int code);
+@end example
+
+This syscall raises a signal for a process and keeps, with it, a
+@code{value} of the sender's choosing and the @code{code} the receiver is to
+see as @code{si_code}.
+
+@code{sigqueue} differs from @ref{send_signal} in that the signal is queued:
+several occurrences of one signal each wait, each with the value it was sent
+with, and each is taken in turn in the order they were sent. A signal raised
+any other way is merely marked pending, one occurrence at a time, and leaves
+a queue already waiting alone.
+
+The queue is the process's and holds 32 occurrences, which is
+@code{@{_POSIX_SIGQUEUE_MAX@}}. A signal that is being ignored is not queued.
+
+@code{code} must be negative, as the other values of @code{si_code} are for
+the kernel to report.
+
+A @code{signal} of @code{0} asks whether the signal could be queued without
+queueing anything. Permission checks are the same as @ref{send_signal}.
+
+It returns @code{0} on success and @code{-1} on failure, with the following
+errno:
+
+@table @code
+@item EAGAIN
+The target's queue is full.
+
+@item EINVAL
+@code{signal} is not a signal, or @code{code} is not negative.
+
+@item EPERM
+The caller may not signal that process.
+
+@item ESRCH
+@code{pid} names no process.
+@end table
+
+@node sigtimedwait
+@section sigtimedwait
+
+@example c
+int sigtimedwait(sigset_t *set, siginfo_t *info, struct timespec *timeout);
+@end example
+
+This syscall accepts a pending signal rather than letting it be delivered. No
+handler runs and no default action is taken, the signal is simply taken off
+what is pending and reported.
+
+@code{set} names the signals the caller will accept, in the same shape
+@ref{sigprocmask} takes. The caller is expected to have blocked them, as a
+signal that is not blocked is delivered as the thread goes back to its own
+code and is gone before this can see it. @code{SIGKILL} and @code{SIGSTOP} can
+be blocked by nobody and are therefore never accepted here.
+
+If one of them is already waiting it is taken at once; otherwise the caller
+waits. The signal taken is the lowest-numbered one waiting.
+
+@code{info}, if not @code{NULL}, takes the @code{siginfo_t} of the signal
+accepted, the one a handler would have been given, with the @code{si_value}
+of a signal queued with @ref{sigqueue}. Where several occurrences of one
+signal are queued, this takes the first and leaves the rest waiting.
+
+@code{timeout} is how long to wait, and may be @code{NULL} to wait for as
+long as it takes, which is @code{sigwaitinfo}. A timeout of zero makes this
+a poll of what is already waiting.
+
+The signal accepted is the return value. @code{-1} means failure, with the
+following errno:
+
+@table @code
+@item EAGAIN
+Nothing in @code{set} arrived before the timeout ran out.
+
+@item EINTR
+A signal that is not in @code{set}, and that the caller does not block, was
+delivered instead.
+
+@item EINVAL
+@code{set} is @code{NULL}, or @code{timeout} is not a length of time.
+
+@item EFAULT
+One of the pointers points to not valid memory.
+@end table
+
 @node utimes
 @section utimes
 
@@ -4051,6 +4177,39 @@ errno:
 
 @item EFAULT
 A non-@code{NULL} pointer points to not valid memory.
+@end table
+
+@node sigpending
+@section sigpending
+
+@example c
+int sigpending(sigset_t *set);
+@end example
+
+This syscall stores in @code{set} the signals that are blocked from delivery
+to the calling thread and that are waiting on it or on its process.
+
+A signal waits where it was aimed. One sent to a process with
+@ref{send_signal} may be taken by any thread of it that does not block it,
+and waits on the process until one does; one sent to a thread with
+@ref{send_thread_signal} waits for that thread alone. Both are reported
+here.
+
+A signal that is not blocked does not wait: it is delivered on the way out
+of this very call, so what comes back is what the mask is keeping.
+
+This answers whether a signal is waiting, never how many times: a signal
+with several occurrences queued for it (@ref{sigqueue}) appears here once.
+
+It returns @code{0} on success and @code{-1} on failure, with the following
+errno:
+
+@table @code
+@item EINVAL
+@code{set} is @code{NULL}.
+
+@item EFAULT
+@code{set} points to not valid memory.
 @end table
 
 @node sigaction

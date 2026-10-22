@@ -68,6 +68,8 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Init is
    begin
       Registry := new Process_Arr'(others => null);
+      Thread_Sigs := new Thread_Signal_Arr;
+      Clear_All_Thread_Signals;
       Synchronization.Release (Registry_Mutex);
    end Init;
 
@@ -150,6 +152,10 @@ package body Userland.Process with SPARK_Mode => Off is
                 Controlling_TTY => null,
                 Raised_Signals  => [others => False],
                 Pending_Bits    => 0,
+                Signal_Origins  => [others => Kernel_Origin],
+                Queued_Signals  =>
+                   [others => (Signal_Hang_Up, Kernel_Origin)],
+                Queued_Count    => 0,
                 Signal_Handlers => Default_Signal_Handlers,
                 Prio            => Scheduler.Default_Priority,
                 Niceness        => Scheduler.Default_Niceness,
@@ -560,6 +566,7 @@ package body Userland.Process with SPARK_Mode => Off is
       --  ignored are copied. Raised signals are also to be cleared
       Registry (Process).Raised_Signals := [others => False];
       Registry (Process).Pending_Bits    := 0;
+      Registry (Process).Queued_Count    := 0;
       for Handler of Registry (Process).Signal_Handlers loop
          Handler :=
             (Is_Ignored    => Handler.Is_Ignored,
@@ -1068,7 +1075,10 @@ package body Userland.Process with SPARK_Mode => Off is
       Registry (Process).Exit_Code   := Code;
 
       if Registry (Process).Parent /= Error_PID then
-         Raise_Signal (Registry (Process).Parent, Signal_Child);
+         Raise_Signal
+            (Registry (Process).Parent, Signal_Child,
+             (Origin_Exited, Unsigned_32 (Convert (Process)),
+              Registry (Process).User, Unsigned_32 (Code), 0));
       end if;
 
       Synchronization.Release (Registry (Process).Data_Mutex);
@@ -1086,7 +1096,11 @@ package body Userland.Process with SPARK_Mode => Off is
       Registry (Process).Which_Signal := Sig;
 
       if Registry (Process).Parent /= Error_PID then
-         Raise_Signal (Registry (Process).Parent, Signal_Child);
+         Raise_Signal
+            (Registry (Process).Parent, Signal_Child,
+             (Origin_Killed, Unsigned_32 (Convert (Process)),
+              Registry (Process).User, Unsigned_32 (Signal'Enum_Rep (Sig)),
+              0));
       end if;
 
       Synchronization.Release (Registry (Process).Data_Mutex);
@@ -1743,7 +1757,7 @@ package body Userland.Process with SPARK_Mode => Off is
        Thread : Scheduler.TID;
        Masked : Unsigned_64) return Boolean
    is
-      pragma Unreferenced (Thread);
+      Idx     : constant Natural := Scheduler.Convert (Thread);
       Pending : Unsigned_64 := 0;
    begin
       --  Read with no lock at all: the caller may be the scheduler, from
@@ -1755,11 +1769,324 @@ package body Userland.Process with SPARK_Mode => Off is
          return False;
       end if;
       Pending := Registry (Proc).Pending_Bits;
+
+      --  What the thread has pending counts too, and only for it: a signal
+      --  aimed at one thread must wake that thread and no other.
+      if Thread_Sigs /= null and then Idx /= 0 then
+         Pending := Pending or Thread_Sigs (Idx).Pending;
+      end if;
       return (Pending and not Masked) /= 0;
    exception
       when Constraint_Error =>
          return False;
    end Has_Deliverable_Signal;
+
+   procedure Clear_All_Thread_Signals is
+   begin
+      for I in Thread_Sigs'Range loop
+         Thread_Sigs (I).Raised  := [others => False];
+         Thread_Sigs (I).Origins := [others => Kernel_Origin];
+         Thread_Sigs (I).Pending := 0;
+      end loop;
+   exception
+      when Constraint_Error =>
+         null;
+   end Clear_All_Thread_Signals;
+
+   procedure Clear_Thread_Signals (Thread : Scheduler.TID) is
+      Idx : constant Natural := Scheduler.Convert (Thread);
+   begin
+      if Thread_Sigs /= null and then Idx /= 0 then
+         Thread_Sigs (Idx).Raised  := [others => False];
+         Thread_Sigs (Idx).Origins := [others => Kernel_Origin];
+         Thread_Sigs (Idx).Pending := 0;
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end Clear_Thread_Signals;
+
+   procedure Absorb_Thread_Signals (Proc : PID; Thread : Scheduler.TID) is
+      Idx : constant Natural := Scheduler.Convert (Thread);
+   begin
+      if Registry = null or else Proc = Error_PID or else
+         Registry (Proc) = null or else Thread_Sigs = null or else Idx = 0
+      then
+         return;
+      end if;
+
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      for I in Registry (Proc).Raised_Signals'Range loop
+         if Thread_Sigs (Idx).Raised (I) then
+            --  A pending signal is not queued a second time, so one the
+            --  process already has keeps the origin it was raised with.
+            if not Registry (Proc).Raised_Signals (I) then
+               Registry (Proc).Signal_Origins (I) :=
+                  Thread_Sigs (Idx).Origins (I);
+               Registry (Proc).Raised_Signals (I) := True;
+               Registry (Proc).Pending_Bits :=
+                  Registry (Proc).Pending_Bits or Bit_Of (I);
+            end if;
+            Thread_Sigs (Idx).Raised (I) := False;
+         end if;
+      end loop;
+      Thread_Sigs (Idx).Pending := 0;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Absorb_Thread_Signals;
+
+   procedure Take_Queued
+      (Proc   : PID;
+       Sig    : Signal;
+       Origin : out Signal_Origin;
+       Found  : out Boolean;
+       More   : out Boolean)
+   is
+      --  The count is read into a local and written back rather than
+      --  renamed: a renaming is elaborated in the declarative part, which no
+      --  handler of this subprogram covers.
+      Cnt : Natural;
+   begin
+      Origin := Kernel_Origin;
+      Found  := False;
+      More   := False;
+      Cnt    := Registry (Proc).Queued_Count;
+
+      for I in 1 .. Cnt loop
+         if Registry (Proc).Queued_Signals (I).Sig = Sig then
+            Origin := Registry (Proc).Queued_Signals (I).Origin;
+            Found  := True;
+
+            --  FIFO, so what is left keeps its order: the entries past the
+            --  one taken move down one place.
+            for J in I .. Cnt - 1 loop
+               Registry (Proc).Queued_Signals (J) :=
+                  Registry (Proc).Queued_Signals (J + 1);
+            end loop;
+            Cnt := Cnt - 1;
+            Registry (Proc).Queued_Count := Cnt;
+            exit;
+         end if;
+      end loop;
+
+      if Found then
+         for I in 1 .. Cnt loop
+            if Registry (Proc).Queued_Signals (I).Sig = Sig then
+               More := True;
+               exit;
+            end if;
+         end loop;
+      end if;
+   exception
+      when Constraint_Error =>
+         Origin := Kernel_Origin;
+         Found  := False;
+         More   := False;
+   end Take_Queued;
+
+   procedure Drop_Queued (Proc : PID; Sig : Signal) is
+      Cnt  : Natural;
+      Kept : Natural := 0;
+   begin
+      Cnt := Registry (Proc).Queued_Count;
+      for I in 1 .. Cnt loop
+         if Registry (Proc).Queued_Signals (I).Sig /= Sig then
+            Kept := Kept + 1;
+            Registry (Proc).Queued_Signals (Kept) :=
+               Registry (Proc).Queued_Signals (I);
+         end if;
+      end loop;
+      Registry (Proc).Queued_Count := Kept;
+   exception
+      when Constraint_Error =>
+         null;
+   end Drop_Queued;
+
+   procedure Queue_Signal
+      (Proc    : PID;
+       Sig     : Signal;
+       Origin  : Signal_Origin;
+       Success : out Boolean)
+   is
+      Has_Handler : Boolean;
+      Pended      : Boolean := False;
+      use System;
+   begin
+      Success := False;
+      if Registry = null or else Proc = Error_PID or else
+         Registry (Proc) = null
+      then
+         return;
+      end if;
+
+      --  The action is the process's: a queued signal whose default action
+      --  ends the process ends it, as one from kill would, and one that is
+      --  ignored is dropped rather than queued.
+      if Sig = Signal_Kill then
+         Success := True;
+         Exit_Process (Proc, Signal_Kill);
+         return;
+      elsif Sig = Signal_Stop then
+         --  XXX: Implement this.
+         Success := True;
+         return;
+      end if;
+
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Has_Handler := Registry (Proc).Signal_Handlers (Sig).Handler_Addr
+         /= System.Null_Address;
+      if Registry (Proc).Signal_Handlers (Sig).Is_Ignored or else
+         ((Sig = Signal_Child or Sig = Signal_Urgent) and then
+          not Has_Handler)
+      then
+         --  Ignored, so nothing is pending and nothing is queued: the
+         --  resources a queue entry would take are not spent either.
+         Success := True;
+      elsif Registry (Proc).Queued_Count = Max_Queued_Signals then
+         Success := False;
+      else
+         Registry (Proc).Queued_Count := Registry (Proc).Queued_Count + 1;
+         Registry (Proc).Queued_Signals (Registry (Proc).Queued_Count) :=
+            (Sig, Origin);
+
+         --  The origin kept beside the pending bit is the first occurrence's,
+         --  which is what a reader that does not drain the queue sees.
+         if not Registry (Proc).Raised_Signals (Sig) then
+            Registry (Proc).Signal_Origins (Sig) := Origin;
+         end if;
+         Registry (Proc).Raised_Signals (Sig) := True;
+         Registry (Proc).Pending_Bits :=
+            Registry (Proc).Pending_Bits or Bit_Of (Sig);
+         Success := True;
+         Pended  := True;
+      end if;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+
+      --  As for a raised one, see Raise_Signal.
+      if Pended then
+         Scheduler.Wake_Event (Get_Wait_Key (Proc));
+         Scheduler.Wake_For_Signal (Convert (Proc), Scheduler.Error_TID);
+      end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Queue_Signal;
+
+   procedure Accept_Signal
+      (Proc   : PID;
+       Thread : Scheduler.TID;
+       Wanted : Signal_Bitmap;
+       Sig    : out Signal;
+       Origin : out Signal_Origin;
+       Got    : out Boolean)
+   is
+      Idx   : constant Natural := Scheduler.Convert (Thread);
+      Own   : constant Boolean := Thread_Sigs /= null and then Idx /= 0;
+      Found : Boolean;
+      More  : Boolean;
+   begin
+      Sig    := Signal_FP_Exception;
+      Origin := Kernel_Origin;
+      Got    := False;
+      if Registry = null or else Proc = Error_PID or else
+         Registry (Proc) = null
+      then
+         return;
+      end if;
+
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+
+      --  The one order asked for is that the lowest-numbered pending
+      --  realtime signal is taken first (POSIX.1-2024, sigwaitinfo), and the
+      --  realtime signals are the last of this enumeration, so one scan in
+      --  enumeration order satisfies it.
+      for I in Registry (Proc).Raised_Signals'Range loop
+         if Wanted (I) then
+            if Own and then Thread_Sigs (Idx).Raised (I) then
+               Sig    := I;
+               Origin := Thread_Sigs (Idx).Origins (I);
+               Got    := True;
+               Thread_Sigs (Idx).Raised (I) := False;
+               Thread_Sigs (Idx).Pending :=
+                  Thread_Sigs (Idx).Pending and not Bit_Of (I);
+               exit;
+            elsif Registry (Proc).Raised_Signals (I) then
+               Sig := I;
+               Got := True;
+               Take_Queued (Proc, I, Origin, Found, More);
+               if not Found then
+                  Origin := Registry (Proc).Signal_Origins (I);
+               end if;
+               if not More then
+                  Registry (Proc).Raised_Signals (I) := False;
+                  Registry (Proc).Pending_Bits :=
+                     Registry (Proc).Pending_Bits and not Bit_Of (I);
+               end if;
+               exit;
+            end if;
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Sig    := Signal_FP_Exception;
+         Origin := Kernel_Origin;
+         Got    := False;
+   end Accept_Signal;
+
+   procedure Discard_Thread_Signal (Proc : PID; Sig : Signal) is
+      Idx : Natural;
+   begin
+      if Thread_Sigs = null then
+         return;
+      end if;
+
+      for Thread of Registry (Proc).Thread_List loop
+         --  An empty slot holds Error_TID, which converts to 0, a number the
+         --  table does not hold.
+         Idx := Scheduler.Convert (Thread);
+         if Idx /= 0 then
+            Thread_Sigs (Idx).Raised (Sig) := False;
+            Thread_Sigs (Idx).Pending :=
+               Thread_Sigs (Idx).Pending and not Bit_Of (Sig);
+         end if;
+      end loop;
+   exception
+      when Constraint_Error =>
+         null;
+   end Discard_Thread_Signal;
+
+   procedure Get_Pending_Signals
+      (Proc   : PID;
+       Thread : Scheduler.TID;
+       Sig    : out Signal_Bitmap)
+   is
+      Idx  : constant Natural := Scheduler.Convert (Thread);
+      Mask : Signal_Bitmap;
+   begin
+      Sig := [others => False];
+      if Registry = null or else Proc = Error_PID or else
+         Registry (Proc) = null or else Thread_Sigs = null or else Idx = 0
+      then
+         return;
+      end if;
+      Get_Thread_Mask (Thread, Mask);
+
+      --  The signals pending on the process or the calling thread that are
+      --  blocked from delivery to it (POSIX.1-2024, sigpending).
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      for I in Sig'Range loop
+         Sig (I) := Mask (I) and
+            (Registry (Proc).Raised_Signals (I) or
+             Thread_Sigs (Idx).Raised (I));
+      end loop;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Sig := [others => False];
+   end Get_Pending_Signals;
 
    procedure Set_Thread_Mask
       (Thread : Scheduler.TID;
@@ -1774,7 +2101,11 @@ package body Userland.Process with SPARK_Mode => Off is
       Scheduler.Set_Masked_Signals (Thread, Unsigned_64 (C (Masked)));
    end Set_Thread_Mask;
 
-   procedure Raise_Signal (Proc : PID; Sig : Signal) is
+   procedure Raise_Signal
+      (Proc   : PID;
+       Sig    : Signal;
+       Origin : Signal_Origin := Kernel_Origin)
+   is
       use System;
       Has_Handler : Boolean;
       Pended      : Boolean := False;
@@ -1794,6 +2125,11 @@ package body Userland.Process with SPARK_Mode => Off is
             (Sig /= Signal_Child  or else Has_Handler) and
             (Sig /= Signal_Urgent or else Has_Handler)
          then
+            --  A pending signal is not queued a second time, so it keeps
+            --  the origin of the raise that made it pending.
+            if not Registry (Proc).Raised_Signals (Sig) then
+               Registry (Proc).Signal_Origins (Sig) := Origin;
+            end if;
             Registry (Proc).Raised_Signals (Sig) := True;
             Registry (Proc).Pending_Bits :=
                Registry (Proc).Pending_Bits or Bit_Of (Sig);
@@ -1829,10 +2165,74 @@ package body Userland.Process with SPARK_Mode => Off is
    end Get_Wait_Key;
 
    procedure Raise_Signal
+      (Thread : Scheduler.TID;
+       Sig    : Signal;
+       Origin : Signal_Origin;
+       Found  : out Boolean)
+   is
+      use System;
+      Num         : constant Natural := Scheduler.Get_Thread_Process (Thread);
+      Idx         : constant Natural := Scheduler.Convert (Thread);
+      Proc        : PID;
+      Has_Handler : Boolean;
+      Pended      : Boolean := False;
+   begin
+      Found := False;
+      if Num = 0 or else Idx = 0 or else Registry = null or else
+         Thread_Sigs = null
+      then
+         return;
+      end if;
+      Proc := Convert (Num);
+      if Proc = Error_PID or else Registry (Proc) = null then
+         return;
+      end if;
+      Found := True;
+
+      --  The signal is the thread's and the action the process's: a default
+      --  action that ends the process ends it however the signal was aimed
+      --  (POSIX.1-2024, pthread_kill).
+      if Sig = Signal_Kill then
+         Exit_Process (Proc, Signal_Kill);
+      elsif Sig = Signal_Stop then
+         --  XXX: Implement this.
+         null;
+      else
+         Synchronization.Seize (Registry (Proc).Data_Mutex);
+         Has_Handler := Registry (Proc).Signal_Handlers (Sig).Handler_Addr
+            /= System.Null_Address;
+         if not Registry (Proc).Signal_Handlers (Sig).Is_Ignored and
+            (Sig /= Signal_Child  or else Has_Handler) and
+            (Sig /= Signal_Urgent or else Has_Handler)
+         then
+            --  A pending signal is not queued a second time, so it keeps
+            --  the origin of the raise that made it pending.
+            if not Thread_Sigs (Idx).Raised (Sig) then
+               Thread_Sigs (Idx).Origins (Sig) := Origin;
+            end if;
+            Thread_Sigs (Idx).Raised (Sig) := True;
+            Thread_Sigs (Idx).Pending :=
+               Thread_Sigs (Idx).Pending or Bit_Of (Sig);
+            Pended := True;
+         end if;
+         Synchronization.Release (Registry (Proc).Data_Mutex);
+
+         --  As for one raised to the process, but for this thread alone.
+         if Pended then
+            Scheduler.Wake_For_Signal (Num, Thread);
+         end if;
+      end if;
+   exception
+      when Constraint_Error =>
+         Found := False;
+   end Raise_Signal;
+
+   procedure Raise_Signal
       (Sig        : Signal;
        Sender_UID : Unsigned_32;
        Bypass_UID : Boolean;
-       Group      : Unsigned_32)
+       Group      : Unsigned_32;
+       Origin     : Signal_Origin := Kernel_Origin)
    is
       Curr : constant PID := Arch.Local.Get_Current_Process;
       Tgt_Group, EUID, UID : Unsigned_32;
@@ -1854,14 +2254,14 @@ package body Userland.Process with SPARK_Mode => Off is
                if I = Curr then
                   Take_Ourselves := True;
                else
-                  Raise_Signal (I, Sig);
+                  Raise_Signal (I, Sig, Origin);
                end if;
             end if;
          end if;
       end loop;
 
       if Take_Ourselves then
-         Raise_Signal (Curr, Sig);
+         Raise_Signal (Curr, Sig, Origin);
       end if;
    exception
       when Constraint_Error =>
@@ -1872,7 +2272,8 @@ package body Userland.Process with SPARK_Mode => Off is
       (Process    : PID;
        Sig        : Signal;
        Sender_UID : Unsigned_32;
-       Bypass_UID : Boolean)
+       Bypass_UID : Boolean;
+       Origin     : Signal_Origin := Kernel_Origin)
    is
       EUID, UID : Unsigned_32;
    begin
@@ -1884,7 +2285,7 @@ package body Userland.Process with SPARK_Mode => Off is
             Synchronization.Release (Registry (I).Data_Mutex);
 
             if Bypass_UID or (EUID = Sender_UID or UID = Sender_UID) then
-               Raise_Signal (I, Sig);
+               Raise_Signal (I, Sig, Origin);
             end if;
          end if;
       end loop;
@@ -1956,6 +2357,8 @@ package body Userland.Process with SPARK_Mode => Off is
             Registry (Proc).Raised_Signals (Sig) := False;
             Registry (Proc).Pending_Bits :=
                Registry (Proc).Pending_Bits and not Bit_Of (Sig);
+            Drop_Queued (Proc, Sig);
+            Discard_Thread_Signal (Proc, Sig);
          end if;
       elsif Is_Ignored then
          Registry (Proc).Signal_Handlers (Sig) :=
@@ -1967,6 +2370,12 @@ package body Userland.Process with SPARK_Mode => Off is
          Registry (Proc).Raised_Signals (Sig) := False;
          Registry (Proc).Pending_Bits :=
             Registry (Proc).Pending_Bits and not Bit_Of (Sig);
+
+         --  A pending signal set to be ignored is discarded, with any values
+         --  queued for it (POSIX.1-2024, XSH 2.4.3), and it may be pending on
+         --  a thread rather than on the process.
+         Drop_Queued (Proc, Sig);
+         Discard_Thread_Signal (Proc, Sig);
       else
          Registry (Proc).Signal_Handlers (Sig) :=
             (Is_Ignored    => False,
@@ -1984,14 +2393,19 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Get_Raised_Signal_Actions
       (Proc     : PID;
+       Thread   : Scheduler.TID;
        Masked   : Signal_Bitmap;
        Sig      : out Signal;
        Handler  : out System.Address;
        Restorer : out System.Address;
        No_Sig   : out Boolean;
        Sig_Mask : out Unsigned_64;
-       Flags    : out Unsigned_32)
+       Flags    : out Unsigned_32;
+       Origin   : out Signal_Origin)
    is
+      Idx : constant Natural := Scheduler.Convert (Thread);
+      Own : constant Boolean := Thread_Sigs /= null and then Idx /= 0;
+      Q_Found, Q_More : Boolean;
    begin
       Sig      := Signal_FP_Exception;
       Handler  := System.Null_Address;
@@ -1999,25 +2413,59 @@ package body Userland.Process with SPARK_Mode => Off is
       No_Sig   := True;
       Sig_Mask := 0;
       Flags    := 0;
+      Origin   := Kernel_Origin;
 
       Synchronization.Seize (Registry (Proc).Data_Mutex);
-      for I in Registry (Proc).Raised_Signals'Range loop
-         if not Masked (I) and
-            Registry (Proc).Raised_Signals (I)
-         then
-            Sig      := I;
-            Handler  := Registry (Proc).Signal_Handlers (I).Handler_Addr;
-            Restorer := Registry (Proc).Signal_Handlers (I).Restorer_Addr;
-            Sig_Mask := Registry (Proc).Signal_Handlers (I).Mask;
-            Flags    := Registry (Proc).Signal_Handlers (I).Flags;
-            No_Sig   := False;
 
-            Registry (Proc).Raised_Signals (I) := False;
-            Registry (Proc).Pending_Bits :=
-               Registry (Proc).Pending_Bits and not Bit_Of (I);
-            exit;
-         end if;
-      end loop;
+      --  What is aimed at this thread comes first: a signal sent to the
+      --  process may be taken by any thread that does not block it, so
+      --  taking the thread's own set first is what keeps a pthread_kill
+      --  from being answered by a different thread.
+      if Own then
+         for I in Registry (Proc).Raised_Signals'Range loop
+            if not Masked (I) and Thread_Sigs (Idx).Raised (I) then
+               Sig      := I;
+               Handler  := Registry (Proc).Signal_Handlers (I).Handler_Addr;
+               Restorer := Registry (Proc).Signal_Handlers (I).Restorer_Addr;
+               Sig_Mask := Registry (Proc).Signal_Handlers (I).Mask;
+               Flags    := Registry (Proc).Signal_Handlers (I).Flags;
+               Origin   := Thread_Sigs (Idx).Origins (I);
+               No_Sig   := False;
+
+               Thread_Sigs (Idx).Raised (I) := False;
+               Thread_Sigs (Idx).Pending :=
+                  Thread_Sigs (Idx).Pending and not Bit_Of (I);
+               exit;
+            end if;
+         end loop;
+      end if;
+
+      if No_Sig then
+         for I in Registry (Proc).Raised_Signals'Range loop
+            if not Masked (I) and Registry (Proc).Raised_Signals (I) then
+               Sig      := I;
+               Handler  := Registry (Proc).Signal_Handlers (I).Handler_Addr;
+               Restorer := Registry (Proc).Signal_Handlers (I).Restorer_Addr;
+               Sig_Mask := Registry (Proc).Signal_Handlers (I).Mask;
+               Flags    := Registry (Proc).Signal_Handlers (I).Flags;
+               No_Sig   := False;
+
+               --  A queued occurrence carries its own siginfo and is taken
+               --  in turn; the signal stays pending while another is queued
+               --  behind it (POSIX.1-2024, XSH 2.4.2).
+               Take_Queued (Proc, I, Origin, Q_Found, Q_More);
+               if not Q_Found then
+                  Origin := Registry (Proc).Signal_Origins (I);
+               end if;
+               if not Q_More then
+                  Registry (Proc).Raised_Signals (I) := False;
+                  Registry (Proc).Pending_Bits :=
+                     Registry (Proc).Pending_Bits and not Bit_Of (I);
+               end if;
+               exit;
+            end if;
+         end loop;
+      end if;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>

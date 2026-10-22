@@ -233,6 +233,9 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Initialized := True;
       Synchronization.Release (Scheduler_Mutex);
       Success := True;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Init;
 
    procedure Idle_Core is
@@ -524,6 +527,8 @@ package body Scheduler with SPARK_Mode => Off is
           User_Tmp        => (0, 0),
           Saved_Mask      => 0,
           Has_Saved_Mask  => False);
+
+      Userland.Process.Clear_Thread_Signals (New_TID);
 
       Arch.Clocks.Get_Monotonic_Time (Thread_Pool (New_TID).User_Tmp);
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
@@ -1420,7 +1425,7 @@ package body Scheduler with SPARK_Mode => Off is
       Map    : Memory.MMU.Page_Table_Acc;
       Cont   : UContext;
       SP     : Unsigned_64;
-    begin
+   begin
       New_Mask := 0;
       Userland.Process.Get_Common_Map (Proc, Map);
 
@@ -1795,6 +1800,17 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          return False;
    end Is_Alive;
+
+   function Get_Thread_Process (Thread : TID) return Natural is
+   begin
+      if Thread = Error_TID or else not Thread_Pool (Thread).Is_Present then
+         return 0;
+      end if;
+      return Userland.Process.Convert (Thread_Pool (Thread).Process);
+   exception
+      when Constraint_Error =>
+         return 0;
+   end Get_Thread_Process;
 
    procedure List_All (List : out Thread_Listing_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;

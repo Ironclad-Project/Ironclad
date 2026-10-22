@@ -174,6 +174,39 @@ package Userland.Process is
        Signal_RT_8                => 38);
    type Signal_Bitmap is array (Signal) of Boolean with Pack;
 
+   --  Where a raised signal came from, as reported to SA_SIGINFO handlers.
+   --  Code is the si_code: Origin_User for kill, Origin_Kernel for the
+   --  kernel's own, or a CLD_* value for SIGCHLD, where PID and UID name the
+   --  child and Status holds its exit code or the signal that killed it.
+   --  Value is the application-defined si_value a signal queued with
+   --  sigqueue carries, and is 0 for a signal raised any other way; it
+   --  shares the union's slot with Status, as <signal.h> lays it out.
+   type Signal_Origin is record
+      Code   : Unsigned_32;
+      PID    : Unsigned_32;
+      UID    : Unsigned_32;
+      Status : Unsigned_32;
+      Value  : Unsigned_64;
+   end record;
+
+   Origin_User   : constant Unsigned_32 := 0;
+   Origin_Kernel : constant Unsigned_32 := 16#80#;
+
+   Origin_Thread : constant Unsigned_32 := 16#FFFF_FFFA#;
+   Origin_Exited : constant Unsigned_32 := 1;
+   Origin_Killed : constant Unsigned_32 := 2;
+
+   Kernel_Origin : constant Signal_Origin := (Origin_Kernel, 0, 0, 0, 0);
+
+   --  A signal sent with sigqueue is queued along with its value, several
+   --  occurrences in FIFO order, where one raised any other way is only made
+   --  pending and leaves the queue alone (POSIX.1-2024, XSH 2.4.2). The queue
+   --  is the process's, which is what sigqueue names; a signal aimed at a
+   --  thread carries no value, as no interface gives one to a thread. The
+   --  depth is {_POSIX_SIGQUEUE_MAX} (limits.h), and a full queue is
+   --  sigqueue's [EAGAIN].
+   Max_Queued_Signals : constant := 32;
+
    --  Initialize the process registry.
    procedure Init;
 
@@ -731,24 +764,50 @@ package Userland.Process is
    procedure Get_Thread_Mask (Thread : Scheduler.TID; Sig : out Signal_Bitmap);
    procedure Set_Thread_Mask (Thread : Scheduler.TID; Sig : Signal_Bitmap);
 
+
+   --  A pending signal belongs to a thread as well as to a process: one sent
+   --  to a thread waits for that thread alone, and one sent to the process
+   --  may be taken by any thread that does not block it. Both sets are kept,
+   --  and delivery reads the thread's first. A thread's set is emptied when
+   --  its number is handed to a new thread, which is the one place a TID can
+   --  start meaning something else.
+   --  @param Thread Thread whose pending signals to forget.
+   procedure Clear_Thread_Signals (Thread : Scheduler.TID);
+
+   --  Hand a thread's pending signals over to its process, which is what
+   --  exec does with the calling thread's: the initial thread of the new
+   --  image inherits them (POSIX.1-2024, exec), and exec gives the new image
+   --  a thread of its own, so what waits on the caller moves or is lost. It
+   --  moves to the process, as the new image has one thread, the only one
+   --  that can take it. The signals of a thread that only exits go with it,
+   --  as no image of it continues.
+   --  @param Proc   The thread's process.
+   --  @param Thread Thread whose pending signals the process takes over.
+   procedure Absorb_Thread_Signals (Proc : PID; Thread : Scheduler.TID);
+
+   --  What sigpending answers: the signals blocked from delivery to this
+   --  thread that are pending on it or on its process (POSIX.1-2024,
+   --  sigpending).
+   --  @param Proc   The thread's process.
+   --  @param Thread Thread asking.
+   --  @param Sig    Pending and blocked, true meaning that signal is both.
+   procedure Get_Pending_Signals
+      (Proc   : PID;
+       Thread : Scheduler.TID;
+       Sig    : out Signal_Bitmap);
+
    --  Whether the process has a signal pending that a thread blocking the
    --  passed set could take. It is what makes a wait give up: a caught
    --  signal is delivered on the way out of the call, so the call has to get
    --  there, and it answers EINTR.
    --  @param Proc   Process to ask about, which may be no process at all.
-   --  @param Thread Thread asking.
+   --  @param Thread Thread asking, whose own pending signals count too.
    --  @param Masked What the asking thread blocks, as the bitmap userland
    --                passes, bit N - 1 standing for signal N.
    function Has_Deliverable_Signal
       (Proc   : PID;
        Thread : Scheduler.TID;
        Masked : Unsigned_64) return Boolean;
-
-   --  Signal that a signal was raised, and wake the threads waiting on the
-   --  wait key of the process.
-   --  @param Proc Process to raise for.
-   --  @param Sig  Signal to raise.
-   procedure Raise_Signal (Proc : PID; Sig : Signal);
 
    --  Get the key to wait on for signals raised to a process.
    --  @param Proc Process to get the key of.
@@ -757,13 +816,13 @@ package Userland.Process is
    function Get_Wait_Key (Proc : PID) return System.Address;
 
    --  Raise a signal to a process group.
+   --  @param Proc   Process to raise for.
    --  @param Sig    Signal to raise.
-   --  @param Group  Group to send the signal to.
+   --  @param Origin Where the signal came from.
    procedure Raise_Signal
-      (Sig        : Signal;
-       Sender_UID : Unsigned_32;
-       Bypass_UID : Boolean;
-       Group      : Unsigned_32);
+      (Proc   : PID;
+       Sig    : Signal;
+       Origin : Signal_Origin := Kernel_Origin);
 
    --  Raise a signal to a process group.
    --  @param Sig    Signal to raise.
@@ -772,8 +831,65 @@ package Userland.Process is
       (Process    : PID;
        Sig        : Signal;
        Sender_UID : Unsigned_32;
-       Bypass_UID : Boolean)
+       Bypass_UID : Boolean;
+       Origin     : Signal_Origin := Kernel_Origin)
       with Pre => Process /= Error_PID;
+
+   --  Raise a signal for one thread of a process rather than for the
+   --  process, which is what pthread_kill does. The signal waits for that
+   --  thread alone, but the action is still the process's: a default action
+   --  that ends or stops ends or stops the whole of it (POSIX.1-2024,
+   --  pthread_kill).
+   --  @param Thread Thread to raise for.
+   --  @param Sig    Signal to raise.
+   --  @param Origin Where the signal came from.
+   --  @param Found  False when there is no such thread, which is ESRCH.
+   procedure Raise_Signal
+      (Thread : Scheduler.TID;
+       Sig    : Signal;
+       Origin : Signal_Origin;
+       Found  : out Boolean);
+
+   procedure Raise_Signal
+      (Sig        : Signal;
+       Sender_UID : Unsigned_32;
+       Bypass_UID : Boolean;
+       Group      : Unsigned_32;
+       Origin     : Signal_Origin := Kernel_Origin);
+
+   --  Queue a signal to a process, which is what sigqueue does. It is raised
+   --  as it would be otherwise, with the same handler and default action,
+   --  and its siginfo is kept as well, so that several occurrences of one
+   --  signal each reach the process with their own value, in the order sent.
+   --  @param Proc    Process to queue for.
+   --  @param Sig     Signal to queue.
+   --  @param Origin  Where it came from, si_value included.
+   --  @param Success False when the queue is full, which is [EAGAIN].
+   procedure Queue_Signal
+      (Proc    : PID;
+       Sig     : Signal;
+       Origin  : Signal_Origin;
+       Success : out Boolean);
+
+   --  Take a pending signal without running anything, which is what
+   --  sigwaitinfo and sigtimedwait do: the caller has the signals blocked,
+   --  so nothing can deliver them, and this accepts one and reports what it
+   --  was sent with. The thread's own pending set is looked at first, as
+   --  delivery does, and the queue is drained in order.
+   --  @param Proc   Process of the asking thread.
+   --  @param Thread Thread asking, whose own pending signals count too.
+   --  @param Wanted Signals the caller will accept, true meaning accept.
+   --  @param Sig    The signal accepted, meaningless unless Got.
+   --  @param Origin What it was sent with, meaningless unless Got.
+   --  @param Got    True if a signal was accepted, False if none was
+   --                pending at all.
+   procedure Accept_Signal
+      (Proc   : PID;
+       Thread : Scheduler.TID;
+       Wanted : Signal_Bitmap;
+       Sig    : out Signal;
+       Origin : out Signal_Origin;
+       Got    : out Boolean);
 
    --  Get the address assigned for a process to use as a signal handler.
    --  @param Proc       Process to get the handler for.
@@ -818,6 +934,8 @@ package Userland.Process is
    --  Get a raised signal for a process.
    --  Getting a signal will mask it.
    --  @param Proc     Process to fetch signals for.
+   --  @param Thread   Thread taking the signal, whose own pending signals
+   --                  count too.
    --  @param Masked   What the taking thread has blocked, which is what
    --                  decides whether a pending signal can be taken at all.
    --  @param Sig      Raised signal.
@@ -828,13 +946,15 @@ package Userland.Process is
    --  @param Flags    The action's sa_flags.
    procedure Get_Raised_Signal_Actions
       (Proc     : PID;
+       Thread   : Scheduler.TID;
        Masked   : Signal_Bitmap;
        Sig      : out Signal;
        Handler  : out System.Address;
        Restorer : out System.Address;
        No_Sig   : out Boolean;
        Sig_Mask : out Unsigned_64;
-       Flags    : out Unsigned_32);
+       Flags    : out Unsigned_32;
+       Origin   : out Signal_Origin);
 
    procedure Get_Default_Policy (Proc : PID; Pol : out Scheduler.Policy);
    procedure Set_Default_Policy (Proc : PID; Pol : Scheduler.Policy);
@@ -922,6 +1042,17 @@ private
 
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
    type Handle_Arr is array (Signal)                  of Signal_Handlers;
+   type Origin_Arr is array (Signal)                  of Signal_Origin;
+
+   --  One occurrence of a queued signal. The queue is kept in FIFO order
+   --  as a plain array with a count, so a take is a shift of what is left:
+   --  it holds at most 32 entries, and nothing about it is hot.
+   type Queued_Signal is record
+      Sig    : Signal;
+      Origin : Signal_Origin;
+   end record;
+   type Queued_Signal_Arr is array (1 .. Max_Queued_Signals)
+      of Queued_Signal;
 
    --  At most this many attachments at once (POSIX.1-2024, shmat [EMFILE]);
    --  a free slot names no segment.
@@ -949,6 +1080,9 @@ private
       --  asks whether a sleeping thread has anything to take, and it asks
       --  from inside its own critical section.
       Pending_Bits    : Unsigned_64 with Atomic;
+      Signal_Origins  : Origin_Arr;
+      Queued_Signals  : Queued_Signal_Arr;
+      Queued_Count    : Natural range 0 .. Max_Queued_Signals;
       Signal_Handlers : Handle_Arr;
       Prio            : Scheduler.Priority;
       Niceness        : Scheduler.Niceness;
@@ -995,6 +1129,61 @@ private
 
    Default_Signal_Handlers : constant Handle_Arr :=
       [others => (False, System.Null_Address, System.Null_Address, 0, 0)];
+
+   --  A thread's own pending signals, beside its process's. They live here
+   --  and not in the scheduler because the scheduler must know nothing of
+   --  what a signal is (this spec withs it, so a signal type there would be
+   --  a cycle), and everything that decides what a pending signal means is
+   --  here already.
+   type Thread_Signals is record
+      Raised  : Signal_Bitmap;
+      Origins : Origin_Arr;
+      --  The same set as a word, kept beside it so that it can be read
+      --  with no lock at all, exactly as Process_Data.Pending_Bits is and
+      --  for the same caller: the scheduler, from inside its own critical
+      --  section, asking whether a sleeping thread has anything to take.
+      Pending : Unsigned_64 with Atomic;
+   end record;
+   type Thread_Signal_Arr is array
+      (Natural range 1 .. Scheduler.Max_Thread_Number) of Thread_Signals;
+   type Thread_Signal_Arr_Acc is access Thread_Signal_Arr;
+
+   Thread_Sigs    : Thread_Signal_Arr_Acc := null;
+
+   --  Empty every thread's pending set, once, when the table is made. It is
+   --  its own routine because the aggregate carries a check and Init has no
+   --  handler to cover one.
+   procedure Clear_All_Thread_Signals;
+
+   --  Throw a pending signal away wherever it may be waiting: the process's
+   --  own set and that of every thread of the process. The caller holds the
+   --  process's Data_Mutex, which is what the thread list and every thread's
+   --  pending set are written under everywhere.
+   --  @param Proc Process whose threads are to forget the signal.
+   --  @param Sig  Signal to forget.
+   procedure Discard_Thread_Signal (Proc : PID; Sig : Signal);
+
+   --  Take the first queued occurrence of a signal off the process's queue.
+   --  The caller holds Data_Mutex.
+   --  @param Proc   Process to take from.
+   --  @param Sig    Signal to take an occurrence of.
+   --  @param Origin What that occurrence was sent with.
+   --  @param Found  True if there was one at all.
+   --  @param More   True if another occurrence of the same signal is still
+   --                queued, which keeps it pending (POSIX.1-2024, XSH 2.4.2).
+   procedure Take_Queued
+      (Proc   : PID;
+       Sig    : Signal;
+       Origin : out Signal_Origin;
+       Found  : out Boolean;
+       More   : out Boolean);
+
+   --  Throw away every queued occurrence of a signal, which a discard must
+   --  do as well as clearing the pending bit (POSIX.1-2024, XSH 2.4.3). The
+   --  caller holds Data_Mutex.
+   --  @param Proc Process to drop them from.
+   --  @param Sig  Signal to drop every occurrence of.
+   procedure Drop_Queued (Proc : PID; Sig : Signal);
 
    Registry       : Process_Arr_Acc := null;
    Registry_Mutex : aliased Synchronization.Mutex :=

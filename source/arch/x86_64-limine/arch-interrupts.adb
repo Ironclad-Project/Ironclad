@@ -466,6 +466,17 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             PCI_Read
                (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                 State.R9, Returned, Errno);
+         when 141 =>
+            Sig_Pending (State.RDI, Returned, Errno);
+         when 142 =>
+            Send_Thread_Signal
+               (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 143 =>
+            Sig_Queue
+               (State.RDI, State.RSI, State.RDX, State.R12, Returned, Errno);
+         when 144 =>
+            Sig_Timed_Wait
+               (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 145 =>
             Stat_VFS (State.RDI, State.RSI, State.RDX, State.R12,
                       State.R8, Returned, Errno);

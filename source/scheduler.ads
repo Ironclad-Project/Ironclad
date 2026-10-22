@@ -28,6 +28,9 @@ package Scheduler is
    type TID is private;
    Error_TID : constant TID;
 
+   --  The highest thread number the scheduler will ever hand out.
+   Max_Thread_Number : constant Natural;
+
    --  Scheduler policies we support.
    type Policy is
       (Policy_FIFO,   --  First-In-First-Out.
@@ -359,6 +362,12 @@ package Scheduler is
    --  types here would be a cycle.
    function Is_Alive (Thread : TID; PID : Natural) return Boolean;
 
+   --  The process a thread runs for, a plain number for the same reason
+   --  Is_Alive takes one.
+   --  @param Thread Thread to ask about.
+   --  @return The process's identifier, or 0 when there is no such thread.
+   function Get_Thread_Process (Thread : TID) return Natural;
+
    type Thread_Listing is record
       Thread : TID;
       Proc   : Natural;
@@ -374,6 +383,7 @@ private
 
    type TID is new Natural range 0 .. 512;
    Error_TID : constant  TID := 0;
+   Max_Thread_Number : constant Natural := Natural (TID'Last);
 
    Is_Initialized : Boolean := False
       with Atomic, Volatile, Async_Readers => True, Async_Writers => True,
