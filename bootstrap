@@ -15,7 +15,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-set -ex
+set -e
 
 # Keep cd from picking a same-named directory out of CDPATH.
 # Assigned first, as some shells fail to unset an unset variable.
@@ -46,7 +46,6 @@ clone_repo_commit() {
         fi
     else
         if test -d "$2"; then
-            set +x
             echo "error: '$2' is not a Git repository" 1>&2
             exit 1
         fi
@@ -94,7 +93,6 @@ $AUTORECONF -fvi -Wall
 # date than the ones autoreconf installs.
 AUTOMAKE_LIBDIR="$($AUTOMAKE --print-libdir 2>/dev/null)" || true
 if test -z "$AUTOMAKE_LIBDIR"; then
-    set +x
     echo "error: Missing or broken automake." 1>&2
     echo "       Please make sure automake is installed and working." 1>&2
     exit 1
@@ -104,7 +102,5 @@ for auxfile in $AUXFILES; do
     cp "$AUTOMAKE_LIBDIR/$auxfile" build-aux/
     chmod +x build-aux/$auxfile
 done
-
-set +x
 
 printf "\nSource tree bootstrapped successfully!\n"

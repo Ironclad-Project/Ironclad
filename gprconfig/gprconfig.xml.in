@@ -109,7 +109,7 @@
       for Include_Switches ("C") use ("-I");
       for Max_Command_Line_Length use "8192";
       for Response_File_Format ("C") use "GCC_GNU";
-      for Dependency_Switches ("C") use ("-MMD", "-MF", "");
+      for Dependency_Switches ("C") use ("-MD", "-MF", "");
    end Compiler;
 
    package Compiler is
@@ -118,7 +118,7 @@
       for Include_Switches ("Asm_Cpp") use ("-I");
       for Max_Command_Line_Length use "8192";
       for Response_File_Format ("Asm_Cpp") use "GCC_GNU";
-      for Dependency_Switches ("Asm_Cpp") use ("-MMD", "-MF", "");
+      for Dependency_Switches ("Asm_Cpp") use ("-MD", "-MF", "");
    end Compiler;
     </config>
   </configuration>

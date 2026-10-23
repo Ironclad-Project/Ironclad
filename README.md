@@ -66,6 +66,16 @@ the standard autoconf option `--host=` for `./configure`. For example:
 `./configure --host=riscv64-linux-gnu` would build Ironclad for RISC-V 64-bit,
 using the `riscv64-linux-gnu` toolchain.
 
+The kernel is linked through the compiler driver, using its default linker. A
+different linker can be picked by adding a `-fuse-ld=` option to `LDFLAGS`.
+
+Link-time optimization can be enabled by adding `-flto` to `CFLAGS`, which
+`ADAFLAGS` and `ASFLAGS` default to, for example:
+
+```bash
+./configure CFLAGS='-g -O2 -pipe -flto'
+```
+
 Additionally, the optional `PLATFORM=...` variable can be passed to
 `./configure` to tell the build system which platform/board to build Ironclad
 for. So far, the only supported value for `PLATFORM` is `limine`, which is the

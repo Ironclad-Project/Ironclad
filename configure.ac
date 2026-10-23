@@ -234,16 +234,71 @@ AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: same as CFLAGS@:>@])
 AC_ARG_VAR([ASFLAGS], [assembler flags @<:@default: same as CFLAGS@:>@])
 : "${ASFLAGS=$CFLAGS}"
 
+m4_define([DEFAULT_CPPFLAGS], [])
+AC_ARG_VAR([CPPFLAGS], [C preprocessor flags @<:@default: ]DEFAULT_CPPFLAGS[@:>@])
+: "${CPPFLAGS=DEFAULT_CPPFLAGS}"
+
 m4_define([DEFAULT_LDFLAGS], [])
 AC_ARG_VAR([LDFLAGS], [linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
 : "${LDFLAGS=DEFAULT_LDFLAGS}"
+
+# Run CC with CFLAGS, as the build does, keeping its diagnostics, untranslated,
+# in cc_diagnostics.
+cc_run() {
+    printf '%s\n' "$CC $CFLAGS $*" >&AS_MESSAGE_LOG_FD
+    cc_diagnostics="$(LC_ALL=C $CC $CFLAGS "$@" 2>&1 >/dev/null)"
+    cc_status=$?
+    test -z "$cc_diagnostics" || printf '%s\n' "$cc_diagnostics" >&AS_MESSAGE_LOG_FD
+    return $cc_status
+}
+
+# Check that the compiler works with the given flags, as the checks below
+# would otherwise blame a missing feature.
+AC_MSG_CHECKING([whether $CC works with the given CFLAGS])
+AS_IF([cc_run -c -x c /dev/null -o /dev/null],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
+     cc_error="$(printf '%s\n' "$cc_diagnostics" | $EGREP -i 'error|sorry' | $SED 1q)"
+     AC_MSG_ERROR([$CC does not work with the given CFLAGS: $cc_error])])
+
+# Check that the compiler emits ELF objects. Go by the macro for ELF targets,
+# as GNU as cannot write an object to standard output.
+AC_MSG_CHECKING([whether $CC emits ELF objects])
+AS_IF([$CC $CFLAGS -dM -E -x c /dev/null 2>/dev/null | $GREP -q 'define __ELF__ 1'],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
+     AC_MSG_ERROR([$CC does not emit ELF objects])])
+
+# The same for linking, which goes through the compiler driver.
+AC_MSG_CHECKING([whether the linker works with the given LDFLAGS])
+AS_IF([cc_run $LDFLAGS -Wl,--version],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
+     cc_error="$(printf '%s\n' "$cc_diagnostics" | $EGREP -i 'error|sorry' | $SED 1q)"
+     AC_MSG_ERROR([the linker does not work with the given LDFLAGS: $cc_error])])
+
+# Some drivers ignore -fuse-ld on some targets, so check that the banner of the
+# linker that runs names the one asked for. GNU ld calls itself ld, not bfd.
+cc_fuse_ld=""
+for cc_flag in $CFLAGS $LDFLAGS; do
+    AS_CASE([$cc_flag], [-fuse-ld=*], [cc_fuse_ld="$cc_flag"])
+done
+AS_IF([test -n "$cc_fuse_ld"], [
+    AC_MSG_CHECKING([whether $CC runs the linker $cc_fuse_ld asks for])
+    cc_ld_name="$(printf '%s\n' "$cc_fuse_ld" | $SED -e 's/^-fuse-ld=//' -e 's|.*/||' -e 's/^ld\.//' -e 's/-.*//' -e 's/^bfd$/ld/')"
+    cc_ld_version="$(LC_ALL=C $CC $CFLAGS $LDFLAGS -Wl,--version 2>/dev/null | $SED 1q)"
+    AS_IF([printf '%s\n' "$cc_ld_version" | $EGREP -qi '(^|[[^[:alnum:]]])'"$cc_ld_name"'([[^[:alnum:]]]|$)'],
+        [AC_MSG_RESULT([yes])],
+        [AC_MSG_RESULT([no])
+         AC_MSG_ERROR([$CC ignores $cc_fuse_ld and runs another linker: $cc_ld_version])])
+])
 
 # Check if the linker supports -no-pie by searching its help, as GNU ld before
 # 2.37 either rejects it or takes it for -n -o -pie. Help lines name a flag
 # with one dash or two, and may follow it with a comma, an "=" or a "[" for
 # its value.
 AC_MSG_CHECKING([whether the linker accepts -no-pie])
-AS_IF([LC_ALL=C $CC $LDFLAGS -Wl,--help 2>/dev/null | $EGREP -q '(^|[[[:space:]]])-?-no-pie([[[:space:],=@<:@]]|$)'],
+AS_IF([LC_ALL=C $CC $CFLAGS $LDFLAGS -Wl,--help 2>/dev/null | $EGREP -q '(^|[[[:space:]]])-?-no-pie([[[:space:],=@<:@]]|$)'],
     [AC_MSG_RESULT([yes])
      LD_HAS_NO_PIE="true"],
     [AC_MSG_RESULT([no])
@@ -256,7 +311,7 @@ AC_SUBST([LD_HAS_NO_PIE])
 LD_HAS_NO_RELAX_GP="false"
 AS_IF([test "x$host_cpu" = "xriscv64"], [
     AC_MSG_CHECKING([whether the linker accepts --no-relax-gp])
-    AS_IF([LC_ALL=C $CC $LDFLAGS -Wl,--help 2>/dev/null | $EGREP -q '(^|[[[:space:]]])-?-no-relax-gp([[[:space:],=@<:@]]|$)'],
+    AS_IF([LC_ALL=C $CC $CFLAGS $LDFLAGS -Wl,--help 2>/dev/null | $EGREP -q '(^|[[[:space:]]])-?-no-relax-gp([[[:space:],=@<:@]]|$)'],
         [AC_MSG_RESULT([yes])
          LD_HAS_NO_RELAX_GP="true"],
         [AC_MSG_RESULT([no])])

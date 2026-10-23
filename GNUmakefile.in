@@ -84,6 +84,10 @@ endif
 override RTSFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | $(SED) 's/[[:blank:]]/\\&/g')
 override ADAFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f ! -path '$(call SHESCAPE,$(SRCDIR))/source/rts/*' | $(SED) 's/[[:blank:]]/\\&/g')
 
+# The same for the sources and headers of the dependencies built into the
+# kernel, so that editing or bumping one rebuilds it as well.
+override DEPSFILES := $(shell find -L $(foreach d,freestanding-c-hdrs/include freestanding-lgrt/src uacpi/include uacpi/source flanterm/src,'$(call SHESCAPE,$(SRCDIR))/$(d)') -type f | $(SED) 's/[[:blank:]]/\\&/g')
+
 ###############################################################################
 # Rules for generating executables, documentation, and other artifacts.
 .PHONY: all
@@ -106,8 +110,11 @@ rtsdir/adalib/libgnat.a: GNUmakefile $(RTSFILES)
 		-j$(PARALLELISM)
 
 # gprbuild does not recompile when the toolchain or flags change, which they
-# only do along with the configuration, so force it to when that changes.
-$(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES)
+# only do along with the configuration, so force it to when that changes. It
+# does not relink when only a file it does not compile changes either, such as
+# the linker script, so remove the kernel first.
+$(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES) $(DEPSFILES)
+	rm -f $@
 	$(GPRCONFIG) --batch -o ironclad.cgpr \
 		--target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
 		--config=Ada,,$(RTS_PATH),$(CC_PATH) \

@@ -28,10 +28,11 @@ project Ironclad is
    Proving : Proving_State := external ("IRONCLAD_PROVING", "false");
    Linker_No_PIE : Linker_No_PIE_State := "@LD_HAS_NO_PIE@";
    Linker_No_Relax_GP : Linker_No_Relax_GP_State := "@LD_HAS_NO_RELAX_GP@";
-   Ada_Flags        := "@ADAFLAGS@";
-   C_Flags          := "@CFLAGS@";
-   Asm_Flags        := "@ASFLAGS@";
-   Linker_Flags     := "@LDFLAGS@";
+   Ada_Flags          := "@ADAFLAGS@";
+   C_Flags            := "@CFLAGS@";
+   Asm_Flags          := "@ASFLAGS@";
+   Preprocessor_Flags := "@CPPFLAGS@";
+   Linker_Flags       := "@LDFLAGS@";
 
    Common_Source_Dirs := (
       "@SRCDIR@/source/arch",
@@ -46,7 +47,6 @@ project Ironclad is
       "@SRCDIR@/source/vfs",
       "@SRCDIR@/source/virtualization",
       "@SRCDIR@/source",
-      "@SRCDIR@/freestanding-c-hdrs/include",
       "@SRCDIR@/freestanding-lgrt/src"
    );
 
@@ -143,15 +143,17 @@ project Ironclad is
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags & (
          "-std=gnu11",
          "-ffreestanding",
-         "-I@SRCDIR@/uacpi/include"
-      );
+         "-I@SRCDIR@/uacpi/include",
+         "-isystem@SRCDIR@/freestanding-c-hdrs/include"
+      ) & Split (Preprocessor_Flags, " ");
 
       --  GCC before 13 passes the prefix maps on to the assembler only in
       --  this form.
       Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags & (
          "-fdebug-prefix-map=" & "@SRCDIR@" & "=.",
-         "-fdebug-prefix-map=" & "@BUILDDIR@" & "=."
-      );
+         "-fdebug-prefix-map=" & "@BUILDDIR@" & "=.",
+         "-isystem@SRCDIR@/freestanding-c-hdrs/include"
+      ) & Split (Preprocessor_Flags, " ");
 
       for Default_Switches ("Ada") use Base_Ada_Switches;
       for Default_Switches ("C") use Base_C_Switches;
@@ -164,17 +166,15 @@ project Ironclad is
    end Compiler;
 
    package Linker is
-      --  The kernel needs its runtime and the runtime needs freestanding-lgrt,
-      --  which is part of the kernel, so search their archives as a group.
-      for Leading_Switches ("Ada") use ("-Wl,--start-group");
-      Base_Link_Switches := ("rtsdir/adalib/libgnat.a", "-Wl,--end-group");
+      --  Link with the C flags too, as some, such as -flto, act on the link.
+      Base_Link_Switches := Split (C_Flags, " ") & Common_Compiler_Flags;
 
       --  Always ask for a build ID, naming its style, as compilers and
       --  linkers differ on both. Comes before LDFLAGS, which can override it.
       Base_Link_Switches := Base_Link_Switches & ("-Wl,--build-id=sha1") &
         Split (Linker_Flags, " ");
 
-      Base_Link_Switches := Base_Link_Switches & Common_Compiler_Flags & (
+      Base_Link_Switches := Base_Link_Switches & (
          "-nostdlib",
          "-static",
          "-no-pie",
@@ -214,6 +214,11 @@ project Ironclad is
             null;
       end case;
 
-      for Switches ("Ada") use Base_Link_Switches;
+      --  The flags come before the objects, as LDFLAGS conventionally do. The
+      --  kernel needs its runtime and the runtime needs freestanding-lgrt,
+      --  which is part of the kernel, so search their archives as a group.
+      for Leading_Switches ("Ada") use
+        Base_Link_Switches & ("-Wl,--start-group");
+      for Switches ("Ada") use ("rtsdir/adalib/libgnat.a", "-Wl,--end-group");
    end Linker;
 end Ironclad;
