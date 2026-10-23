@@ -69,7 +69,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/osdev0/freestanding-lgrt.git \
         freestanding-lgrt \
-        a6e79759589f9905ec08c5fdc7f10f34f668d145
+        b2a44eb59d9f7e501659a96e1e9b03a4665a939e
 
     # 3.1.2
     clone_repo_commit \
