@@ -1458,6 +1458,7 @@ package body Userland.Syscall is
    procedure Socket
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
+       Protocol : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
@@ -1481,6 +1482,18 @@ package body Userland.Syscall is
          when SOCK_RAW    => Data := IPC.Socket.Raw;
          when others      => goto Invalid_Value_Return;
       end case;
+
+      if Protocol /= 0 then
+         if Dom = IPC.Socket.IPv4 then
+            if (Data = IPC.Socket.Stream and Protocol /= IPPROTO_TCP) or
+               (Data = IPC.Socket.Datagram and Protocol /= IPPROTO_UDP)
+            then
+               goto Wrong_Proto_Return;
+            end if;
+         else
+            goto Proto_Unsupported_Return;
+         end if;
+      end if;
 
       --  A network socket needs the capability to use the network.
       --  A raw one, which reads and writes whole packets on the interfaces,
@@ -1526,6 +1539,16 @@ package body Userland.Syscall is
 
    <<AF_Unsupported_Return>>
       Errno    := Error_AF_Unsupported;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Proto_Unsupported_Return>>
+      Errno    := Error_Proto_Not_Supported;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Wrong_Proto_Return>>
+      Errno    := Error_Prototype;
       Returned := Unsigned_64'Last;
    end Socket;
 
@@ -8633,6 +8656,7 @@ package body Userland.Syscall is
    procedure Socket_Pair
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
+       Protocol : Unsigned_64;
        FDs      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
@@ -8662,6 +8686,12 @@ package body Userland.Syscall is
          when SOCK_RAW    => Data := IPC.Socket.Raw;
          when others      => goto Invalid_Value_Return;
       end case;
+
+      if Protocol /= 0 then
+         Errno    := Error_Proto_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
 
       New_Sock1 := Create (Dom, Data);
       if New_Sock1 = null then

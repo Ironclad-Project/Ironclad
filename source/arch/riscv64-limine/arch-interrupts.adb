@@ -279,7 +279,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 13 =>
             Wait (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 14 =>
-            Socket (Ctx.X10, Ctx.X11, Returned, Errno);
+            Socket (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 15 =>
             Set_Hostname (Ctx.X10, Ctx.X11, Returned, Errno);
          when 16 =>
@@ -513,7 +513,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 114 =>
             Get_CPU_Info (Ctx.X10, Returned, Errno);
          when 115 =>
-            Socket_Pair (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
+            Socket_Pair (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Returned, Errno);
          when 116 =>
             MAdvise (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 117 =>

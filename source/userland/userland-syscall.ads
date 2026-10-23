@@ -72,6 +72,8 @@ package Userland.Syscall is
        Error_Op_Not_Supported, --  EOPNOTSUPP
        Error_Bad_Permissions, --  EPERM
        Error_Broken_Pipe,     --  EPIPE
+       Error_Proto_Not_Supported, --  EPROTONOSUPPORT
+       Error_Prototype, --  EPROTOTYPE
        Error_Read_Only_FS,    --  EROFS
        Error_Invalid_Seek,    --  ESPIPE
        Error_Bad_Search);     --  ESRCH
@@ -112,6 +114,8 @@ package Userland.Syscall is
        Error_Op_Not_Supported => 1060,
        Error_Bad_Permissions => 1063,
        Error_Broken_Pipe     => 1064,
+       Error_Proto_Not_Supported => 1066,
+       Error_Prototype => 1067,
        Error_Read_Only_FS    => 1068,
        Error_Invalid_Seek    => 1069,
        Error_Bad_Search      => 1070);
@@ -275,9 +279,12 @@ package Userland.Syscall is
    SOCK_NONBLOCK  : constant := 2#001000000000000000#;
    SOCK_CLOEXEC   : constant := 2#010000000000000000#;
    SOCK_CLOFORK   : constant := 2#100000000000000000#;
+   IPPROTO_TCP    : constant := 6;
+   IPPROTO_UDP    : constant := 17;
    procedure Socket
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
+       Protocol : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
@@ -1459,6 +1466,7 @@ package Userland.Syscall is
    procedure Socket_Pair
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
+       Protocol : Unsigned_64;
        FDs      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);

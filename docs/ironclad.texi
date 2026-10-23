@@ -1410,6 +1410,12 @@ used for sockets and other networking elements when dealing with protocols.
 @item EPERM (1063)
 Bad permissions.
 
+@item EPROTONOSUPPORT (1066)
+The protocol asked for is not one the address family supports.
+
+@item EPROTOTYPE (1067)
+The protocol asked does not match the datatype passed.
+
 @item ESPIPE (1069)
 A seek was issued to an invalid device.
 
@@ -1885,7 +1891,11 @@ following errno:
 #define SOCK_NONBLOCK  0b001000000000000000
 #define SOCK_CLOEXEC   0b010000000000000000
 #define SOCK_CLOFORK   0b100000000000000000
-int socket(int domain, int type);
+
+#define IPPROTO_TCP 6
+#define IPPROTO_UDP 17
+
+int socket(int domain, int type, int protocol);
 @end example
 
 This syscall for creating sockets, the passed fields can be used for selecting
@@ -1970,6 +1980,11 @@ sent.
 Any socket type may have @code{type} be OR'ed with @code{SOCK_NONBLOCK} or
 @code{SOCK_CLOEXEC} for setting the created socket nonblock or close-on-exec
 respectively.
+
+A @code{protocol} of 0 is the default of the domain and type. The only others
+taken are @code{IPPROTO_TCP} for an @code{AF_INET} stream socket and
+@code{IPPROTO_UDP} for an @code{AF_INET} datagram one; a UNIX socket and a raw
+socket take 0 alone.
 
 The syscall returns the resulting FD or @code{-1} on failure, with the
 following errno:
@@ -5307,12 +5322,14 @@ The passed buffers were pointing to invalid memory.
 @section socketpair
 
 @example c
-int socketpair(int domain, int type, int *fds);
+int socketpair(int domain, int type, int protocol, int *fds);
 @end example
 
 This syscall creates a pair of interconnected sockets, that are otherwise
 identical, and returns their FDs on @code{fds[0]} and @code{fds[1]}. The
-arguments are the same as the parent @code{socket} syscall.
+arguments are the same as the parent @code{socket} syscall, but only
+@code{AF_UNIX} pairs of @code{SOCK_STREAM} or @code{SOCK_DGRAM} sockets are
+made, whose @code{protocol} is 0. Any non-0 protocol will result in error.
 
 This syscall returns @code{0} on success and @code{-1} on failure, and shares
 errnos with the main @code{socket} syscall.

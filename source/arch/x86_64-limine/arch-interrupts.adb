@@ -182,7 +182,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 13 =>
             Wait (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 14 =>
-            Socket (State.RDI, State.RSI, Returned, Errno);
+            Socket (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 15 =>
             Set_Hostname (State.RDI, State.RSI, Returned, Errno);
          when 16 =>
@@ -417,7 +417,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 114 =>
             Get_CPU_Info (State.RDI, Returned, Errno);
          when 115 =>
-            Socket_Pair (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            Socket_Pair
+               (State.RDI, State.RSI, State.RDX, State.R12, Returned, Errno);
          when 116 =>
             MAdvise (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 117 =>
