@@ -143,6 +143,7 @@ project Ironclad is
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags & (
          "-std=gnu11",
          "-ffreestanding",
+         "-fno-common",
          "-I@SRCDIR@/uacpi/include",
          "-isystem@SRCDIR@/freestanding-c-hdrs/include"
       ) & Split (Preprocessor_Flags, " ");
@@ -181,7 +182,7 @@ project Ironclad is
          "-Wl,-z,max-page-size=0x1000",
          "-Wl,-z,noexecstack",
          "-Wl,--gc-sections",
-         "-T@SRCDIR@/source/arch/" & Arch & "/linker.ld"
+         "-Wl,-T,@SRCDIR@/source/arch/" & Arch & "/linker.ld"
       );
 
       case Arch is

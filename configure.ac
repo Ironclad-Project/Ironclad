@@ -35,9 +35,10 @@ AC_SUBST([BUILDDIR])
 # literals and gprconfig's comma separated command line. '&' otherwise yields
 # an empty GNUmakefile with configure still exiting 0. The assembler splits a
 # prefix map at its first '=', so either path containing one stays in the
-# debug information.
+# debug information. The source path also names the linker script through
+# -Wl, which splits it at commas.
 AC_MSG_CHECKING([whether the source and build directory paths are usable])
-for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
+for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' ',' '='; do
     AS_CASE(["$SRCDIR"],
         [*"$bad_char"*],
         [AC_MSG_RESULT([no])

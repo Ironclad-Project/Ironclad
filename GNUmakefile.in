@@ -243,5 +243,6 @@ install-strip: install
 # Uninstall previously installed files and executables.
 .PHONY: uninstall
 uninstall:
-	rm -rf '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)'
+	rm -f '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)/$(OUTPUT)'
+	-rmdir '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(infodir))/ironclad.info'
