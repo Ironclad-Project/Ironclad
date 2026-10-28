@@ -74,11 +74,14 @@ override PLATFORM := @PLATFORM@
 override RTS_PATH := '$(call SHESCAPE,$(CURDIR))'/rtsdir
 override CC_PATH := '$(call SHESCAPE,$(CC_DIR))'
 
-# Attempt to get the job count from the make command line.
-override PARALLELISM := $(shell ps -o args= -p $$PPID | $(SED) -n -e 's/.* --jobs[= ]\{1,\}\([0-9][0-9]*\).*/\1/p' -e 's/.* -j *\([0-9][0-9]*\).*/\1/p')
-ifeq ($(PARALLELISM),)
-    override PARALLELISM := 1
-endif
+# The job count among make arguments, given as a quoted shell word: options
+# end at " -- ", and the first word of MAKEFLAGS may lack its dash.
+override JOBS_IN = $(shell printf ' %s\n' $(1) | $(SED) -n -e 's/ -- .*//' -e 's/^ *j/ -j/' -e 's/.* --jobs[= ]\{1,\}\([0-9][0-9]*\).*/\1/p' -e 's/.* -j *\([0-9][0-9]*\).*/\1/p')
+
+# The job count make was given. GNU make 4.2 and later keep it in MAKEFLAGS
+# however it was passed; older ones leave it on their command line, or in the
+# MAKEFLAGS of the environment they started with, which $(shell) still sees.
+override PARALLELISM = $(or $(call JOBS_IN,'$(call SHESCAPE,$(MAKEFLAGS))'),$(call JOBS_IN,"`ps -o args= -p $$PPID`"),$(call JOBS_IN,"$$MAKEFLAGS"),1)
 
 # Get a list of Ada source files to determine when to rebuild.
 override RTSFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | $(SED) 's/[[:blank:]]/\\&/g')
