@@ -29,7 +29,7 @@ reporting, and development guides, check https://ironclad-os.org
 
 The tools needed are:
 
-- standard *nix tools including `find` and GNU make 3.78.1 or later.
+- standard *nix tools including `find` and GNU make 3.81 or later.
 - git, autoconf 2.63 or later and automake 1.13 or later when not using a
   tarball (for `./bootstrap`).
 - gprbuild for compilation, along with GNAT from GCC 12 or later and a

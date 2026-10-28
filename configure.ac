@@ -121,15 +121,15 @@ AS_IF([test "x$FIND_FOUND" != "xyes"],
     [AC_MSG_ERROR([find not found, please install find before configuring])])
 
 AX_CHECK_GNU_MAKE([],
-    [AC_MSG_ERROR([GNU make not found, please install GNU make 3.78.1 or later before configuring])])
+    [AC_MSG_ERROR([GNU make not found, please install GNU make 3.81 or later before configuring])])
 
 # GNU make before 3.80 printed "GNU Make version X, by ..." rather than
 # "GNU Make X", so take the version from either form.
 gnu_make_version="$($_cv_gnu_make_command --version 2>/dev/null | $SED -n -e 's/^GNU Make version /GNU Make /' -e 's/^GNU Make \([[0-9]][[0-9.]]*\).*/\1/p' | $SED 1q)"
-AC_MSG_CHECKING([whether $_cv_gnu_make_command is 3.78.1 or later])
-AS_VERSION_COMPARE([$gnu_make_version], [3.78.1],
+AC_MSG_CHECKING([whether $_cv_gnu_make_command is 3.81 or later])
+AS_VERSION_COMPARE([$gnu_make_version], [3.81],
     [AC_MSG_RESULT([no])
-     AC_MSG_ERROR([$_cv_gnu_make_command is GNU make $gnu_make_version, but 3.78.1 or later is required; set MAKE to a newer one])],
+     AC_MSG_ERROR([$_cv_gnu_make_command is GNU make $gnu_make_version, but 3.81 or later is required; set MAKE to a newer one])],
     [AC_MSG_RESULT([yes])],
     [AC_MSG_RESULT([yes])])
 
