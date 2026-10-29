@@ -174,7 +174,6 @@ package body Networking.Stack with SPARK_Mode => Off is
 
          --  Wait for reply (simple polling, should have timeout).
          for Wait_Iter in 1 .. 1000 loop
-            --  Check cache first in case interrupt handler already updated it.
             ARP.Lookup (Target, Result);
             if Result /= [0, 0, 0, 0, 0, 0] then
                Success := True;
@@ -251,6 +250,32 @@ package body Networking.Stack with SPARK_Mode => Off is
       return Invalid_TCP_Handle;
    end Allocate_TCP_Slot;
 
+   procedure Take_Frame (Dev : Devices.Device_Handle; Taken : out Boolean) is
+      Recv_Buf  : Devices.Operation_Data (1 .. 1518);
+      Recv_Cnt  : Natural;
+      Recv_Stat : Devices.Dev_Status;
+   begin
+      Taken := False;
+      Devices.Read
+         (Dev, 0, Recv_Buf, Recv_Cnt, Recv_Stat, Is_Blocking => False);
+      if Recv_Stat = Devices.Dev_Success and Recv_Cnt > 0 then
+         Taken := True;
+         Process_Received_Frame (Dev, Recv_Buf (1 .. Recv_Cnt));
+      end if;
+   exception
+      when Constraint_Error =>
+         Taken := False;
+   end Take_Frame;
+
+   procedure Take_Frames (Dev : Devices.Device_Handle) is
+      Taken : Boolean;
+   begin
+      for Round in 1 .. Frames_Per_Take loop
+         Take_Frame (Dev, Taken);
+         exit when not Taken;
+      end loop;
+   end Take_Frames;
+
    procedure Get_Ephemeral_Port (Port : out Unsigned_16) is
    begin
       Port := Next_Ephemeral_Port;
@@ -307,6 +332,12 @@ package body Networking.Stack with SPARK_Mode => Off is
       Empty_Payload : constant Devices.Operation_Data (1 .. 0) :=
          [others => 0];
       Act_Local_Port : Unsigned_16 := Local_Port;
+
+      use type Time.Timestamp;
+      Connect_Wait : constant Time.Timestamp :=
+         (Seconds => 5, Nanoseconds => 0);
+      Start_Time   : Time.Timestamp;
+      Now_Time     : Time.Timestamp;
    begin
       Handle := Invalid_TCP_Handle;
       Success := False;
@@ -368,14 +399,19 @@ package body Networking.Stack with SPARK_Mode => Off is
          return;
       end if;
 
-      --  Wait for state to become Established (interrupt handler processes
-      --  SYN-ACK via Deliver_TCP_Packet).
-      for Wait_Iter in 1 .. 5000 loop
+      --  Wait up to five seconds, the connection's default receive timeout,
+      --  for the answer to the SYN.
+      Arch.Clocks.Get_Monotonic_Time (Start_Time);
+      loop
+         Take_Frames (Dev);
          if Conn.State = TCP.State_Established then
             Handle := Slot;
             Success := True;
             return;
          end if;
+         Arch.Clocks.Get_Monotonic_Time (Now_Time);
+         exit when Now_Time - Start_Time >= Connect_Wait or else
+            Scheduler.Is_Doomed;
          Scheduler.Yield_If_Able;
       end loop;
 
@@ -557,6 +593,7 @@ package body Networking.Stack with SPARK_Mode => Off is
       use Time;
 
       Conn          : TCP.TCP_Connection_Acc;
+      Dev           : Devices.Device_Handle;
       Timeout       : Time.Timestamp;
       Start_Time    : Time.Timestamp;
       Current_Time  : Time.Timestamp;
@@ -575,6 +612,7 @@ package body Networking.Stack with SPARK_Mode => Off is
       end if;
 
       Conn := TCP_Connections (Handle).Conn;
+      Dev := TCP_Connections (Handle).Dev;
 
       --  Get timeout and start time.
       Synchronization.Seize (Conn.Mutex);
@@ -583,8 +621,9 @@ package body Networking.Stack with SPARK_Mode => Off is
 
       Arch.Clocks.Get_Monotonic_Time (Start_Time);
 
-      --  Wait for data in receive buffer (filled by interrupt handler).
+      --  Wait for data in the receive buffer.
       loop
+         Take_Frames (Dev);
          Synchronization.Seize (Conn.Mutex);
 
          if Conn.Recv_Len > 0 then
@@ -636,8 +675,7 @@ package body Networking.Stack with SPARK_Mode => Off is
             end if;
          end if;
 
-         --  Yield to allow interrupt handler to process incoming packets,
-         --  unless the wait has to be given up.
+         --  Yield, unless the wait has to be given up.
          if Scheduler.Is_Interrupted then
             Interrupted := True;
             return;
@@ -677,7 +715,8 @@ package body Networking.Stack with SPARK_Mode => Off is
       --  Send FIN if connected.
       if Conn.State = TCP.State_Established then
          --  Copy parameters and release mutex before sending to avoid deadlock
-         --  with interrupt handler which also acquires Conn.Mutex.
+         --  with whoever hands the stack a frame for this connection, which
+         --  also acquires Conn.Mutex.
          declare
             Local_Port  : constant Unsigned_16 := Conn.Local_Port;
             Remote_Port : constant Unsigned_16 := Conn.Remote_Port;
@@ -1007,6 +1046,21 @@ package body Networking.Stack with SPARK_Mode => Off is
       when Constraint_Error =>
          Handle := Invalid_UDP_Handle;
    end UDP_Close;
+
+   procedure UDP_Take_Frames (Handle : UDP_Socket_Handle) is
+      Taken : Boolean;
+   begin
+      if Handle /= Invalid_UDP_Handle and then UDP_Sockets (Handle).In_Use then
+         for Round in 1 .. Frames_Per_Take loop
+            exit when UDP_Sockets (Handle).Has_Data;
+            Take_Frame (UDP_Sockets (Handle).Dev, Taken);
+            exit when not Taken;
+         end loop;
+      end if;
+   exception
+      when Constraint_Error =>
+         null;
+   end UDP_Take_Frames;
 
    function UDP_Has_Data (Handle : UDP_Socket_Handle) return Boolean is
    begin

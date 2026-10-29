@@ -245,6 +245,12 @@ package Networking.Stack is
    --  @return True if there is data in the receive buffer.
    function UDP_Has_Data (Handle : UDP_Socket_Handle) return Boolean;
 
+   --  Read what the device of a UDP socket holds, without waiting, and hand
+   --  each frame to the stack, stopping once the socket has a datagram, as
+   --  it holds only one.
+   --  @param Handle Socket handle.
+   procedure UDP_Take_Frames (Handle : UDP_Socket_Handle);
+
    --  Send a UDP datagram (legacy, without handle).
    --  @param Src_IP    Source IP address.
    --  @param Src_Port  Source port.
@@ -270,6 +276,18 @@ package Networking.Stack is
       (Dev   : Devices.Device_Handle;
        Frame : Devices.Operation_Data);
 
+   --  Read one frame from a device, without waiting, and hand it to
+   --  Process_Received_Frame.
+   --  @param Dev   Device to read.
+   --  @param Taken True if there was a frame.
+   procedure Take_Frame (Dev : Devices.Device_Handle; Taken : out Boolean);
+
+   --  Read what a device holds, without waiting, and hand each frame to
+   --  Process_Received_Frame, at most Frames_Per_Take of them, so that a
+   --  steady stream cannot keep the caller here.
+   --  @param Dev Device to read.
+   procedure Take_Frames (Dev : Devices.Device_Handle);
+
    procedure Send_TCP_Packet
       (Conn    : TCP.TCP_Connection_Acc;
        Dev     : Devices.Device_Handle;
@@ -285,6 +303,9 @@ private
 
    Stack_Mutex : aliased Synchronization.Mutex :=
       Synchronization.Unlocked_Mutex;
+
+   --  The most frames one Take_Frames hands the stack.
+   Frames_Per_Take : constant := 16;
 
    --  Gateway configuration (set by DHCP or statically).
    Gateway_IP  : IPv4_Address := [0, 0, 0, 0];

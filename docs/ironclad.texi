@@ -6399,6 +6399,12 @@ just byte streams.
 
 The default baud for all ports is set to be @code{115200}.
 
+@subsection e1000[1..x]
+
+The devices starting by @code{e1000} are Intel 82540EM and 82574L Ethernet
+cards, followed by a number, as character devices: writing sends a frame, and
+reading receives one.
+
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License
 @include fdl.texi

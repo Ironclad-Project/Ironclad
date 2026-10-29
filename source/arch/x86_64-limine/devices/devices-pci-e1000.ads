@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Memory;
+with Synchronization;
 
 package Devices.PCI.E1000 with SPARK_Mode => Off is
    procedure Init (Success : out Boolean);
@@ -47,6 +48,9 @@ private
 
    --  Maximum packet size (without CRC)
    MAX_PACKET_SIZE : constant := 1520;
+
+   --  Size of each receive buffer, which RCTL.BSIZE tells the card.
+   RX_BUFFER_SIZE : constant := 2048;
 
    --  Descriptor Structures
    type RX_Descriptor is record
@@ -88,8 +92,6 @@ private
    RX_STATUS_DD : constant Unsigned_8 := 16#01#;  --  Descriptor Done
    RX_STATUS_EOP : constant Unsigned_8 := 16#02#;  --  End Of Packet
 
-   subtype Packet_Buffer is Operation_Data (1 .. MAX_PACKET_SIZE);
-
    type MMIO_Registers is record
       --  Device Control Registers
       Ctrl         : Unsigned_32;  --  0x0000 - Device Control
@@ -100,6 +102,7 @@ private
       --  Interrupt Registers
       ICR          : Unsigned_32;  --  0x00C0 - Interrupt Cause Read
       IMask        : Unsigned_32;  --  0x00D0 - Interrupt Mask Set/Read
+      IMC          : Unsigned_32;  --  0x00D8 - Interrupt Mask Clear
 
       --  Receive Control Registers
       RCTL         : Unsigned_32;  --  0x0100 - Receive Control
@@ -136,6 +139,7 @@ private
       CtrlExt at 16#0018# range 0 .. 31;
       ICR     at 16#00C0# range 0 .. 31;
       IMask   at 16#00D0# range 0 .. 31;
+      IMC     at 16#00D8# range 0 .. 31;
       RCTL    at 16#0100# range 0 .. 31;
       TCTL    at 16#0400# range 0 .. 31;
       TIPG    at 16#0410# range 0 .. 31;
@@ -182,11 +186,13 @@ private
       --  Registered device handle for network stack.
       Dev_Handle          : Device_Handle;
 
-      --  Reassembly buffer for multi-descriptor packets.
-      Reassembly_Buffer   : Packet_Buffer;
-      Reassembly_Len      : Natural;
+      --  Held by Read and Write for the ring state, never across a wait.
+      Lock                : aliased Synchronization.Mutex;
+
+      --  Set while the descriptors of a frame that spans several are
+      --  being dropped, up to the one that ends it.
+      Discarding          : Boolean;
    end record;
-   pragma Volatile (Controller_Data);
 
    type Controller_Data_Acc is access all Controller_Data;
 

@@ -194,6 +194,7 @@ package body IPC.Socket is
                if Sock.IPv4_Is_Bound and then
                   Sock.IPv4_UDP_Handle /= Networking.Stack.Invalid_UDP_Handle
                then
+                  Networking.Stack.UDP_Take_Frames (Sock.IPv4_UDP_Handle);
                   Can_Read :=
                      Networking.Stack.UDP_Has_Data (Sock.IPv4_UDP_Handle);
                else

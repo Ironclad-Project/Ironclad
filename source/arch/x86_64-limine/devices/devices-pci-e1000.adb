@@ -22,11 +22,11 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.IDT; use Arch.IDT;
 with Arch.MMU;
+with Arch.Snippets;
 with Messages;
 with Memory.Physical;
 with Alignment;
 with Networking.Interfaces;
-with Networking.Stack;
 with Scheduler;
 
 with Interfaces.C; use Interfaces.C;
@@ -41,6 +41,9 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
       (RX_Descriptor_Array);
    package C_TX_Desc is new System.Address_To_Access_Conversions
       (TX_Descriptor_Array);
+
+   --  The driver's data as Read and Write are handed it.
+   subtype Controller_Ref is not null Controller_Data_Acc;
 
    --  Conversion function from Integer_Address to System.Address
    function To_Addr is new Ada.Unchecked_Conversion
@@ -99,14 +102,16 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          --    Bit 3 (0x8):       UPE - Unicast Promiscuous Enable
          --    Bit 4 (0x10):      MPE - Multicast Promiscuous Enable
          --    Bit 15 (0x8000):   BAM - Broadcast Accept Mode
-         --    Bit 25 (0x2000000): BSIZE extension for 8K buffers
          --    Bit 26 (0x4000000): SECRC - Strip Ethernet CRC
-         --  Buffer size: bits 16-17 = 0b10 (for 512 bytes) + bit 25 =
-         --    8192 bytes
-         --  RCTL = EN | SBP | UPE | MPE | BAM | SECRC | BSIZE_8192
-         --       = 0x2 | 0x4 | 0x8 | 0x10 | 0x8000 | 0x4000000 | 0x20000
-         --       = 0x402801E
-         CD.MMIO_Regs.RCTL := 16#402801E#;
+         --  BSIZE (bits 17:16) is 00b with BSEX (bit 25) clear, which tells
+         --  the card each receive buffer is 2048 bytes
+         --  (Intel 8254x SDM 317453-006 rev 4.0, 13.4.22). LPE is clear, so a
+         --  frame longer than 1522 bytes is discarded and each frame taken
+         --  fits one buffer.
+         --  RCTL = EN | SBP | UPE | MPE | BAM | SECRC
+         --       = 0x2 | 0x4 | 0x8 | 0x10 | 0x8000 | 0x4000000
+         --       = 0x400801E
+         CD.MMIO_Regs.RCTL := 16#400801E#;
       end if;
       return True;
    exception
@@ -205,92 +210,16 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          return False;
    end Install_Interrupt_Handler;
 
+   --  The receive ring is Read's alone: the causes that report a received
+   --  frame are masked, and nothing here takes a frame or runs the stack.
    procedure Handle_Interrupt (CD : Controller_Data_Acc)
    is
       ICR : Unsigned_32;
-      Packet_Len : Unsigned_16;
+      pragma Unreferenced (ICR);
    begin
       if CD.MMIO_Regs /= null then
-         --  Read interrupt cause (reading ICR acknowledges the interrupt)
+         --  Reading ICR acknowledges the interrupt.
          ICR := CD.MMIO_Regs.ICR;
-
-         --  Check interrupt causes
-         --  Bit 0 (0x01): Transmit Descriptor Written Back
-         --  Bit 1 (0x02): Transmit Queue Empty
-         --  Bit 2 (0x04): Link Status Change
-         --  Bit 4 (0x10): Receive Descriptor Minimum Threshold
-         --  Bit 6 (0x40): Receiver FIFO Overrun
-         --  Bit 7 (0x80): Receive Timer Interrupt
-
-         if (ICR and 16#80#) /= 0 or (ICR and 16#10#) /= 0 then
-            --  Read and dispatch all available packets.
-            while (CD.RX_Descriptors (CD.RX_Next).Status and RX_STATUS_DD)
-                  /= 0
-            loop
-               Packet_Len := CD.RX_Descriptors (CD.RX_Next).Length;
-               --  Only process complete packets (EOP=1).
-               --  Multi-descriptor packets (EOP=0) accumulate in reassembly.
-               if (CD.RX_Descriptors (CD.RX_Next).Status and RX_STATUS_EOP)
-                  /= 0
-               then
-                  --  End of packet. Check if we have accumulated data.
-                  if CD.Reassembly_Len > 0 then
-                     --  Append this fragment to reassembly buffer.
-                     declare
-                        RX_Buffer : Operation_Data (1 .. Natural (Packet_Len))
-                           with Import, Address => To_Addr
-                              (CD.RX_Buffers (CD.RX_Next));
-                        Total_Len : constant Natural :=
-                           CD.Reassembly_Len + Natural (Packet_Len);
-                     begin
-                        if Total_Len <= MAX_PACKET_SIZE then
-                           CD.Reassembly_Buffer
-                              (CD.Reassembly_Len + 1 .. Total_Len) :=
-                                 RX_Buffer;
-                           Networking.Stack.Process_Received_Frame
-                              (CD.Dev_Handle,
-                               CD.Reassembly_Buffer (1 .. Total_Len));
-                        end if;
-                     end;
-                     CD.Reassembly_Len := 0;
-                  elsif Packet_Len > 0 and Packet_Len <= MAX_PACKET_SIZE then
-                     --  Single-descriptor packet, process directly.
-                     declare
-                        RX_Buffer : Operation_Data (1 .. Natural (Packet_Len))
-                           with Import, Address => To_Addr
-                              (CD.RX_Buffers (CD.RX_Next));
-                     begin
-                        Networking.Stack.Process_Received_Frame
-                           (CD.Dev_Handle, RX_Buffer);
-                     end;
-                  end if;
-               else
-                  --  EOP=0: This is a fragment, accumulate it.
-                  if Packet_Len > 0 then
-                     declare
-                        RX_Buffer : Operation_Data (1 .. Natural (Packet_Len))
-                           with Import, Address => To_Addr
-                              (CD.RX_Buffers (CD.RX_Next));
-                        New_Len : constant Natural :=
-                           CD.Reassembly_Len + Natural (Packet_Len);
-                     begin
-                        if New_Len <= MAX_PACKET_SIZE then
-                           CD.Reassembly_Buffer
-                              (CD.Reassembly_Len + 1 .. New_Len) := RX_Buffer;
-                           CD.Reassembly_Len := New_Len;
-                        else
-                           --  Too large, discard.
-                           CD.Reassembly_Len := 0;
-                        end if;
-                     end;
-                  end if;
-               end if;
-               --  Reset descriptor for reuse.
-               CD.RX_Descriptors (CD.RX_Next).Status := 0;
-               CD.MMIO_Regs.RDT := Unsigned_32 (CD.RX_Next);
-               CD.RX_Next := CD.RX_Next + 1;
-            end loop;
-         end if;
       end if;
 
       --  Acknowledge the interrupt at LAPIC
@@ -301,7 +230,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          Arch.APIC.LAPIC_EOI;
    end Handle_Interrupt;
 
-
    procedure Read
       (Key         : System.Address;
        Offset      : Unsigned_64;
@@ -310,73 +238,86 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      CD : constant Controller_Data_Acc :=
-         Controller_Data_Acc (C1.To_Pointer (Key));
       pragma Unreferenced (Offset);
-
-      Packet_Len : Unsigned_16;
    begin
-      --  Check if there's a packet available
-      if (CD.RX_Descriptors (CD.RX_Next).Status and
-          RX_STATUS_DD) = 0
-      then
-         --  No packet available
-         if not Is_Blocking then
-            Ret_Count := 0;
-            Success := Dev_Success;
-            return;
-         end if;
-
-         --  Wait for packet if blocking
-         loop
-            exit when (CD.RX_Descriptors (CD.RX_Next).Status and
-               RX_STATUS_DD) /= 0;
-            if Scheduler.Is_Doomed then
-               Ret_Count := 0;
-               Success := Dev_IO_Failure;
-               return;
-            end if;
-            Scheduler.Yield_If_Able;
-         end loop;
-      end if;
-
-      Packet_Len := CD.RX_Descriptors (CD.RX_Next).Length;
-
-      --  Validate packet length from hardware before use.
-      if (Packet_Len > MAX_PACKET_SIZE) or else
-         (Natural (Packet_Len) > Data'Length)
-      then
-         Ret_Count := 0;
-         Success := Dev_IO_Failure;
-         return;
-      end if;
-
-      --  Copy packet data from RX buffer
+      Ret_Count := 0;
       declare
-         RX_Buffer : Operation_Data (1 .. MAX_PACKET_SIZE)
-            with Import, Address => To_Addr
-               (CD.RX_Buffers (CD.RX_Next));
+         CD        : constant Controller_Ref :=
+            Controller_Ref (C1.To_Pointer (Key));
+         Held      : Boolean := False;
+         Status    : Unsigned_8;
+         Count     : Natural;
+         Delivered : Boolean;
       begin
-         Data (Data'First .. Data'First + Natural (Packet_Len) - 1) :=
-            RX_Buffer (1 .. Natural (Packet_Len));
+         loop
+            Synchronization.Seize (CD.Lock);
+            Held := True;
+            Status := CD.RX_Descriptors (CD.RX_Next).Status;
+            if (Status and RX_STATUS_DD) /= 0 then
+               --  The status is read before what the card wrote with it.
+               Arch.Snippets.Full_Memory_Load_Store_Barrier;
+               Delivered := False;
+               Count := 0;
+               if (Status and RX_STATUS_EOP) = 0 then
+                  --  Only the last descriptor of a frame says it is whole,
+                  --  a frame longer than a buffer is dropped up to its end.
+                  CD.Discarding := True;
+               elsif CD.Discarding then
+                  CD.Discarding := False;
+               else
+                  Count := Natural'Min
+                     (Natural'Min
+                        (Natural (CD.RX_Descriptors (CD.RX_Next).Length),
+                         RX_BUFFER_SIZE),
+                      Data'Length);
+                  declare
+                     RX_Buffer : Operation_Data (1 .. RX_BUFFER_SIZE)
+                        with Import, Address => To_Addr
+                           (CD.RX_Buffers (CD.RX_Next));
+                  begin
+                     Data (Data'First .. Data'First + Count - 1) :=
+                        RX_Buffer (1 .. Count);
+                  end;
+                  Delivered := True;
+               end if;
+
+               --  The descriptor goes back to the card once it is read.
+               CD.RX_Descriptors (CD.RX_Next).Status := 0;
+               Arch.Snippets.Full_Memory_Load_Store_Barrier;
+               if CD.MMIO_Regs /= null then
+                  CD.MMIO_Regs.RDT := Unsigned_32 (CD.RX_Next);
+               end if;
+               CD.RX_Next := CD.RX_Next + 1;
+               Held := False;
+               Synchronization.Release (CD.Lock);
+               if Delivered then
+                  Ret_Count := Count;
+                  Success   := Dev_Success;
+                  return;
+               end if;
+            else
+               Held := False;
+               Synchronization.Release (CD.Lock);
+               if not Is_Blocking then
+                  Success := Dev_Would_Block;
+                  return;
+               elsif Scheduler.Is_Interrupted then
+                  Success := Dev_Interrupted;
+                  return;
+               end if;
+               Scheduler.Yield_If_Able;
+            end if;
+         end loop;
+      exception
+         when Constraint_Error =>
+            if Held then
+               Synchronization.Release (CD.Lock);
+            end if;
+            Messages.Put_Line ("Constraint_Error in E1000 Read!");
+            Success := Dev_IO_Failure;
       end;
-
-      --  Reset descriptor for reuse
-      CD.RX_Descriptors (CD.RX_Next).Status := 0;
-
-      --  Advance RX tail pointer to make descriptor available again
-      if CD.MMIO_Regs /= null then
-         CD.MMIO_Regs.RDT := Unsigned_32 (CD.RX_Next);
-      end if;
-
-      --  Advance to next descriptor
-      CD.RX_Next := CD.RX_Next + 1;
-      Ret_Count := Natural (Packet_Len);
-      Success := Dev_Success;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Constraint_Error in E1000 Read!");
-         Ret_Count := 0;
          Success := Dev_IO_Failure;
    end Read;
 
@@ -388,86 +329,95 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      CD : constant Controller_Data_Acc :=
-         Controller_Data_Acc (C1.To_Pointer (Key));
       pragma Unreferenced (Offset);
    begin
-      --  Check if CD is valid
-      if CD = null then
-         Ret_Count := 0;
-         Success := Dev_IO_Failure;
+      Ret_Count := 0;
+      if Data'Length = 0 then
+         Success := Dev_Success;
+         return;
+      elsif Data'Length > MAX_PACKET_SIZE then
+         --  A frame longer than the driver's buffers is beyond the device
+         --  (POSIX.1-2024, write [ENXIO]).
+         Success := Dev_Out_Of_Range;
          return;
       end if;
 
-      --  Check if packet is too large
-      if Data'Length > MAX_PACKET_SIZE then
-         Ret_Count := 0;
-         Success := Dev_IO_Failure;
-         return;
-      end if;
+      declare
+         CD     : constant Controller_Ref :=
+            Controller_Ref (C1.To_Pointer (Key));
+         Held   : Boolean := False;
+         Queued : TX_Desc_Idx_Type;
+      begin
+         loop
+            Synchronization.Seize (CD.Lock);
+            Held := True;
+            exit when (CD.TX_Descriptors (CD.TX_Next).Status and
+               DESC_STATUS_DD) /= 0;
+            Held := False;
+            Synchronization.Release (CD.Lock);
+            if not Is_Blocking then
+               Success := Dev_Would_Block;
+               return;
+            elsif Scheduler.Is_Interrupted then
+               Success := Dev_Interrupted;
+               return;
+            end if;
+            Scheduler.Yield_If_Able;
+         end loop;
 
-      --  Check if the descriptor is free
-      if (CD.TX_Descriptors (CD.TX_Next).Status and
-          DESC_STATUS_DD) = 0
-      then
-         if not Is_Blocking then
-            Ret_Count := 0;
-            Success := Dev_IO_Failure;
-            return;
+         --  Copy packet data to TX buffer
+         declare
+            TX_Buffer : Operation_Data (1 .. MAX_PACKET_SIZE)
+               with Import, Address => To_Addr
+                  (CD.TX_Buffers (CD.TX_Next));
+         begin
+            TX_Buffer (1 .. Data'Length) := Data;
+         end;
+
+         --  Setup TX descriptor
+         CD.TX_Descriptors (CD.TX_Next).Address :=
+            Unsigned_64 (CD.TX_Buffers (CD.TX_Next) -
+               Memory.Memory_Offset);
+         CD.TX_Descriptors (CD.TX_Next).Length :=
+            Unsigned_16 (Data'Length);
+         CD.TX_Descriptors (CD.TX_Next).CMD :=
+            TX_CMD_EOP or TX_CMD_IFCS or TX_CMD_RS;
+         CD.TX_Descriptors (CD.TX_Next).Status := 0;
+
+         --  Advance TX tail pointer. The descriptor just queued is the one to
+         --  wait on, so its index is kept.
+         Queued := CD.TX_Next;
+         CD.TX_Next := CD.TX_Next + 1;
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
+         if CD.MMIO_Regs /= null then
+            CD.MMIO_Regs.TDT := Unsigned_32 (CD.TX_Next);
+         end if;
+         Held := False;
+         Synchronization.Release (CD.Lock);
+
+         --  Wait for transmission to complete if blocking, unless the thread
+         --  has to give up its wait: the packet is queued already.
+         if Is_Blocking then
+            loop
+               exit when (CD.TX_Descriptors (Queued).Status and
+                  DESC_STATUS_DD) /= 0 or else Scheduler.Is_Interrupted;
+               Scheduler.Yield_If_Able;
+            end loop;
          end if;
 
-         --  Wait for descriptor to become free
-         loop
-            exit when (CD.TX_Descriptors (CD.TX_Next).Status and
-               DESC_STATUS_DD) /= 0;
-            Scheduler.Yield_If_Able;
-         end loop;
-      end if;
-
-      --  Copy packet data to TX buffer
-      declare
-         TX_Buffer : Operation_Data (1 .. MAX_PACKET_SIZE)
-            with Import, Address => To_Addr
-               (CD.TX_Buffers (CD.TX_Next));
-      begin
-         TX_Buffer (1 .. Data'Length) := Data;
+         Ret_Count := Data'Length;
+         Success := Dev_Success;
+      exception
+         when Constraint_Error =>
+            if Held then
+               Synchronization.Release (CD.Lock);
+            end if;
+            Messages.Put_Line
+               ("E1000 Write: *** Constraint_Error caught! ***");
+            Success := Dev_IO_Failure;
       end;
-
-      --  Setup TX descriptor
-      CD.TX_Descriptors (CD.TX_Next).Address :=
-         Unsigned_64 (CD.TX_Buffers (CD.TX_Next) -
-            Memory.Memory_Offset);
-      CD.TX_Descriptors (CD.TX_Next).Length :=
-         Unsigned_16 (Data'Length);
-
-      CD.TX_Descriptors (CD.TX_Next).CMD :=
-         TX_CMD_EOP or TX_CMD_IFCS or TX_CMD_RS;
-
-      CD.TX_Descriptors (CD.TX_Next).Status := 0;
-
-
-      --  Advance TX tail pointer
-      CD.TX_Next := CD.TX_Next + 1;
-
-      if CD.MMIO_Regs /= null then
-         CD.MMIO_Regs.TDT := Unsigned_32 (CD.TX_Next);
-      end if;
-
-      --  Wait for transmission to complete if blocking
-      if Is_Blocking then
-         loop
-            exit when (CD.TX_Descriptors (CD.TX_Next).Status and
-               DESC_STATUS_DD) /= 0;
-            Scheduler.Yield_If_Able;
-         end loop;
-      end if;
-
-      Ret_Count := Data'Length;
-      Success := Dev_Success;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("E1000 Write: *** Constraint_Error caught! ***");
-         Ret_Count := 0;
          Success := Dev_IO_Failure;
    end Write;
 
@@ -582,7 +532,7 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
       --  Allocate receive packet buffers
       Memory.Physical.Alloc
          (Result => RX_Bufs_Start,
-            Size => A.Align_Up (RX_RING_SIZE * MAX_PACKET_SIZE,
+            Size => A.Align_Up (RX_RING_SIZE * RX_BUFFER_SIZE,
                               Arch.MMU.Page_Size));
 
       --  Allocate transmit packet buffers
@@ -607,8 +557,8 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
           Interrupt_IDT_Index => 0,
           Model => Model,
           Dev_Handle => Error_Handle,
-          Reassembly_Buffer => [others => 0],
-          Reassembly_Len => 0);
+          Lock => Synchronization.Unlocked_Mutex,
+          Discarding => False);
 
       --  Get interrupt number from PCI config space
       Devices.PCI.Read8 (PCI_Dev, 16#3C#, CD.Interrupt);
@@ -616,7 +566,7 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
       --  Update buffer addresses in the controller data;
       for J in RX_Desc_Idx_Type loop
          CD.RX_Buffers (J) := RX_Bufs_Start +
-            Memory.Virtual_Address'Mod (Unsigned_64 (J) * MAX_PACKET_SIZE);
+            Memory.Virtual_Address'Mod (Unsigned_64 (J) * RX_BUFFER_SIZE);
       end loop;
 
       for J in TX_Desc_Idx_Type loop
@@ -700,16 +650,8 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
 
       --  Enable interrupts
       if CD.MMIO_Regs /= null then
-         --  Set interrupt mask to enable:
-         --  Bit 0 (0x01): Transmit Descriptor Written Back
-         --  Bit 1 (0x02): Transmit Queue Empty
-         --  Bit 2 (0x04): Link Status Change
-         --  Bit 4 (0x10): Receive Descriptor Minimum Threshold
-         --  Bit 6 (0x40): Receiver FIFO Overrun
-         --  Bit 7 (0x80): Receive Timer Interrupt
-         --  Common mask: 0x1F6DC or simplified 0x9D
-         --   (LSU + RXT0 + RXDMT0 + TXDW + TXQE)
-         CD.MMIO_Regs.IMask := 16#1F6DC#;
+         CD.MMIO_Regs.IMC := 16#FFFF_FFFF#;
+         CD.MMIO_Regs.IMask := 16#1F60C#;
 
          --  Clear any pending interrupts
          U := CD.MMIO_Regs.ICR;
