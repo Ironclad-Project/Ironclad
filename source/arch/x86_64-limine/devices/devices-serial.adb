@@ -156,6 +156,10 @@ package body Devices.Serial with SPARK_Mode => Off is
          exit when not Ready;
          Ret_Count := Ret_Count + 1;
       end loop;
+
+      if Ret_Count = 0 and Data'Length /= 0 and not Is_Blocking then
+         Success := Dev_Would_Block;
+      end if;
    exception
       when Constraint_Error =>
          Data      := [others => 0];

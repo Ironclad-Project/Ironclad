@@ -10177,6 +10177,8 @@ package body Userland.Syscall is
          when VFS.FS_Not_Found     => Errno := Error_No_Entity;
          when VFS.FS_Interrupted   => Errno := Error_Interrupted;
          when VFS.FS_Too_Many_Links => Errno := Error_Too_Many_Links;
+         when VFS.FS_Out_Of_Range   => Errno := Error_No_Device_Address;
+         when VFS.FS_Would_Block    => Errno := Error_Would_Block;
       end case;
       Returned := Unsigned_64'Last;
    exception

@@ -289,6 +289,9 @@ package body Devices.PS2 with SPARK_Mode => Off is
          end if;
 
          Success := Dev_Success;
+      elsif not Temp and not Is_Blocking then
+         Success   := Dev_Would_Block;
+         Ret_Count := 0;
       else
          Success   := Dev_IO_Failure;
          Ret_Count := 0;
@@ -367,6 +370,9 @@ package body Devices.PS2 with SPARK_Mode => Off is
             Ms_Queue_First := Ms_Queue_First mod Ms_Queue_Length + 1;
             Ms_Queue_Count := Ms_Queue_Count - 1;
          end;
+      elsif not Temp and not Is_Blocking then
+         Ret_Count := 0;
+         Success   := Dev_Would_Block;
       else
          Ret_Count := 0;
          Success   := Dev_IO_Failure;

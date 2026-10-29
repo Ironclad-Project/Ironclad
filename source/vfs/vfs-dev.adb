@@ -589,6 +589,8 @@ package body VFS.Dev is
          when Dev_IO_Failure            => return FS_IO_Failure;
          when Dev_Full                  => return FS_Full;
          when Dev_Interrupted           => return FS_Interrupted;
+         when Dev_Out_Of_Range          => return FS_Out_Of_Range;
+         when Dev_Would_Block           => return FS_Would_Block;
       end case;
    end Dev_To_FS_Status;
 end VFS.Dev;

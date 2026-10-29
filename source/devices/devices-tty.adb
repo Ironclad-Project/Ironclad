@@ -70,7 +70,7 @@ package body Devices.TTY is
       elsif Succ = PTY_Interrupted then
          Success := Dev_Interrupted;
       else
-         Success := Dev_IO_Failure;
+         Success := Dev_Would_Block;
       end if;
    end Read;
 
@@ -105,7 +105,7 @@ package body Devices.TTY is
       elsif Succ = PTY_Interrupted then
          Success := Dev_Interrupted;
       else
-         Success := Dev_IO_Failure;
+         Success := Dev_Would_Block;
       end if;
    end Write;
 

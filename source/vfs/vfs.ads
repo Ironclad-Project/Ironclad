@@ -94,7 +94,9 @@ package VFS is
        FS_Full,          --  The file or device is full.
        FS_Not_Empty,     --  A directory was to be removed with files inside.
        FS_Interrupted,   --  A blocking wait was given up.
-       FS_Too_Many_Links); --  A file would get more links than it can have.
+       FS_Too_Many_Links, --  A file would get more links than it can have.
+       FS_Out_Of_Range,  --  The request is beyond what the device can do.
+       FS_Would_Block);  --  It would have to wait, and was told not to.
 
    --  Access time update policies supported.
    type Access_Time_Policy is

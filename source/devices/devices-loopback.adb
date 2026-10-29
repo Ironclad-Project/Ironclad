@@ -66,12 +66,9 @@ package body Devices.Loopback is
       pragma Unreferenced (Offset);
       Dev : Loopback_Data with Import, Address => Key;
    begin
-      --  A caller that asked not to wait is answered with nothing rather
-      --  than waited out, which is what the cards do and what a descriptor
-      --  with O_NONBLOCK means.
       if Dev.Len = 0 and not Is_Blocking then
          Ret_Count := 0;
-         Success   := Dev_Success;
+         Success   := Dev_Would_Block;
          return;
       end if;
 

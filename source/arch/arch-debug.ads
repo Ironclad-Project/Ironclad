@@ -27,7 +27,9 @@ package Arch.Debug is
    --  byte if asked to, unless the calling thread has to give up its wait.
    --  @param Message     Array to read into.
    --  @param Count       Bytes read.
-   --  @param Success     Dev_Success, or a failure if the wait was given up.
+   --  @param Success     Dev_Success, Dev_Interrupted if given up, or
+   --                     Dev_Would_Block if nothing has arrived and it is
+   --                     not to wait.
    --  @param Is_Blocking Whether to wait for the first byte.
    procedure Read
       (Message     : out Devices.Operation_Data;

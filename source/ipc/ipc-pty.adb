@@ -733,7 +733,7 @@ package body IPC.PTY is
          Scheduler.End_Wait;
       else
          Synchronization.Seize (End_Mutex);
-         if Inner_Len = Data'Length then
+         if Inner_Len = Inner_Data'Length then
             Ret_Count := 0;
             Synchronization.Release (End_Mutex);
             return;
@@ -782,7 +782,7 @@ package body IPC.PTY is
          (case Succ is
              when PTY_Success     => Dev_Success,
              when PTY_Interrupted => Dev_Interrupted,
-             when PTY_Would_Block => Dev_IO_Failure);
+             when PTY_Would_Block => Dev_Would_Block);
    end Dev_Read;
 
    procedure Dev_Write
@@ -807,7 +807,7 @@ package body IPC.PTY is
          (case Succ is
              when PTY_Success     => Dev_Success,
              when PTY_Interrupted => Dev_Interrupted,
-             when PTY_Would_Block => Dev_IO_Failure);
+             when PTY_Would_Block => Dev_Would_Block);
    end Dev_Write;
 
    procedure Dev_IO_Control

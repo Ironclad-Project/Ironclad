@@ -43,7 +43,9 @@ package Devices is
        Dev_Not_Supported, --  The operation is not supported by the device.
        Dev_IO_Failure,    --  The underlying hardware errored out.
        Dev_Full,          --  A write was completely out of capacity bounds.
-       Dev_Interrupted);  --  A blocking wait was given up, see Scheduler.
+       Dev_Interrupted,   --  A blocking wait was given up, see Scheduler.
+       Dev_Out_Of_Range,  --  The request is beyond what the device can do.
+       Dev_Would_Block);  --  It would have to wait, and was told not to.
 
    --  How an IO_Control request uses its argument, so that the memory it
    --  names can be checked before the request runs.
