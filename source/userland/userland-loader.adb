@@ -53,12 +53,8 @@ package body Userland.Loader is
       Memory.MMU.Create_Table (Table);
       Process.Set_Common_Map (Result, Table);
 
-      Start_Program (Exec_Path, FS, Ino, Arguments, Environment, Result,
-                     Success1);
-      if not Success1 then
-         goto Error_Process;
-      end if;
-
+      --  The standard files are opened first, as the program may use them as
+      --  soon as it runs.
       User_Stdin := new File_Description'
          (Children_Count    => 0,
           Is_Blocking       => True,
@@ -96,8 +92,7 @@ package body Userland.Loader is
           Want_Read  => True,
           Want_Write => False);
       if Success /= FS_Success then
-         Result := Error_PID;
-         return;
+         goto Error_Process;
       end if;
       VFS.Open
          (Path       => "/dev/" & StdOut_Path,
@@ -108,8 +103,7 @@ package body Userland.Loader is
           Want_Read  => False,
           Want_Write => True);
       if Success /= FS_Success then
-         Result := Error_PID;
-         return;
+         goto Error_Process;
       end if;
       VFS.Open
          (Path       => "/dev/" & StdErr_Path,
@@ -120,15 +114,19 @@ package body Userland.Loader is
           Want_Read  => False,
           Want_Write => True);
       if Success /= FS_Success then
-         Result := Error_PID;
-         return;
+         goto Error_Process;
       end if;
 
       Process.Add_File (Result, User_Stdin,  Discard, Success1);
       Process.Add_File (Result, User_StdOut, Discard, Success2);
       Process.Add_File (Result, User_StdErr, Discard, Success3);
+      if not (Success1 and Success2 and Success3) then
+         goto Error_Process;
+      end if;
 
-      if Success1 and Success2 and Success3 then
+      Start_Program (Exec_Path, FS, Ino, Arguments, Environment, Result,
+                     Success1);
+      if Success1 then
          return;
       end if;
 
