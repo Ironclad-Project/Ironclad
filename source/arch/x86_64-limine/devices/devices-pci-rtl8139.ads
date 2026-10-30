@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Memory;
+with Synchronization;
 
 package Devices.PCI.RTL8139 with SPARK_Mode => Off is
    procedure Init (Success : out Boolean);
@@ -25,15 +26,29 @@ private
    --  We preallocate the 4 transmit buffers since they must be in low memory
    type Transmit_Buffers_Arr is array (Transmit_Desc_Idx_Type)
       of Memory.Virtual_Address;
+   --  The longest frame the driver sends or takes, the size of each transmit
+   --  buffer. A longer one would stop the card queueing transmit descriptors
+   --  (RTL8139C(L)+ datasheet rev 1.6, 6.2).
+   MAX_FRAME : constant := 16#700#;
+
+   --  The shortest frame that goes out: with its CRC, anything shorter is a
+   --  runt, which a receiver drops (RTL8139C(L)+ datasheet rev 1.6, 6.1 and
+   --  6.9 AR), and the card pads nothing in C mode, its padding being a C+
+   --  mode function (9.2).
+   MIN_FRAME : constant := 60;
+
    --  In order to write to the transmit buffer, we need to define a suitable
    --  array
-   subtype Transmit_Buffer is Operation_Data (1 .. 16#700#);
+   subtype Transmit_Buffer is Operation_Data (1 .. MAX_FRAME);
 
-   --  The size we set for the receive buffer.
-   RECEIVE_BUFFER_LOGICAL_SIZE : constant := (1024 * 16) + 16;
-   --  The size we allocate for the receive buffer. We enable WRAP, so we need
-   --  to allocate 1500 more bytes.
-   RECEIVE_BUFFER_SIZE : constant := RECEIVE_BUFFER_LOGICAL_SIZE + 1500;
+   --  The receive ring, 16 KiB, and after it the room a frame running past
+   --  its end goes on into, WRAP being set (RTL8139C(L)+ datasheet rev 1.6,
+   --  6.9): a frame and its CRC from a header in the ring's last double word.
+   RECEIVE_RING_SIZE   : constant := 16#4000#;
+   RECEIVE_BUFFER_SIZE : constant := RECEIVE_RING_SIZE + MAX_FRAME + 4;
+
+   --  Where the next frame's header is in the receive ring.
+   subtype Ring_Offset is Natural range 0 .. RECEIVE_RING_SIZE - 1;
 
    --  In order to access the receive buffer, we also need to define a suitable
    --  array
@@ -45,8 +60,13 @@ private
       Interrupt            : Unsigned_8;
       Transmit_Desc_Idx    : Transmit_Desc_Idx_Type;
       Transmit_Buffers     : Transmit_Buffers_Arr;
+      Lock                 : aliased Synchronization.Mutex;
+      Receive_Offset       : Ring_Offset;
    end record;
    type Controller_Data_Acc is access all Controller_Data;
+
+   --  The driver's data as Read and Write are handed it.
+   subtype Controller_Ref is not null Controller_Data_Acc;
 
    REG_ID     : constant := 16#00#;
    REG_RBSTART  : constant := 16#30#;
@@ -57,6 +77,27 @@ private
    REG_ISR      : constant := 16#3E#;
    REG_RCR      : constant := 16#44#;
    REG_CONFIG_1 : constant := 16#52#;
+
+   --  The command register's bits.
+   CMD_BUFE : constant := 16#01#;
+   CMD_TE   : constant := 16#04#;
+   CMD_RE   : constant := 16#08#;
+
+   --  RCR: frames to this card, multicast and broadcast ones and any other
+   --  sent to a single address, a 16 KiB ring, and WRAP.
+   RCR_SETTINGS : constant := 16#0000088F#;
+
+   --  The receive status bit of a frame taken whole, in the header before
+   --  each frame in the ring, and the lengths a header gives with RCR as set,
+   --  from the shortest frame with a CRC that is not a runt to the longest the
+   --  driver takes.
+   RX_STATUS_ROK : constant := 16#0001#;
+   RX_LENGTH_MIN : constant := 64;
+   RX_LENGTH_MAX : constant := MAX_FRAME + 4;
+
+   --  The OWN bit of a transmit status register, set once the card has read
+   --  the descriptor's buffer.
+   TSD_OWN : constant := 16#2000#;
 
    type Transmit_Descriptor_Registers_Arr is array (Transmit_Desc_Idx_Type)
       of Unsigned_8;
@@ -75,6 +116,8 @@ private
    procedure Handle_Interrupt (CD : Controller_Data_Acc);
 
    function Set_Receive_Buffer (CD : Controller_Data_Acc) return Boolean;
+
+   procedure Reset_Receiver (CD : Controller_Ref);
 
    procedure Read
       (Key         : System.Address;

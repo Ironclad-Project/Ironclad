@@ -69,9 +69,8 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          Memory.Physical.Lower_Half_Alloc
           (Addr => Receive_Buffer_Start,
            --  We configure a 16K buffer in the NIC, and also enable
-           --  receive buffer wrapping.
-           --  Datasheet says to allocate 16K + 16 bytes for 16K receive buffer
-           --  size, plus 1500 bytes if WRAP is enabled.
+           --  receive buffer wrapping, so the buffer also holds the longest
+           --  frame taken running past the ring's end.
            Size => A.Align_Up (RECEIVE_BUFFER_SIZE, Arch.MMU.Page_Size),
            Success => Success);
 
@@ -96,12 +95,14 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
            IO_Base                => IO_Base,
            Interrupt              => <>,
            Transmit_Desc_Idx      => 0,
-           Transmit_Buffers       => [others => Memory.Null_Address]);
+           Transmit_Buffers       => [others => Memory.Null_Address],
+           Lock                   => Synchronization.Unlocked_Mutex,
+           Receive_Offset         => 0);
          Devices.PCI.Read8 (PCI_Dev, 16#3C#, CD.Interrupt);
          --  Allocate the transmit buffers
          Memory.Physical.Lower_Half_Alloc
           (Addr    => Transmit_Buffers_Start,
-           Size    => A.Align_Up (16#700# * 4, Arch.MMU.Page_Size),
+           Size    => A.Align_Up (MAX_FRAME * 4, Arch.MMU.Page_Size),
            Success => Success);
          if not Success then
             return;
@@ -109,7 +110,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
 
          for Idx in Transmit_Desc_Idx_Type loop
             CD.Transmit_Buffers (Idx) := Transmit_Buffers_Start +
-             Memory.Virtual_Address'Mod (Natural (Idx) * 16#700#);
+             Memory.Virtual_Address'Mod (Natural (Idx) * MAX_FRAME);
          end loop;
 
          --  Hook the interrupt
@@ -128,10 +129,12 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
             Scheduler.Yield_If_Able;
          end loop;
 
-         --  Enable device interrupts
-         --  Specifically, we set the TOK (Transmit OK) and ROK (Receive OK)
-         --  bits here
-         Put_IO_16 (CD, REG_IMR, 16#0005#);
+         --  No interrupt source is enabled: the handler only reads and
+         --  acknowledges the status and takes no packet out of the ring, so
+         --  an interrupt per packet costs time and does nothing. Read polls
+         --  the BUFE bit instead. Enable ROK (bit 0) and TOK (bit 2) when
+         --  the handler does something with them.
+         Put_IO_16 (CD, REG_IMR, 16#0000#);
 
          --  Program Receive Configuration Register
          --  Specifically, we enable:
@@ -139,7 +142,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          --   receive buffer wrap (bit 7)
          --   16K buffer (bit 11)
          --  TODO: do we want to set other things here?
-         Put_IO_32 (CD, REG_RCR, 16#0000088F#);
+         Put_IO_32 (CD, REG_RCR, RCR_SETTINGS);
 
          --  Set the receive buffer
          Success := Set_Receive_Buffer (CD);
@@ -202,6 +205,15 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
           & "buffers");
          return False;
    end Set_Receive_Buffer;
+
+   procedure Reset_Receiver (CD : Controller_Ref) is
+   begin
+      Put_IO_8 (CD, REG_CMD, CMD_TE);
+      Put_IO_8 (CD, REG_CMD, CMD_RE or CMD_TE);
+      Put_IO_32 (CD, REG_RCR, RCR_SETTINGS);
+      Put_IO_16 (CD, REG_CAPR, 16#FFF0#);
+      CD.Receive_Offset := 0;
+   end Reset_Receiver;
 
    type RTL8139_Interrupt is record
       Idx : Arch.IDT.IDT_Index;
@@ -301,115 +313,91 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      CD : constant Controller_Data_Acc :=
-         Controller_Data_Acc (C1.To_Pointer (Key));
       pragma Unreferenced (Offset);
    begin
+      Ret_Count := 0;
       declare
-         CMD : Unsigned_8;
+         CD       : constant Controller_Ref :=
+            Controller_Ref (C1.To_Pointer (Key));
+         Ring     : Receive_Buffer
+            with Import, Address => To_Address (CD.Receive_Buffer_Start);
+         Held     : Boolean := False;
+         At_Frame : Positive;
+         Status   : Unsigned_16;
+         Length   : Natural;
+         Count    : Natural;
       begin
          loop
-            CMD := Get_IO_8 (CD, REG_CMD);
-            --  Exit the loop when the BUFE (RX buffer empty) bit is 0
-            exit when (CMD and 16#01#) = 0;
+            Synchronization.Seize (CD.Lock);
+            Held := True;
+            if (Get_IO_8 (CD, REG_CMD) and CMD_BUFE) = 0 then
+               --  The header is read after the card says a frame is there.
+               Arch.Snippets.Full_Memory_Load_Store_Barrier;
+               At_Frame := CD.Receive_Offset + 1;
+               Status :=
+                  Unsigned_16 (Ring (At_Frame)) or
+                  Unsigned_16 (Ring (At_Frame + 1)) * 16#100#;
+               Length :=
+                  Natural (Ring (At_Frame + 2)) +
+                  Natural (Ring (At_Frame + 3)) * 16#100#;
+               if (Status and RX_STATUS_ROK) /= 0 and
+                  Length in RX_LENGTH_MIN .. RX_LENGTH_MAX
+               then
+                  Count := Natural'Min (Length - 4, Data'Length);
+                  Data (Data'First .. Data'First + Count - 1) :=
+                     Ring (At_Frame + 4 .. At_Frame + 3 + Count);
 
-            --  A caller that asked not to wait is answered with nothing, as
-            --  the e1000 answers it.
+                  --  The frame's room goes back to the card once it is read.
+                  --  Each frame starts at the next double word after the last
+                  --  (RTL8139C(L)+ datasheet rev 1.6, 8.3.2), and CAPR is 16
+                  --  bytes short of the offset it stands for, 0FFF0h with
+                  --  nothing read (6).
+                  CD.Receive_Offset :=
+                     ((CD.Receive_Offset + Length + 4 + 3) / 4 * 4) mod
+                     RECEIVE_RING_SIZE;
+                  Arch.Snippets.Full_Memory_Load_Store_Barrier;
+                  Put_IO_16 (CD, REG_CAPR, Unsigned_16
+                     ((CD.Receive_Offset + 16#FFF0#) mod 16#1_0000#));
+                  Held := False;
+                  Synchronization.Release (CD.Lock);
+                  Ret_Count := Count;
+                  Success   := Dev_Success;
+                  return;
+               end if;
+               Reset_Receiver (CD);
+            end if;
+            Held := False;
+            Synchronization.Release (CD.Lock);
             if not Is_Blocking then
-               Ret_Count := 0;
-               Success   := Dev_Success;
+               Success := Dev_Would_Block;
                return;
-            elsif Scheduler.Is_Doomed then
-               Ret_Count := 0;
-               Success   := Dev_IO_Failure;
+            elsif Scheduler.Is_Interrupted then
+               Success := Dev_Interrupted;
                return;
             end if;
             Scheduler.Yield_If_Able;
          end loop;
-      end;
-
-      declare
-         CAPR : Unsigned_16 := Get_IO_16 (CD, REG_CAPR);
-
-         Packet_Length       : Unsigned_16;
-         Packet_Header       : Unsigned_16;
-         This_Receive_Buffer : Receive_Buffer
-            with Import, Address => To_Address (CD.Receive_Buffer_Start);
-         --  Packet header status bits:
-         --    Bit 0: ROK (Receive OK)
-         --    Bit 1: FAE (Frame Alignment Error)
-         --    Bit 2: CRC (CRC Error)
-         ROK_Bit : constant Unsigned_16 := 16#0001#;
-      begin
-         --  For some reason, CAPR is offset by -0x10. Offset this.
-         CAPR := CAPR + 16#10#;
-
-         --  Bounds check before accessing packet header.
-         if Integer (CAPR) + 4 > RECEIVE_BUFFER_SIZE then
-            Ret_Count := 0;
+      exception
+         when Constraint_Error =>
+            if Held then
+               Synchronization.Release (CD.Lock);
+            end if;
+            Messages.Put_Line ("Constraint_Error in Read!");
             Success := Dev_IO_Failure;
-            return;
-         end if;
-
-         --  Read the packet header.
-         --  We have to offset everything by one as this array starts at 1.
-         Packet_Header :=
-            Unsigned_16 (This_Receive_Buffer (Integer (CAPR + 2)) * 2**8)
-         or
-            Unsigned_16 (This_Receive_Buffer (Integer (CAPR + 1)));
-
-         Packet_Length :=
-            Unsigned_16 (This_Receive_Buffer (Integer (CAPR + 4)) * 2**8)
-         or
-            Unsigned_16 (This_Receive_Buffer (Integer (CAPR + 3)));
-
-         --  Validate packet was received correctly (ROK bit must be set) and
-         --  packet length.
-         if ((Packet_Header and ROK_Bit) = 0) or else
-            (Packet_Length < 60 or Packet_Length > 1518)
-         then
-            Ret_Count := 0;
-            Success := Dev_IO_Failure;
-            return;
-         end if;
-
-         --  Copy the packet data out.
-         if Integer (Packet_Length) <= Data'Length then
-            declare
-               Packet_Begin : constant Integer := Integer (CAPR) + 5;
-               Packet_End   : constant Integer :=
-                  Packet_Begin + Integer (Packet_Length) - 2;
-            begin
-               Data (Data'First .. Data'First + Integer (Packet_Length) - 2) :=
-                  This_Receive_Buffer (Packet_Begin .. Packet_End);
-               Ret_Count := Integer (Packet_Length - 2);
-               Success := Dev_Success;
-            end;
-         else
-            Messages.Put_Line ("Error in RTL8139 Receive: buffer too small!" &
-               " We need " & Packet_Length'Image & " bytes, buffer is " &
-               Data'Length'Image);
-            Ret_Count := 0;
-            Success := Dev_IO_Failure;
-         end if;
-
-         --  Update CAPR.
-         CAPR := CAPR + Packet_Length + 4 - 16#10#;
-         if CAPR >= RECEIVE_BUFFER_LOGICAL_SIZE then
-            --  The NIC seems to be weird - when wrapping the ring buffer
-            --  around, it does not seem to offset the CAPR by 0x10.
-            CAPR := (CAPR + 16#10#) mod RECEIVE_BUFFER_LOGICAL_SIZE;
-         end if;
-         Put_IO_16 (CD => CD, Offset => REG_CAPR, Value => CAPR);
       end;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Constraint_Error in Read!");
-         Ret_Count := 0;
          Success := Dev_IO_Failure;
-         return;
    end Read;
 
+   --  A write puts the frame into the buffer of the next transmit descriptor
+   --  once the card has read what that buffer held, padded to the shortest
+   --  frame that goes out, and hands the descriptor to the card. With the
+   --  buffer still the card's, a write told not to wait fails with
+   --  Dev_Would_Block, and one told to wait waits for it until the thread
+   --  is killed or has a signal to take, or the card has kept it for too
+   --  many tries. The descriptors are only touched with the lock held, and
+   --  the lock is never held across a wait.
    procedure Write
       (Key         : System.Address;
        Offset      : Unsigned_64;
@@ -418,76 +406,81 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      CD : constant Controller_Data_Acc :=
-         Controller_Data_Acc (C1.To_Pointer (Key));
-      Transmit_Descriptor : Unsigned_32;
-      pragma Unreferenced (Offset, Is_Blocking);
+      pragma Unreferenced (Offset);
+      Max_Tries : constant := 100_000;
    begin
+      Ret_Count := 0;
+      if Data'Length = 0 then
+         Success := Dev_Success;
+         return;
+      elsif Data'Length > MAX_FRAME then
+         Success := Dev_Out_Of_Range;
+         return;
+      end if;
+
       declare
-         This_Transmit_Buffer_Address : constant Memory.Virtual_Address :=
-            CD.Transmit_Buffers (CD.Transmit_Desc_Idx);
-         This_Transmit_Buffer : Transmit_Buffer
-            with Import, Address => To_Address (This_Transmit_Buffer_Address);
+         CD    : constant Controller_Ref :=
+            Controller_Ref (C1.To_Pointer (Key));
+         Held  : Boolean := False;
+         Tries : Natural := 0;
+         Idx   : Transmit_Desc_Idx_Type;
       begin
-         --  We can not send packets larger then 0x700
-         if Data'Length > 16#700# then
-            Ret_Count := 0;
-            Success := Dev_Full;
-            return;
-         end if;
+         loop
+            Synchronization.Seize (CD.Lock);
+            Held := True;
+            Idx := CD.Transmit_Desc_Idx;
+            exit when (Get_IO_32 (CD, Transmit_Descriptor_Status_Registers
+               (Idx)) and TSD_OWN) /= 0;
+            Held := False;
+            Synchronization.Release (CD.Lock);
+            Tries := Tries + 1;
+            if not Is_Blocking then
+               Success := Dev_Would_Block;
+               return;
+            elsif Tries = Max_Tries then
+               Success := Dev_IO_Failure;
+               return;
+            elsif Scheduler.Is_Interrupted then
+               Success := Dev_Interrupted;
+               return;
+            end if;
+            Scheduler.Yield_If_Able;
+         end loop;
 
-         --  Copy the packet into the preallocated 100% low memory buffer
-         This_Transmit_Buffer (1 .. Data'Length) := Data;
-
-         --  Check if we own the current descriptor index
-         --  AKA, if we are sending packets too quickly, wait for a descriptor
-         --  to open up
          declare
-            Timeout_Counter : Natural := 0;
-            Max_Timeout : constant Natural := 100_000;
+            Buffer : Transmit_Buffer
+               with Import, Address => To_Address (CD.Transmit_Buffers (Idx));
          begin
-            loop
-               Transmit_Descriptor := Get_IO_32 (CD,
-                  Transmit_Descriptor_Status_Registers (CD.Transmit_Desc_Idx));
-               exit when (Transmit_Descriptor and 16#2000#) /= 0;
-               Timeout_Counter := Timeout_Counter + 1;
-               if Timeout_Counter >= Max_Timeout then
-                  Ret_Count := 0;
-                  Success := Dev_IO_Failure;
-                  return;
-               end if;
-               Scheduler.Yield_If_Able;
-            end loop;
+            Buffer (1 .. Data'Length) := Data;
+            if Data'Length < MIN_FRAME then
+               Buffer (Data'Length + 1 .. MIN_FRAME) := [others => 0];
+            end if;
          end;
 
-         --  Create the descriptor index, write the address and then the status
-         --  descriptor
-         --  TODO: do we want to set the TX FIFO setting thingy?
-         Transmit_Descriptor := Data'Length;
+         --  The frame is in memory before the card is told to read it.
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
+         Put_IO_32 (CD, Transmit_Descriptor_Address_Registers (Idx),
+            Unsigned_32 (CD.Transmit_Buffers (Idx) - Memory.Memory_Offset));
 
-         --  The really ugly hack to get the integer of the address again
-         Put_IO_32 (CD,
-            Transmit_Descriptor_Address_Registers (CD.Transmit_Desc_Idx),
-            Unsigned_32 (CD.Transmit_Buffers (CD.Transmit_Desc_Idx)
-               - Memory.Memory_Offset));
-
-         --  Actually start the transmission by writing the status register
-         --  (or, more specifically, setting the OWN bit to 0)
-         Put_IO_32 (CD,
-            Transmit_Descriptor_Status_Registers (CD.Transmit_Desc_Idx),
-            Transmit_Descriptor);
-
-         --  Increment our transmit descriptor index
-         CD.Transmit_Desc_Idx := CD.Transmit_Desc_Idx + 1;
+         --  The size written with OWN clear starts the transmission.
+         Put_IO_32 (CD, Transmit_Descriptor_Status_Registers (Idx),
+            Unsigned_32 (Natural'Max (Data'Length, MIN_FRAME)));
+         CD.Transmit_Desc_Idx := Idx + 1;
+         Held := False;
+         Synchronization.Release (CD.Lock);
          Ret_Count := Data'Length;
-         Success := Dev_Success;
+         Success   := Dev_Success;
+      exception
+         when Constraint_Error =>
+            if Held then
+               Synchronization.Release (CD.Lock);
+            end if;
+            Messages.Put_Line ("Constraint_Error in Write!");
+            Success := Dev_IO_Failure;
       end;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Constraint_Error in Write!");
-         Ret_Count := 0;
          Success := Dev_IO_Failure;
-         return;
    end Write;
 
    procedure Put_IO_8
