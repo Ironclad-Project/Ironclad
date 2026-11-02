@@ -22,7 +22,7 @@ package body Arch.Flanterm is
 
    --  Global variables.
    Is_Enabled : Boolean := False;
-   Ctx        : Flanterm_Ctx;
+   Ctx        : Flanterm_Ctx := System.Null_Address;
 
    --  Colors.
    Background_Color : constant Unsigned_32 := 16#204A87#;
@@ -80,13 +80,17 @@ package body Arch.Flanterm is
       Is_Enabled := Ctx /= System.Null_Address;
    end Init;
 
-   procedure Enable_For_Panic is
+   procedure Reset_For_Panic is
    begin
+      if Ctx = System.Null_Address then
+         return;
+      end if;
+
       Is_Enabled := True;
       Term_Full_Refresh (Ctx);
       Put ((Ada.Characters.Latin_1.ESC) & "[2J"); --  Clear screen.
       Put ((Ada.Characters.Latin_1.ESC) & "[H");  --  Move back to first char.
-   end Enable_For_Panic;
+   end Reset_For_Panic;
 
    procedure Disable is
    begin

@@ -43,7 +43,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
 
    procedure Panic_SMP_Hook is
    begin
-      Arch.Flanterm.Enable_For_Panic;
+      Arch.Flanterm.Reset_For_Panic;
    end Panic_SMP_Hook;
 
    function Get_Configured_Cores return Positive is

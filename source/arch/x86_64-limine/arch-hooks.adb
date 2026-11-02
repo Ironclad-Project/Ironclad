@@ -102,7 +102,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
          Devices.PC_Speaker.Beep (500);
       end loop;
 
-      Arch.Flanterm.Enable_For_Panic;
+      Arch.Flanterm.Reset_For_Panic;
    exception
       when Constraint_Error =>
          null;

@@ -20,7 +20,7 @@ with Interfaces.C; use Interfaces.C;
 
 package Arch.Flanterm is
    procedure Init;
-   procedure Enable_For_Panic;
+   procedure Reset_For_Panic;
    procedure Disable;
    procedure Put (C : Character);
    procedure Put (Line : String);
