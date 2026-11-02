@@ -237,12 +237,70 @@ package body Memory.Physical with SPARK_Mode => Off is
        Size    : Unsigned_64;
        Success : out Boolean)
    is
+      package Align is new Alignment (Memory.Size);
+
+      Bitmap_Body : Bitmap (0 .. Block_Count - 1)
+         with Import, Address => To_Address (Bitmap_Address);
+
+      --  The first block past 4 GiB, or the end of memory before it.
+      Limit : constant Unsigned_64 :=
+         Unsigned_64'Min (Block_Count, 16#100000000# / Block_Size);
+
+      First_Found, Found_Count : Unsigned_64 := 0;
+      Blocks_To_Allocate       : Memory.Size;
+      Locked                   : Boolean := False;
    begin
-      --  Alloc_Pgs allocates from the bottom of memory, so we can just wrap.
-      User_Alloc (Addr, Size, Success);
-      Success :=
-         Addr /= 0 and then
-         Addr + Virtual_Address (Size) <= 16#100000000# + Memory.Memory_Offset;
+      Addr    := 0;
+      Success := False;
+      if Limit = 0 then
+         return;
+      end if;
+
+      Blocks_To_Allocate :=
+         (Align.Align_Up (Memory.Size (Size), Block_Size) / Block_Size) + 1;
+
+      Synchronization.Seize (Alloc_Mutex);
+      Locked := True;
+      for I in 0 .. Limit - 1 loop
+         if Bitmap_Body (I) = Block_Free then
+            if I /= First_Found + Found_Count then
+               First_Found := I;
+               Found_Count := 1;
+            else
+               Found_Count := Found_Count + 1;
+            end if;
+            exit when Memory.Size (Found_Count) = Blocks_To_Allocate;
+         end if;
+      end loop;
+
+      if Memory.Size (Found_Count) /= Blocks_To_Allocate then
+         Synchronization.Release (Alloc_Mutex);
+         return;
+      end if;
+
+      for I in 1 .. Blocks_To_Allocate loop
+         Bitmap_Body (First_Found + Unsigned_64 (I - 1)) := Block_Used;
+      end loop;
+      Free_Memory := Free_Memory - (Blocks_To_Allocate * Block_Size);
+      Synchronization.Release (Alloc_Mutex);
+      Locked := False;
+
+      declare
+         Ret : constant Virtual_Address :=
+            Virtual_Address (First_Found * Block_Size) + Memory_Offset;
+         Header : Allocation_Header with Import, Address => To_Address (Ret);
+      begin
+         Header  := (Block_Count => Blocks_To_Allocate);
+         Addr    := Ret + Block_Size;
+         Success := True;
+      end;
+   exception
+      when Constraint_Error =>
+         if Locked then
+            Synchronization.Release (Alloc_Mutex);
+         end if;
+         Addr    := 0;
+         Success := False;
    end Lower_Half_Alloc;
 
    procedure Free (Address : size_t) is

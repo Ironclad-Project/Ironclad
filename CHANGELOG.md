@@ -46,6 +46,8 @@ release changes.
   `setdomainname`.
 - Added further support for virtualization for x86, implementing SVM and VT-X.
 - Add support for `MSG_NOWAIT` for `recvfrom`.
+- Fix allocations for devices that only reach the first 4 GiB of memory, like
+  RTL8139 cards, failing once the kernel is using memory past 4 GiB.
 
 ### Breaking changes
 

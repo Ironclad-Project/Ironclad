@@ -45,8 +45,8 @@ package Memory.Physical is
        Size    : Unsigned_64;
        Success : out Boolean);
 
-   --  Allocate function with the same semantics as the one above, but
-   --  guarantees that Addr will end up in the lower half, and fallible.
+   --  Allocate function with the same semantics as the one above, but taking
+   --  only physical memory below 4 GiB, for devices that cannot reach above.
    procedure Lower_Half_Alloc
       (Addr    : out Memory.Virtual_Address;
        Size    : Unsigned_64;
