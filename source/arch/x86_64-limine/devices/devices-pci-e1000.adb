@@ -98,20 +98,21 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          --  Configure Receive Control Register
          --  RCTL bits:
          --    Bit 1 (0x2):       EN  - Receiver Enable
-         --    Bit 2 (0x4):       SBP - Store Bad Packets
          --    Bit 3 (0x8):       UPE - Unicast Promiscuous Enable
          --    Bit 4 (0x10):      MPE - Multicast Promiscuous Enable
          --    Bit 15 (0x8000):   BAM - Broadcast Accept Mode
          --    Bit 26 (0x4000000): SECRC - Strip Ethernet CRC
+         --  SBP (bit 2) is clear, so the card drops a frame received in error
+         --  rather than store it with error bits.
          --  BSIZE (bits 17:16) is 00b with BSEX (bit 25) clear, which tells
          --  the card each receive buffer is 2048 bytes
          --  (Intel 8254x SDM 317453-006 rev 4.0, 13.4.22). LPE is clear, so a
          --  frame longer than 1522 bytes is discarded and each frame taken
          --  fits one buffer.
-         --  RCTL = EN | SBP | UPE | MPE | BAM | SECRC
-         --       = 0x2 | 0x4 | 0x8 | 0x10 | 0x8000 | 0x4000000
-         --       = 0x400801E
-         CD.MMIO_Regs.RCTL := 16#400801E#;
+         --  RCTL = EN | UPE | MPE | BAM | SECRC
+         --       = 0x2 | 0x8 | 0x10 | 0x8000 | 0x4000000
+         --       = 0x400801A
+         CD.MMIO_Regs.RCTL := 16#400801A#;
       end if;
       return True;
    exception
