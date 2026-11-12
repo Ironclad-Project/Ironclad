@@ -1478,7 +1478,8 @@ errno is to be set to the following values on failure:
 @code{ARCH_SET_FS} is not a userland address.
 
 @item
-@code{EFAULT}: @code{argument} is outside the available address space.
+@code{EFAULT}: @code{ARCH_GET_FS} was asked, and @code{argument} is outside the
+available address space.
 @end itemize
 
 @node open

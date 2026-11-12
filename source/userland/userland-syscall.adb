@@ -173,22 +173,24 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       package Trans is new Memory.Userland_Transfer (Unsigned_64);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Argument);
       SAddr : constant  System.Address := To_Address (IAddr);
-      Arg   : Unsigned_64;
+      Arg   : Unsigned_64 := Argument;
       Map   : Page_Table_Acc;
       Succ  : Boolean;
       WB    : Boolean;
    begin
       Get_Common_Map (Proc, Map);
-      Trans.Take_From_Userland (Map, Arg, SAddr, Succ);
-      if not Succ then
-         goto Would_Fault_Error;
+
+      if Code <= Unsigned_64 (Natural'Last) then
+         Arch.Hooks.PRCTL_Hook (Natural (Code), Arg, WB, Succ);
+      else
+         Succ := False;
       end if;
 
-      Arch.Hooks.PRCTL_Hook (Natural (Code and 16#FFFFFF#), Arg, WB, Succ);
       if not Succ then
          Returned := Unsigned_64'Last;
          Errno    := Error_Invalid_Value;
