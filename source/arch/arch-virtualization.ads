@@ -287,7 +287,7 @@ package Arch.Virtualization with SPARK_Mode => Off is
       end case;
    end record with Unchecked_Union, Size => 32 * 8;
 
-   type VCPU_Exit_Info is record
+   type VCPU_Exit_Info is limited record
       Reason     : Unsigned_64;
       U          : Exit_Union;
       Exit_State : Exit_State_Info;
