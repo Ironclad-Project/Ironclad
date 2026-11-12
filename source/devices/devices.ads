@@ -118,6 +118,7 @@ package Devices is
    type Device_Handle is private;
    type Device_List   is array (Natural range <>) of Device_Handle;
    Error_Handle : constant Device_Handle;
+   Max_Devices : constant Natural;
 
    --  Device names have a maximum fixed length.
    Max_Name_Length : constant Natural;
@@ -338,6 +339,7 @@ private
    type Device_Handle is new Natural range 0 .. 50;
    Error_Handle    : constant Device_Handle := 0;
    Max_Name_Length : constant Natural       := 32;
+   Max_Devices     : constant Natural       := 50;
    type Device is record
       Is_Present : Boolean;
       Name       : String (1 .. Max_Name_Length);

@@ -2772,7 +2772,9 @@ int sync(void);
 
 The syscall flushes the associated caches of all FSes and the devices that
 contain said FSs, ensuring that all operations are finished, this can be used
-in order to ensure data coherency on power loss or program failure.
+in order to ensure data coherency on power loss or program failure. Every
+filesystem and device is flushed even when one of them fails, the call then
+failing.
 
 The syscall returns @code{0} or @code{-1} on failure, with a corresponding
 errno:

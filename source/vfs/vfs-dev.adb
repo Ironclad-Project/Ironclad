@@ -537,20 +537,19 @@ package body VFS.Dev is
 
    procedure Synchronize (Data : System.Address; Status : out FS_Status) is
       pragma Unreferenced (Data);
-      Buffer     : Devices.Device_List (1 .. 30);
+      Buffer     : Devices.Device_List (1 .. Devices.Max_Devices);
       Buffer_Len : Natural;
       Success    : Boolean;
    begin
+      Status := FS_Success;
       Devices.List (Buffer, Buffer_Len);
       for I in 1 .. Buffer_Len loop
          exit when I > Buffer'Last;
          Devices.Synchronize (Buffer (I), Success);
          if not Success then
             Status := FS_IO_Failure;
-            return;
          end if;
       end loop;
-      Status := FS_Success;
    end Synchronize;
 
    procedure Synchronize
