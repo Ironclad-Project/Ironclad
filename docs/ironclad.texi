@@ -6051,6 +6051,22 @@ devctl(fd, BLKGETSIZE64, &pointer_to_u64, 0, NULL);
 This call gets the size of @code{fd} in bytes if it is a block device.
 @end table
 
+The disks of the @code{sata}, @code{nvme} and @code{virtio-blk} drivers also
+take this one:
+
+@table @code
+@item BLKRRPART
+
+@example c
+#define BLKRRPART 0x9825
+devctl(fd, BLKRRPART, NULL, 0, NULL);
+@end example
+
+This call reads the partition table of the disk @code{fd} refers to again:
+the partition devices registered for the disk go, and those of the partitions
+the table now describes are registered.
+@end table
+
 @node Common devices
 @section Common devices
 

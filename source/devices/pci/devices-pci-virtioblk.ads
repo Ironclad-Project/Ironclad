@@ -115,4 +115,10 @@ package Devices.PCI.VirtioBlk with SPARK_Mode => Off is
        Argument : System.Address;
        Extra    : out Unsigned_64;
        Success  : out Boolean);
+
+   procedure IO_Argument
+      (Key     : System.Address;
+       Request : Unsigned_64;
+       Usage   : out IO_Usage;
+       Size    : out Natural);
 end Devices.PCI.VirtioBlk;
