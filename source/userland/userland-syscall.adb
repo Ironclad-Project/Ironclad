@@ -7406,7 +7406,7 @@ package body Userland.Syscall is
             if Who /= 0 then
                Proc := Convert (Natural (Who));
                if Proc = Error_PID then
-                  goto Invalid_Value_Return;
+                  goto No_Such_Return;
                end if;
             end if;
             Get_Niceness (Proc, FNice);
@@ -7420,7 +7420,7 @@ package body Userland.Syscall is
             else
                Th := Convert (Natural (Who));
                if Th = Error_TID then
-                  goto Invalid_Value_Return;
+                  goto No_Such_Return;
                end if;
             end if;
             FNice := Get_Niceness (Th);
@@ -7439,6 +7439,11 @@ package body Userland.Syscall is
 
    <<Invalid_Value_Return>>
       Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<No_Such_Return>>
+      Errno := Error_Bad_Search;
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
@@ -7484,7 +7489,7 @@ package body Userland.Syscall is
             if Who /= 0 then
                Proc := Convert (Natural (Who));
                if Proc = Error_PID then
-                  goto Invalid_Value_Return;
+                  goto No_Such_Return;
                end if;
             end if;
             Set_Niceness (Proc, FNice);
@@ -7498,7 +7503,7 @@ package body Userland.Syscall is
             else
                Th := Convert (Natural (Who));
                if Th = Error_TID then
-                  goto Invalid_Value_Return;
+                  goto No_Such_Return;
                end if;
             end if;
             Set_Niceness (Th, FNice);
@@ -7512,6 +7517,11 @@ package body Userland.Syscall is
 
    <<Invalid_Value_Return>>
       Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<No_Such_Return>>
+      Errno := Error_Bad_Search;
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>

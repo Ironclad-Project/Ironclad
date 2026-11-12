@@ -4380,6 +4380,9 @@ process-wide.
 in failure feature the following errno:
 
 @table @code
+@item ESRCH
+No process or thread has the passed @code{who}.
+
 @item EINVAL
 A value is not valid.
 @end table
