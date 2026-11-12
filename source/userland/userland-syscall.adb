@@ -4528,6 +4528,10 @@ package body Userland.Syscall is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       TProc, TProc_Parent : PID;
    begin
+      if Traced_PID = 0 or Traced_PID > Unsigned_64 (Positive'Last) then
+         goto Bad_Permission_Error;
+      end if;
+
       TProc := Convert (Positive (Traced_PID));
       if TProc = Error_PID then
          goto Bad_Permission_Error;
