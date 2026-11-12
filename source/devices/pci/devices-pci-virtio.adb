@@ -137,6 +137,10 @@ package body Devices.PCI.Virtio with SPARK_Mode => Off is
       Queue_Size := Dev.Queue_Size;
       Notify_Index := Dev.Queue_Notify_Off;
 
+      if Queue_Size = 0 then
+         Panic.Hard_Panic ("A virtio device has no queue it needs");
+      end if;
+
       Available_Offset := 16 * Unsigned_64 (Queue_Size);
       Used_Offset := A.Align_Up (Available_Offset + 6 +
             (2 * Unsigned_64 (Queue_Size)), Virtqueue_Used'Alignment);
