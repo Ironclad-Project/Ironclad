@@ -71,5 +71,13 @@ private
 
    #if ArchName = """x86_64-limine"""
       procedure Normalize_TSC_Hz;
+
+      --  Measure the frequency of the TSC against the ACPI PM timer.
+      --  @param Frequency In Hz, 0 if there is no timer or it did not count.
+      procedure Calibrate_With_PM_Timer (Frequency : out Unsigned_64);
+
+      --  Measure the frequency of the TSC against counter 2 of the PIT.
+      --  @param Frequency In Hz, 0 if the counter did not count.
+      procedure Calibrate_With_PIT (Frequency : out Unsigned_64);
    #end if;
 end Arch.Clocks;

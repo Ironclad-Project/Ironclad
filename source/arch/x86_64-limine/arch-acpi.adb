@@ -17,6 +17,7 @@
 with Arch.Limine;
 with Arch.Clocks;
 with Arch.Snippets;
+with Memory; use Memory;
 with Memory.MMU;
 with Devices.PCI;
 with Arch.Local;

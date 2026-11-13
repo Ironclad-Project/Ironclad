@@ -17,18 +17,15 @@
 with Interfaces; use Interfaces;
 
 package Arch.ACPI_PM_Timer is
-   --  Initialize the timer.
-   --  @return True in Success, False on failure or not found.
-   procedure Init (Success : out Boolean);
+   --  The timer counts up at this rate, in Hz, see ACPI 6.6, 4.8.2.1.
+   Frequency : constant := 3_579_545;
 
-   --  Get resolution of the timer in nanoseconds, that is, the minimum amount
-   --  of time the clock can measure.
-   procedure Get_Resolution (Resolution : out Unsigned_64);
-
-   --  Sleep an amount of nanoseconds.
-   procedure NSleep (Nanoseconds : Unsigned_64);
-
-private
-
-   procedure Get_Counter (Counter : out Unsigned_64);
+   --  Find the timer, which is only used through I/O ports, as Limine does.
+   --  @param Port    Port to read the count from, 32 bits at a time.
+   --  @param Mask    Bits of the count that are valid, 24 or 32 of them.
+   --  @param Success True if found, False otherwise.
+   procedure Find
+      (Port    : out Unsigned_16;
+       Mask    : out Unsigned_32;
+       Success : out Boolean);
 end Arch.ACPI_PM_Timer;

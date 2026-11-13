@@ -16,113 +16,69 @@
 
 with Memory; use Memory;
 with Arch.ACPI;
-with Memory.MMU;
-with Arch.Snippets;
-with Arch.MMU;
 
 package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
-   --  Forced by spec. In ns, Resolution = 1 / Freq.
-   Timer_Resolution : constant := 279;
+   procedure Find
+      (Port    : out Unsigned_16;
+       Mask    : out Unsigned_32;
+       Success : out Boolean)
+   is
+      --  The FADT has to reach past the fields read, as older ones are
+      --  shorter.
+      PM_TMR_LEN_End   : constant := 92;
+      Flags_End        : constant := 116;
+      X_PM_TMR_BLK_End : constant := 220;
 
-   Use_IO_Ports : Boolean;
-   IO_Addr      : Integer_Address;
+      --  Set where the count is 32 bits wide.
+      TMR_VAL_EXT : constant := 16#100#;
 
-   procedure Init (Success : out Boolean) is
-      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       ACPI_Address : ACPI.Table_Record;
+      Address      : Unsigned_64 := 0;
+      Flags        : Unsigned_32 := 0;
    begin
+      Port    := 0;
+      Mask    := 0;
+      Success := False;
+
       if not ACPI.Is_Supported then
-         Success := False;
          return;
       end if;
 
       ACPI.FindTable (ACPI.FADT_Signature, ACPI_Address);
       if ACPI_Address.Virt_Addr = Null_Address then
-         Success := False;
          return;
       end if;
 
       declare
-         Rev     : Natural;
-         FADT    : ACPI.FADT
+         FADT   : ACPI.FADT
             with Import, Address => To_Address (ACPI_Address.Virt_Addr);
+         Length : constant Unsigned_32 := FADT.Header.Length;
       begin
-         ACPI.Get_Revision (Rev);
-         if Rev >= 2 and then FADT.X_PMTImerBlock.Address /= 0 then
-            Use_IO_Ports := FADT.X_PMTImerBlock.Address_Space = 1;
-            IO_Addr      := Integer_Address (FADT.X_PMTImerBlock.Address);
-            if not Use_IO_Ports then
-               Memory.MMU.Map_Range
-                  (Map            => Memory.MMU.Kernel_Table,
-                   Physical_Start => To_Address (IO_Addr),
-                   Virtual_Start  => To_Address (IO_Addr + Memory_Offset),
-                   Length         => Memory.MMU.Page_Size,
-                   Permissions    =>
-                    (Is_User_Accessible => False,
-                     Can_Read          => True,
-                     Can_Write         => True,
-                     Can_Execute       => False,
-                     Is_Global         => True),
-                   Success        => Success,
-                   Caching        => Arch.MMU.Uncacheable);
-               if not Success then
-                  return;
-               end if;
-
-               IO_Addr := IO_Addr + Memory_Offset;
+         --  PM_TMR_LEN is 4 where there is a timer, and 0 where there is not.
+         if Length >= PM_TMR_LEN_End and then FADT.PM_TMR_LEN = 4 then
+            --  The extended block only takes over where it is in I/O space.
+            if Length >= X_PM_TMR_BLK_End and then
+               FADT.X_PMTImerBlock.Address_Space = 1 and then
+               FADT.X_PMTImerBlock.Address /= 0
+            then
+               Address := FADT.X_PMTImerBlock.Address;
+            else
+               Address := Unsigned_64 (FADT.PM_TMR_BLK);
             end if;
-         elsif FADT.PM_TMR_BLK /= 0 then
-            Use_IO_Ports := True;
-            IO_Addr      := Integer_Address (FADT.PM_TMR_BLK);
-         else
-            Success := False;
-            return;
+            if Length >= Flags_End then
+               Flags := FADT.Flags;
+            end if;
          end if;
       end;
-
       ACPI.Unref_Table (ACPI_Address);
-      Success := True;
-   exception
-      when Constraint_Error =>
-         Success := False;
-   end Init;
 
-   procedure Get_Resolution (Resolution : out Unsigned_64) is
-   begin
-      Resolution := Timer_Resolution;
-   end Get_Resolution;
-
-   procedure NSleep (Nanoseconds : Unsigned_64) is
-      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
-      Target  : Unsigned_64;
-      Current : Unsigned_64 with Volatile;
-   begin
-      Get_Counter (Current);
-      Target := Current + (Nanoseconds / Timer_Resolution);
-      loop
-         Get_Counter (Current);
-         exit when Current >= Target;
-         Snippets.Pause;
-      end loop;
-   exception
-      when Constraint_Error =>
-         null;
-   end NSleep;
-   ----------------------------------------------------------------------------
-   procedure Get_Counter (Counter : out Unsigned_64) is
-   begin
-      if Use_IO_Ports then
-         Counter := Unsigned_64 (Snippets.Port_In32 (Unsigned_16 (IO_Addr)));
-      else
-         declare
-            Orig_Counter : Unsigned_32
-               with Import, Volatile, Address => To_Address (IO_Addr);
-         begin
-            Counter := Unsigned_64 (Orig_Counter);
-         end;
+      --  A 32-bit read reaches four ports, and those under 100h are fixed
+      --  registers of the chipset, so the timer is not trusted to be there.
+      if Address >= 16#100# and Address <= 16#FFFC# then
+         Port    := Unsigned_16'Mod (Address);
+         Mask    := (if (Flags and TMR_VAL_EXT) /= 0 then 16#FFFF_FFFF#
+                     else 16#FF_FFFF#);
+         Success := True;
       end if;
-   exception
-      when Constraint_Error =>
-         Counter := 0;
-   end Get_Counter;
+   end Find;
 end Arch.ACPI_PM_Timer;
