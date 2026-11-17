@@ -21,6 +21,16 @@ package Messages with
    Abstract_State => Message_State,
    Initializes    => Message_State
 is
+   --  Messages should be straight to the point and drop final punctuation, or
+   --  capitalization, or any decorations apart of the information, both
+   --  because they may be formatted as part of the reporting, and because said
+   --  decorations obfuscate the meaning and add noise.
+   --  Good: error while commiting data to SATA buffer
+   --  Bad: error while commiting data to SATA buffer.
+   --       *** Error while commiting data to SATA buffer! ***
+   --       ERROR: SATA BUFFER COMMIT FAILED
+   --  If you see any messages like these feel free to correct them.
+
    --  Enable in-memory message logging.
    --  Until this function is called, the kernel uses a really small built-in
    --  buffer.
@@ -28,9 +38,6 @@ is
       with Pre    => not Is_Initialized,
            Post   => Is_Initialized,
            Global => (In_Out => Message_State);
-
-   --  Header added to warning messages.
-   Warning_String : constant String := "Warning: ";
 
    --  Prints a string to debug outputs and adds a newline.
    --  @param Message String to print to append with a new line.
