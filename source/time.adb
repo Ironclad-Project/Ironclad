@@ -147,6 +147,39 @@ package body Time is
              Unsigned_64 (Min) * 60    +
              Unsigned_64 (S);
    end Time_To_Epoch;
+
+   procedure Epoch_To_Time
+      (Epoch : Unsigned_64;
+       Y     : out Year;
+       M     : out Month;
+       D     : out Day;
+       H     : out Hours;
+       Min   : out Minutes;
+       S     : out Seconds)
+   is
+      Last_Epoch : constant := 253_402_300_799;
+      Secs : constant Unsigned_64 := Unsigned_64'Min (Epoch, Last_Epoch);
+      Days : constant Unsigned_64 := Secs / (60 * 60 * 24);
+      Rest : constant Unsigned_64 := Secs mod (60 * 60 * 24);
+
+      --  Days from 0000-03-01, in eras of 400 years, so that the leap day is
+      --  the last day of a year and every term stays positive.
+      Z    : constant Unsigned_64 := Days + 719_468;
+      Era  : constant Unsigned_64 := Z / 146_097;
+      Doe  : constant Unsigned_64 := Z - Era * 146_097;
+      Yoe  : constant Unsigned_64 :=
+         (Doe - Doe / 1_460 + Doe / 36_524 - Doe / 146_096) / 365;
+      Doy  : constant Unsigned_64 := Doe - (365 * Yoe + Yoe / 4 - Yoe / 100);
+      Mp   : constant Unsigned_64 := (5 * Doy + 2) / 153;
+      Mon  : constant Unsigned_64 := (if Mp < 10 then Mp + 3 else Mp - 9);
+   begin
+      Y   := Natural (Yoe + Era * 400 + (if Mon <= 2 then 1 else 0));
+      M   := Natural (Mon);
+      D   := Natural (Doy - (153 * Mp + 2) / 5 + 1);
+      H   := Natural (Rest / 3600);
+      Min := Natural (Rest mod 3600 / 60);
+      S   := Natural (Rest mod 60);
+   end Epoch_To_Time;
    ----------------------------------------------------------------------------
    procedure Normalize (Stamp : in out Timestamp) is
       Nanosecond_Seconds : constant Unsigned_64 :=
@@ -162,13 +195,11 @@ package body Time is
 
    function Get_Julian_Date (Days, Months, Years : Natural) return Unsigned_64
    is
-      Y : constant Unsigned_64 := Unsigned_64 (Years);
-      M : constant Unsigned_64 := Unsigned_64 (Months);
-      D : constant Unsigned_64 := Unsigned_64 (Days);
+      A : constant Unsigned_64 := (14 - Unsigned_64 (Months)) / 12;
+      Y : constant Unsigned_64 := Unsigned_64 (Years) + 4800 - A;
+      M : constant Unsigned_64 := Unsigned_64 (Months) + 12 * A - 3;
    begin
-      return (1461 * (Y + 4800 + (M - 14) / 12)) / 4 + (367 *
-             (M - 2 - 12 * ((M - 14) / 12))) / 12 -
-             (3 * ((Y + 4900 + (M - 14) / 12) / 100)) / 4
-             + D - 32075;
+      return Unsigned_64 (Days) + (153 * M + 2) / 5 + 365 * Y + Y / 4 -
+             Y / 100 + Y / 400 - 32045;
    end Get_Julian_Date;
 end Time;

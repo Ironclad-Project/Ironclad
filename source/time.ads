@@ -71,6 +71,17 @@ package Time is
        Min : Minutes;
        S   : Seconds) return Unsigned_64;
 
+   --  Transform epoch to time of year, UTC. An epoch past the last second of
+   --  the year 9999 gives that second.
+   procedure Epoch_To_Time
+      (Epoch : Unsigned_64;
+       Y     : out Year;
+       M     : out Month;
+       D     : out Day;
+       H     : out Hours;
+       Min   : out Minutes;
+       S     : out Seconds);
+
 private
 
    procedure Normalize (Stamp : in out Timestamp)
