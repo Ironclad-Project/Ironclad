@@ -18,15 +18,17 @@ with Alignment;
 
 package body Devices.Drive_Cache is
    procedure Init
-      (Drive_Arg : System.Address;
-       Read      : not null Read_Sector_Acc;
-       Write     : not null Write_Sector_Acc;
-       Registry  : aliased out Cache_Registry)
+      (Drive_Arg    : System.Address;
+       Sector_Count : Unsigned_64;
+       Read         : not null Read_Sector_Acc;
+       Write        : not null Write_Sector_Acc;
+       Registry     : aliased out Cache_Registry)
    is
    begin
-      Registry.Drive_Arg  := Drive_Arg;
-      Registry.Read_Proc  := Read;
-      Registry.Write_Proc := Write;
+      Registry.Drive_Arg    := Drive_Arg;
+      Registry.Sector_Count := Sector_Count;
+      Registry.Read_Proc    := Read;
+      Registry.Write_Proc   := Write;
       for C of Registry.Caches loop
          C.Mutex   := Synchronization.Unlocked_Mutex;
          C.Is_Used := False;
@@ -49,6 +51,9 @@ package body Devices.Drive_Cache is
          Current_LBA := (Offset + Unsigned_64 (Progress)) /
             Unsigned_64 (Sector_Size);
 
+         --  Reading past the end of the drive is just end of file.
+         exit when Current_LBA >= Registry.Sector_Count;
+
          Get_Cache_Index
           (Registry       => Registry,
            LBA            => Current_LBA,
@@ -56,7 +61,7 @@ package body Devices.Drive_Cache is
            Idx            => Cache_Idx,
            Success        => Succ);
          if not Succ then
-            Succ := True;
+            Succ := Progress /= 0;
             goto Cleanup;
          end if;
 
@@ -98,6 +103,13 @@ package body Devices.Drive_Cache is
       while Progress < Data'Length loop
          Current_LBA := (Offset + Unsigned_64 (Progress)) /
             Unsigned_64 (Sector_Size);
+
+         --  Writing past the end of the drive is out of space.
+         if Current_LBA >= Registry.Sector_Count then
+            Ret_Count := Progress;
+            Success   := (if Progress /= 0 then Dev_Success else Dev_Full);
+            return;
+         end if;
 
          Copy_Count   := Data'Length - Progress;
          Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
@@ -236,6 +248,10 @@ package body Devices.Drive_Cache is
              LBA         => Registry.Caches (Idx).LBA_Offset,
              Data_Buffer => Registry.Caches (Idx).Data,
              Success     => Success);
+         if not Success then
+            Registry.Caches (Idx).Is_Used := False;
+            Synchronization.Release (Registry.Caches (Idx).Mutex);
+         end if;
       end if;
    exception
       when Constraint_Error =>

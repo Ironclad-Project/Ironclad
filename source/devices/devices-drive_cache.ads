@@ -47,10 +47,11 @@ package Devices.Drive_Cache is
        Success     : out Boolean);
 
    procedure Init
-      (Drive_Arg : System.Address;
-       Read      : not null Read_Sector_Acc;
-       Write     : not null Write_Sector_Acc;
-       Registry  : aliased out Cache_Registry);
+      (Drive_Arg    : System.Address;
+       Sector_Count : Unsigned_64;
+       Read         : not null Read_Sector_Acc;
+       Write        : not null Write_Sector_Acc;
+       Registry     : aliased out Cache_Registry);
 
    procedure Read
       (Registry  : aliased in out Cache_Registry;
@@ -93,10 +94,11 @@ private
    type Sector_Caches is array (Unsigned_64 range <>) of Sector_Cache;
 
    type Cache_Registry is record
-      Drive_Arg  : System.Address;
-      Read_Proc  : Read_Sector_Acc := null;
-      Write_Proc : Write_Sector_Acc := null;
-      Caches     : Sector_Caches (1 .. Max_Caching_Len);
+      Drive_Arg    : System.Address;
+      Sector_Count : Unsigned_64 := 0;
+      Read_Proc    : Read_Sector_Acc := null;
+      Write_Proc   : Write_Sector_Acc := null;
+      Caches       : Sector_Caches (1 .. Max_Caching_Len);
    end record;
 
    procedure Get_Cache_Index

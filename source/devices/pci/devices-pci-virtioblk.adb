@@ -155,6 +155,7 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
 
             Caching.Init
                (NS_Addr,
+                Blk_Config.Capacity,
                 Read_Sector'Access,
                 Write_Sector'Access,
                 Blk_Data_Acc (C3.To_Pointer (NS_Addr)).Cache_Reg);

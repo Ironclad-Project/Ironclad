@@ -189,11 +189,6 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
           Sector_Count => 0,
           Cache_Reg    => <>,
           Parts        => <>);
-      Caching.Init
-         (Dev_Data.all'Address,
-          Read_Sector'Access,
-          Write_Sector'Access,
-          Dev_Data.Cache_Reg);
       Success := Issue_Command
          (Drive       => Dev_Data,
           LBA         => 0,
@@ -215,6 +210,13 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
          Cryptography.Random.Feed_Entropy (Serial);
          Dev_Data.Sector_Count := Sectors;
       end;
+
+      Caching.Init
+         (Dev_Data.all'Address,
+          Dev_Data.Sector_Count,
+          Read_Sector'Access,
+          Write_Sector'Access,
+          Dev_Data.Cache_Reg);
       return Dev_Data;
    exception
       when Constraint_Error =>
