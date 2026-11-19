@@ -1221,12 +1221,19 @@ package body Userland.Syscall is
          Set_VFork_Marker (Child);
          Table := Map;
       else
+         --  The map stays as it is, for our other threads as well, until the
+         --  child has its copy and every segment in it is counted for the
+         --  child too.
+         Memory.MMU.Seize_Space (Map);
          Fork_Table (Map, Table);
+         if Table /= null then
+            Duplicate_SHM_Attachments (Proc, Child);
+         end if;
+         Memory.MMU.Release_Space (Map);
          if Table = null then
             Userland.Process.Delete_Process (Child);
             goto Block_Error;
          end if;
-         Duplicate_SHM_Attachments (Proc, Child);
       end if;
       Set_Common_Map (Child, Table);
 

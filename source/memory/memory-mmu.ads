@@ -55,12 +55,17 @@ package Memory.MMU is
 
    --  Create a new page table, which should be ready for switching to and
    --  allowing all kernel data to be accessed.
+   --  The caller holds the space lock of Map (Seize_Space), which keeps it as
+   --  it is meanwhile, so it is copied with interrupts enabled. A caller
+   --  killed while it copies gets no copy.
    --  @param Map Table to fork.
    --  @return Forked map, or null on failure.
    procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc)
       with Pre => Map /= null;
 
    --  Free a table.
+   --  No core may be running it, the caller's included, which lets it be
+   --  freed with interrupts enabled.
    --  @param Map Table to free, will always be set to null at the end.
    procedure Destroy_Table (Map : in out Page_Table_Acc)
       with Pre => Map /= null, Post => Map = null;
@@ -177,6 +182,13 @@ package Memory.MMU is
          (Virtual_Start  mod Page_Size = 0) and
          (Length         mod Page_Size = 0);
 
+   --  Hold the space lock of a user map. Nothing the kernel map replaces is
+   --  freed, so it takes none.
+   --  A translation stays valid while the lock is held, so a fork holds it
+   --  while it copies the map (Fork_Table).
+   procedure Seize_Space (Map : Page_Table_Acc) with Pre => Map /= null;
+   procedure Release_Space (Map : Page_Table_Acc) with Pre => Map /= null;
+
    --  Fetch from the processor the loaded map address, and set it.
    function Get_Curr_Table_Addr return System.Address;
    function Get_Map_Table_Addr (Map : Page_Table_Acc) return System.Address;
@@ -213,11 +225,6 @@ private
       Space_Lock : aliased Synchronization.Mutex;
       User_Size  : Unsigned_64;
    end record;
-
-   --  Hold the space lock of a user map. Nothing the kernel map replaces is
-   --  freed, so it takes none.
-   procedure Seize_Space (Map : Page_Table_Acc) with Pre => Map /= null;
-   procedure Release_Space (Map : Page_Table_Acc) with Pre => Map /= null;
 
    --  Frames a change removes from a map and owns, which are freed only once
    --  no core can reach them through a translation it cached.

@@ -155,7 +155,9 @@ package body Memory.MMU with SPARK_Mode => Off is
           Space_Lock => Synchronization.Unlocked_Mutex,
           User_Size  => 0);
 
-      Synchronization.Seize (Map.Mutex);
+      --  The space lock the caller holds keeps the map as it is, and unlike
+      --  the lock of the entries it lets interrupts in meanwhile. The map is
+      --  only read here, as a translation reads it.
 
       --  Clone the higher half, which is the same in all maps, and user size.
       Forked.Top_Level (257 .. 512) := Map.Top_Level (257 .. 512);
@@ -180,15 +182,8 @@ package body Memory.MMU with SPARK_Mode => Off is
       if not Success then
          Destroy_Table (Forked);
       end if;
-
-      Synchronization.Release (Map.Mutex);
    exception
       when Constraint_Error =>
-         declare
-            pragma Suppress (All_Checks);
-         begin
-            Synchronization.Release (Map.Mutex);
-         end;
          Forked := null;
    end Fork_Table;
 
@@ -196,7 +191,9 @@ package body Memory.MMU with SPARK_Mode => Off is
       Starting_Level : Positive;
       Success : Boolean;
    begin
-      Synchronization.Seize (Map.Mutex);
+      --  No core runs the map, so nothing reads its entries and it is freed
+      --  with interrupts enabled. The space lock keeps out a change.
+      Seize_Space (Map);
 
       --  Go thru the lower half entries and copy.
       case Arch.MMU.Paging_Levels is
@@ -213,19 +210,12 @@ package body Memory.MMU with SPARK_Mode => Off is
       if not Success then
          Messages.Put_Line ("Failed to free map");
       end if;
-
-      --  Binary semaphores in ironclad keep track of interrupt state, so we
-      --  must unlock to avoid interrupt deadlock even when deleting object.
-      Synchronization.Release (Map.Mutex);
+      Release_Space (Map);
 
       F (Map);
    exception
       when Constraint_Error =>
-         declare
-            pragma Suppress (All_Checks);
-         begin
-            Synchronization.Release (Map.Mutex);
-         end;
+         Release_Space (Map);
    end Destroy_Table;
 
    function Make_Active (Map : Page_Table_Acc) return Boolean is
@@ -903,6 +893,13 @@ package body Memory.MMU with SPARK_Mode => Off is
       Perms : Arch.MMU.Clean_Result;
       Target_Table : Virtual_Address := Memory.Null_Address;
    begin
+      --  A caller killed meanwhile gives up the rest, a table of pages at a
+      --  time, to leave at the edge of its syscall.
+      if Current_Depth = 1 and then Scheduler.Is_Doomed then
+         Success := False;
+         return;
+      end if;
+
       --  A level with nothing present has nothing to copy.
       Success := True;
       for I in Current_Level'Range loop
