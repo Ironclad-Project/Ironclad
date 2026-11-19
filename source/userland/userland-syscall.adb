@@ -9905,6 +9905,14 @@ package body Userland.Syscall is
          return;
       end if;
 
+      if (Bus > Unsigned_64 (Unsigned_8'Last)) or else
+         (Slot > Unsigned_64 (Unsigned_8'Last)) or else
+         (Func > Unsigned_64 (Unsigned_8'Last)) or else
+         (Offset > Unsigned_64 (Unsigned_16'Last))
+      then
+         goto Invalid_Value_Error;
+      end if;
+
       Get_Common_Map (Proc, Map);
       Devices.PCI.Search_Device
          (Bus     => Unsigned_8 (Bus),
@@ -9979,6 +9987,14 @@ package body Userland.Syscall is
          Execute_MAC_Failure ("pci_write", Proc);
          Returned := Unsigned_64'Last;
          return;
+      end if;
+
+      if (Bus > Unsigned_64 (Unsigned_8'Last)) or else
+         (Slot > Unsigned_64 (Unsigned_8'Last)) or else
+         (Func > Unsigned_64 (Unsigned_8'Last)) or else
+         (Offset > Unsigned_64 (Unsigned_16'Last))
+      then
+         goto Invalid_Value_Error;
       end if;
 
       Get_Common_Map (Proc, Map);
