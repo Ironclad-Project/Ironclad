@@ -35,6 +35,8 @@ private
    HBA_PxCMD_FR  : constant := 16#4000#;
    HBA_PxCMD_CR  : constant := 16#8000#;
 
+   HBA_PxIS_TFES : constant := 16#40000000#;
+
    type HBA_Padding is array (Natural range <>) of Unsigned_8;
    type HBA_Port is record
       Command_List_Base  : Unsigned_32;
@@ -409,6 +411,9 @@ private
    --  Start and stop the command engine of a port.
    procedure Start_Command_Engine (Port : HBA_Port_Acc);
    procedure Stop_Command_Engine  (Port : HBA_Port_Acc);
+
+   --  Clear the errors of a port and restart its command engine.
+   procedure Recover_Port (Port : HBA_Port_Acc);
    ----------------------------------------------------------------------------
    procedure Read
       (Key         : System.Address;

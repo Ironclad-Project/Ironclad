@@ -238,10 +238,11 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       L4 : constant Unsigned_64 := Shift_Right (LBA and 16#00FF00000000#, 32);
       L5 : constant Unsigned_64 := Shift_Right (LBA and 16#FF0000000000#, 40);
 
-      Tmp     : Integer_Address;
-      Slot    : Natural;
-      FIS_Ptr : C3.Object_Pointer;
-      Tmp3    : Unsigned_32;
+      Tmp        : Integer_Address;
+      Slot       : Natural;
+      FIS_Ptr    : C3.Object_Pointer;
+      Tmp3       : Unsigned_32;
+      Is_Holding : Boolean := False;
    begin
       --  Make sure we are not going to do all of this for an LBA that does not
       --  even exist.
@@ -250,6 +251,7 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       end if;
 
       Synchronization.Seize (Drive.Mutex);
+      Is_Holding := True;
 
       --  Find a slot for the identify command and setup the header.
       loop
@@ -315,7 +317,9 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
             exit;
          end if;
 
-         if (Drive.Port_Data.Interrupt_Status and Shift_Left (1, 30)) /= 0 then
+         if (Drive.Port_Data.Interrupt_Status and HBA_PxIS_TFES) /= 0 then
+            Recover_Port (Drive.Port_Data);
+            Synchronization.Release (Drive.Mutex);
             return False;
          end if;
          Arch.Snippets.Pause;
@@ -326,6 +330,9 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       return True;
    exception
       when Constraint_Error =>
+         if Is_Holding and Drive /= null then
+            Synchronization.Release (Drive.Mutex);
+         end if;
          return False;
    end Issue_Command;
 
@@ -397,6 +404,20 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       when Constraint_Error =>
          Messages.Put_Line ("Failed to start SATA command line");
    end Start_Command_Engine;
+
+   procedure Recover_Port (Port : HBA_Port_Acc) is
+   begin
+      Port.Command_And_Status := Port.Command_And_Status and not HBA_PxCMD_ST;
+      while (Port.Command_And_Status and HBA_PxCMD_CR) /= 0 loop
+         Arch.Snippets.Pause;
+      end loop;
+      Port.SATA_Error       := Unsigned_32'Last;
+      Port.Interrupt_Status := Unsigned_32'Last;
+      Port.Command_And_Status := Port.Command_And_Status or HBA_PxCMD_ST;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("failed to recover SATA port");
+   end Recover_Port;
 
    procedure Stop_Command_Engine (Port : HBA_Port_Acc) is
    begin
