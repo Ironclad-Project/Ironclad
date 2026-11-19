@@ -218,6 +218,7 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
       Slot : Unsigned_16;
       Slot_Idx : Natural;
       Used_Index : Natural;
+      Is_Holding : Boolean := False;
 
       Req_Header : aliased Blk_Req_Header :=
          (Req_Type => (if Is_Write then Blk_Out else Blk_In),
@@ -234,6 +235,7 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
       end if;
 
       Synchronization.Seize (Drive.Mutex);
+      Is_Holding := True;
 
       Slot := Avail.Index;
       Slot_Idx := Natural (Slot mod Drive.Queue.Queue_Size);
@@ -273,6 +275,9 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
          null;
       end loop;
 
+      --  Failed or not, the device is done with the request.
+      Drive.Queue.Used_Head := Drive.Queue.Used_Head + 1;
+
       declare
          Ring_Idx : constant Unsigned_32 := Used_Entries_Array (Used_Index).Id;
          Written : constant Unsigned_32 :=
@@ -284,8 +289,6 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
          end if;
       end;
 
-      Drive.Queue.Used_Head := Drive.Queue.Used_Head + 1;
-
       --  Unlock for other commands.
       Synchronization.Release (Drive.Mutex);
 
@@ -296,6 +299,9 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
       return False;
    exception
       when Constraint_Error =>
+         if Is_Holding then
+            Synchronization.Release (Drive.Mutex);
+         end if;
          return False;
    end Issue_Command;
 
