@@ -78,12 +78,11 @@ is
       end if;
 
       Length := Log_Ring_Buffer'Length * Max_Line;
-      if Buffer'Length < Length or Buffer'Length mod Max_Line /= 0 then
-         goto Cleanup;
-      end if;
 
       for Line of Log_Ring_Buffer.all loop
+         exit when Idx + Max_Line > Buffer'Length;
          Tmp := Buffer'First + Idx;
+         pragma Loop_Invariant (Idx + Max_Line <= Buffer'Length);
          pragma Loop_Invariant (Tmp in Buffer'Range);
          pragma Loop_Invariant ((Tmp + Max_Line - 1) in Buffer'Range);
          Buffer (Tmp .. Tmp + Max_Line - 1) := Line;

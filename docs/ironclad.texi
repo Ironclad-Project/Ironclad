@@ -5150,8 +5150,14 @@ The buffer takes the form of a string in memory of, every log line in the
 buffer takes exactly 80 characters separated by no newlines or other special
 characters, thus the user needs to split it themselves for printing.
 
-The length of the buffer is returned in success, and @code{-1} in failure, with
-the following errno:
+As many whole lines as fit in @code{len} are written, and the rest of the
+buffer is filled with spaces. What is returned is the length of the whole log,
+which may be more than was written, so a caller can size its buffer from a
+first call, as it can for @code{listprocs} and the rest of the list syscalls.
+@code{len} may not be more than 16384.
+
+The length of the whole log is returned in success, and @code{-1} in failure,
+with the following errno:
 
 @itemize @bullet
 @item
@@ -5762,6 +5768,10 @@ ssize_t pci_write(uint8_t bus, uint8_t slot, uint8_t func, void *buffer, size_t 
 These syscalls attempts to read or write to and from the configuration space
 of a PCI device. All of the operations are blocking.
 
+@code{offset} is the byte offset inside the device's configuration space, and
+must fit in 16 bits, while @code{bus}, @code{slot} and @code{func} must each
+fit in 8 bits.
+
 These syscalls returns the number of bytes operated on, or @code{-1} on
 failure. errno is to be set to:
 
@@ -5770,7 +5780,8 @@ failure. errno is to be set to:
 @code{EFAULT}: The passed buffer is not accessible.
 
 @item
-@code{EINVAL}: The passed device coordinates dont relate to a device.
+@code{EINVAL}: The passed device coordinates dont relate to a device, or a
+coordinate does not fit in the width given above.
 @end itemize
 
 @node Open Sound System (OSS) Support

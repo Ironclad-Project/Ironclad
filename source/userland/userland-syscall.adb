@@ -2796,6 +2796,13 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
          end if;
          Free (Logs);
+      exception
+         when Constraint_Error =>
+            Messages.Put_Line ("inner exception while executing Dump_Logs");
+            Free (Logs);
+            Errno    := Error_Would_Block;
+            Returned := Unsigned_64'Last;
+            return;
       end;
    exception
       when Constraint_Error =>
