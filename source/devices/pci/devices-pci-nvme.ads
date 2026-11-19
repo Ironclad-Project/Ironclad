@@ -623,6 +623,9 @@ private
       LBA_Size : Natural;
       LBA_Count : Unsigned_64;
       LBA_Buffer : Memory.Virtual_Address;
+      Metadata_Size : Natural;
+      Is_Extended : Boolean;
+      Has_PI : Boolean;
       Cache_Reg : aliased Caching.Cache_Registry;
       Parts : Partitions.Partition_Arr;
       Name  : String_Acc;
@@ -631,7 +634,8 @@ private
    end record;
    type Namespace_Data_Acc is access all Namespace_Data;
 
-   --  Read or write a whole LBA of a namespace from or to its LBA buffer.
+   --  Read or write a whole LBA of a namespace from or to its LBA buffer,
+   --  which holds the data of the LBA followed by its metadata.
    function NS_Transfer
       (D        : Namespace_Data_Acc;
        LBA      : Unsigned_64;

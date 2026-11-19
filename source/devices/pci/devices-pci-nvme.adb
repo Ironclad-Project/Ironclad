@@ -227,6 +227,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
       FLBAS : Natural;
       LBADS : Natural;
+      MS : Natural;
       NS_LBA_Size : Natural;
       NS_LBAs : Unsigned_64;
       NS_LBA_Buffer : Memory.Virtual_Address;
@@ -252,11 +253,14 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
       --  LBA Size is given in terms of a power of two (2^n)
       LBADS := Natural (NS_Identify.LBA_Format_Support (FLBAS).LBA_Data_Size);
+      MS := Natural (NS_Identify.LBA_Format_Support (FLBAS).Metadata_Size);
       if LBADS not in 9 .. 63 or else
-         Shift_Left (Unsigned_64 (1), LBADS) > Memory.MMU.Page_Size
+         Shift_Left (Unsigned_64 (1), LBADS) > Memory.MMU.Page_Size or else
+         Shift_Left (Unsigned_64 (1), LBADS) + Unsigned_64 (MS) >
+            2 * Memory.MMU.Page_Size
       then
          Messages.Put_Line
-            ("unsupported LBA size in NVMe " & Drive_Idx'Image &
+            ("unsupported LBA format in NVMe " & Drive_Idx'Image &
              " namespace " & NS_Id'Image);
          Memory.Physical.Free
             (size_t (To_Integer (NS_Identify.all'Address)));
@@ -266,14 +270,20 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       --  Namespace Size is reported in units of LBAs
       NS_LBAs := NS_Identify.Namespace_Size;
 
-      --  Allocations are page aligned, so an LBA never crosses a page.
-      Memory.Physical.Alloc (size_t (NS_LBA_Size), NS_LBA_Buffer);
+      --  Allocations are page aligned, so an LBA never crosses a page, and
+      --  with its metadata it spans two at most.
+      Memory.Physical.Alloc (size_t (NS_LBA_Size + MS), NS_LBA_Buffer);
 
       declare
          NS : constant Namespace_Data_Acc := new Namespace_Data'(
             LBA_Size => NS_LBA_Size,
             LBA_Count => NS_LBAs,
             LBA_Buffer => NS_LBA_Buffer,
+            Metadata_Size => MS,
+            Is_Extended => (NS_Identify.Formatted_LBA_Size and 16#10#) /= 0,
+            Has_PI =>
+               (NS_Identify.End_To_End_Data_Protection_Type_Settings and 7)
+               /= 0,
             Namespace_Id => NS_Id,
             Queue => IO_Queue,
             Name  => new String'(Base_Name & Drive_Idx'Image &
@@ -920,8 +930,10 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
          LBA_Data : Operation_Data (1 .. D.LBA_Size)
             with Import, Address => To_Address (D.LBA_Buffer);
       begin
-         --  Writing part of an LBA means reading the rest of it first.
-         Success := Sectors = 1 or else NS_Transfer (D, LBA / Sectors, False);
+         --  Writes carry the whole LBA and its metadata, so what is not being
+         --  changed has to be read first.
+         Success := (Sectors = 1 and D.Metadata_Size = 0) or else
+                    NS_Transfer (D, LBA / Sectors, False);
          if Success then
             LBA_Data (Offset + 1 .. Offset + Data_Buffer'Length) :=
                Data_Buffer;
@@ -941,21 +953,39 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
        Is_Write : Boolean) return Boolean
    is
       Data_Addr : Unsigned_64;
+      Data_Pointer : Submission_Queue_Entry_Data_Pointer;
+      Metadata_Addr : Unsigned_64 := 0;
       Cmd : IO_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
       Data_Addr := Unsigned_64 (D.LBA_Buffer) - Memory.Memory_Offset;
+      Data_Pointer := [1 => Data_Addr, 2 => 0];
+      if D.Is_Extended then
+         if D.LBA_Size + D.Metadata_Size > Memory.MMU.Page_Size then
+            Data_Pointer (2) := Data_Addr + Memory.MMU.Page_Size;
+         end if;
+      elsif D.Metadata_Size /= 0 then
+         Metadata_Addr := Data_Addr + Unsigned_64 (D.LBA_Size);
+      end if;
+
       if Is_Write then
+         --  The controller generates the protection information of the new
+         --  data, and Type 1 checks its reference tag against the LBA.
          Cmd := (Opcode => Write,
             Namespace_Id => D.Namespace_Id,
-            Data_Pointer => [1 => Data_Addr, 2 => 0],
+            Metadata_Pointer => Metadata_Addr,
+            Data_Pointer => Data_Pointer,
             Write_Starting_LBA => LBA,
             Write_Number_Of_LBAs => 0,
+            Write_Protection_Information => (if D.Has_PI then 2#1000# else 0),
+            Write_Expected_Initial_Logical_Block_Reference_Tag =>
+               (if D.Has_PI then Unsigned_32 (LBA and 16#FFFF_FFFF#) else 0),
             others => <>);
       else
          Cmd := (Opcode => Read,
             Namespace_Id => D.Namespace_Id,
-            Data_Pointer => [1 => Data_Addr, 2 => 0],
+            Metadata_Pointer => Metadata_Addr,
+            Data_Pointer => Data_Pointer,
             Read_Starting_LBA => LBA,
             Read_Number_Of_LBAs => 0,
             others => <>);
