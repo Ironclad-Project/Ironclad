@@ -226,8 +226,10 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       NS_Identify : Identify_Namespace_Data_Acc;
 
       FLBAS : Natural;
+      LBADS : Natural;
       NS_LBA_Size : Natural;
       NS_LBAs : Unsigned_64;
+      NS_LBA_Buffer : Memory.Virtual_Address;
 
       Base_Name : constant String := "nvme";
       Success : Boolean;
@@ -249,15 +251,29 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       end if;
 
       --  LBA Size is given in terms of a power of two (2^n)
-      NS_LBA_Size := 2 ** Natural
-         (NS_Identify.LBA_Format_Support (FLBAS).LBA_Data_Size);
+      LBADS := Natural (NS_Identify.LBA_Format_Support (FLBAS).LBA_Data_Size);
+      if LBADS not in 9 .. 63 or else
+         Shift_Left (Unsigned_64 (1), LBADS) > Memory.MMU.Page_Size
+      then
+         Messages.Put_Line
+            ("unsupported LBA size in NVMe " & Drive_Idx'Image &
+             " namespace " & NS_Id'Image);
+         Memory.Physical.Free
+            (size_t (To_Integer (NS_Identify.all'Address)));
+         return;
+      end if;
+      NS_LBA_Size := 2 ** LBADS;
       --  Namespace Size is reported in units of LBAs
       NS_LBAs := NS_Identify.Namespace_Size;
+
+      --  Allocations are page aligned, so an LBA never crosses a page.
+      Memory.Physical.Alloc (size_t (NS_LBA_Size), NS_LBA_Buffer);
 
       declare
          NS : constant Namespace_Data_Acc := new Namespace_Data'(
             LBA_Size => NS_LBA_Size,
             LBA_Count => NS_LBAs,
+            LBA_Buffer => NS_LBA_Buffer,
             Namespace_Id => NS_Id,
             Queue => IO_Queue,
             Name  => new String'(Base_Name & Drive_Idx'Image &
@@ -269,7 +285,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
          Caching.Init
             (NS.all'Address,
-             NS_LBAs,
+             NS_LBAs * Unsigned_64 (NS_LBA_Size / Caching.Sector_Data'Length),
              NS_Read'Access,
              NS_Write'Access,
              NS.Cache_Reg);
@@ -859,34 +875,22 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
    is
       D : constant Namespace_Data_Acc
          := Namespace_Data_Acc (C5.To_Pointer (Drive));
-      Data_Addr : constant Unsigned_64
-         := Unsigned_64 (To_Integer (Data_Buffer'Address));
-      First_Page_Len : Unsigned_64;
-      Page_Boundary_Cross : Boolean;
-
-      Cmd : IO_Submission_Queue_Entry;
-      Reply : Completion_Queue_Entry;
+      Sectors : Unsigned_64;
+      Offset : Natural;
    begin
       Synchronization.Seize (D.Mutex);
-      First_Page_Len :=
-         (Memory.MMU.Page_Size - (Data_Addr mod Memory.MMU.Page_Size));
-      Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
-      Cmd := (Opcode => Read,
-         Namespace_Id => D.Namespace_Id,
-         Data_Pointer => [
-            1 => Data_Addr - Memory.Memory_Offset,
-            2 => (
-               if Page_Boundary_Cross then
-                  Data_Addr + First_Page_Len - Memory.Memory_Offset
-               else 0
-            )],
-         Read_Starting_LBA => LBA,
-         Read_Number_Of_LBAs => 0,
-         others => <>);
-
-      Reply := Submit_IO_Command (D.Queue, Cmd);
-
-      Success := Reply.Dword3.Status = 0;
+      Sectors := Unsigned_64 (D.LBA_Size / Data_Buffer'Length);
+      Offset := Natural (LBA mod Sectors) * Data_Buffer'Length;
+      declare
+         LBA_Data : Operation_Data (1 .. D.LBA_Size)
+            with Import, Address => To_Address (D.LBA_Buffer);
+      begin
+         Success := NS_Transfer (D, LBA / Sectors, False);
+         if Success then
+            Data_Buffer :=
+               LBA_Data (Offset + 1 .. Offset + Data_Buffer'Length);
+         end if;
+      end;
       Synchronization.Release (D.Mutex);
    exception
       when Constraint_Error =>
@@ -902,41 +906,63 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
    is
       D : constant Namespace_Data_Acc
          := Namespace_Data_Acc (C5.To_Pointer (Drive));
-      Data_Addr : constant Unsigned_64
-         := Unsigned_64 (To_Integer (Data_Buffer'Address));
-      First_Page_Len : Unsigned_64;
-      Page_Boundary_Cross : Boolean;
-
-      Cmd : IO_Submission_Queue_Entry;
-      Reply : Completion_Queue_Entry;
+      Sectors : Unsigned_64;
+      Offset : Natural;
    begin
       Synchronization.Seize (D.Mutex);
-      First_Page_Len :=
-         (Memory.MMU.Page_Size - (Data_Addr mod Memory.MMU.Page_Size));
-      Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
-
-      Cmd := (Opcode => Write,
-         Namespace_Id => D.Namespace_Id,
-         Data_Pointer => [
-            1 => Data_Addr - Memory.Memory_Offset,
-            2 => (
-               if Page_Boundary_Cross then
-                  Data_Addr + First_Page_Len - Memory.Memory_Offset
-               else 0
-            )],
-         Write_Starting_LBA => LBA,
-         Write_Number_Of_LBAs => 0,
-         others => <>);
-
-      Reply := Submit_IO_Command (D.Queue, Cmd);
-
-      Success := Reply.Dword3.Status = 0;
+      Sectors := Unsigned_64 (D.LBA_Size / Data_Buffer'Length);
+      Offset := Natural (LBA mod Sectors) * Data_Buffer'Length;
+      declare
+         LBA_Data : Operation_Data (1 .. D.LBA_Size)
+            with Import, Address => To_Address (D.LBA_Buffer);
+      begin
+         --  Writing part of an LBA means reading the rest of it first.
+         Success := Sectors = 1 or else NS_Transfer (D, LBA / Sectors, False);
+         if Success then
+            LBA_Data (Offset + 1 .. Offset + Data_Buffer'Length) :=
+               Data_Buffer;
+            Success := NS_Transfer (D, LBA / Sectors, True);
+         end if;
+      end;
       Synchronization.Release (D.Mutex);
    exception
       when Constraint_Error =>
          Synchronization.Release (D.Mutex);
          Success := False;
    end NS_Write;
+
+   function NS_Transfer
+      (D        : Namespace_Data_Acc;
+       LBA      : Unsigned_64;
+       Is_Write : Boolean) return Boolean
+   is
+      Data_Addr : Unsigned_64;
+      Cmd : IO_Submission_Queue_Entry;
+      Reply : Completion_Queue_Entry;
+   begin
+      Data_Addr := Unsigned_64 (D.LBA_Buffer) - Memory.Memory_Offset;
+      if Is_Write then
+         Cmd := (Opcode => Write,
+            Namespace_Id => D.Namespace_Id,
+            Data_Pointer => [1 => Data_Addr, 2 => 0],
+            Write_Starting_LBA => LBA,
+            Write_Number_Of_LBAs => 0,
+            others => <>);
+      else
+         Cmd := (Opcode => Read,
+            Namespace_Id => D.Namespace_Id,
+            Data_Pointer => [1 => Data_Addr, 2 => 0],
+            Read_Starting_LBA => LBA,
+            Read_Number_Of_LBAs => 0,
+            others => <>);
+      end if;
+
+      Reply := Submit_IO_Command (D.Queue, Cmd);
+      return Reply.Dword3.Status = 0;
+   exception
+      when Constraint_Error =>
+         return False;
+   end NS_Transfer;
 
    procedure Controller_Await_Ready
       (M : NVMe_Registers_Acc;

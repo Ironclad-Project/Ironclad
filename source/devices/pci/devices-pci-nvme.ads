@@ -620,6 +620,7 @@ private
       Namespace_Id : Unsigned_32;
       LBA_Size : Natural;
       LBA_Count : Unsigned_64;
+      LBA_Buffer : Memory.Virtual_Address;
       Cache_Reg : aliased Caching.Cache_Registry;
       Parts : Partitions.Partition_Arr;
       Name  : String_Acc;
@@ -627,6 +628,12 @@ private
          := Synchronization.Unlocked_Mutex;
    end record;
    type Namespace_Data_Acc is access all Namespace_Data;
+
+   --  Read or write a whole LBA of a namespace from or to its LBA buffer.
+   function NS_Transfer
+      (D        : Namespace_Data_Acc;
+       LBA      : Unsigned_64;
+       Is_Write : Boolean) return Boolean;
 
    procedure NS_Read
       (Drive : System.Address;
