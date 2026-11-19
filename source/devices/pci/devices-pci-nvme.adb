@@ -587,9 +587,11 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       return Completion_Queue_Entry
    is
       CQ_Result_Id : Natural;
+      Result : Completion_Queue_Entry;
 
       Command_Id : Unsigned_16;
    begin
+      Synchronization.Seize (Queue.Mutex);
       Command_Id := Unsigned_16 (Queue.Slot);
       Command.Command_Id := Command_Id;
       Queue.Slot := Queue.Slot + 1;
@@ -639,7 +641,9 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
                Queue.Controller_Regs.Interrupt_Mask_Clear := 1;
 
-               return CQ_Array (CQ_Result_Id);
+               Result := CQ_Array (CQ_Result_Id);
+               Synchronization.Release (Queue.Mutex);
+               return Result;
             end if;
          end loop;
       end;

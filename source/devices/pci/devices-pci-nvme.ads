@@ -449,6 +449,8 @@ private
    subtype IO_Queue_Depth is Natural range 2 .. 65536;
 
    type IO_Queue is record
+      Mutex : aliased Synchronization.Mutex := Synchronization.Unlocked_Mutex;
+
       Queue_Id : Natural;
       Depth : IO_Queue_Depth;
 
