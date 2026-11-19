@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Clocks;
 with Arch.Snippets;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -317,7 +318,10 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
             exit;
          end if;
 
-         if (Drive.Port_Data.Interrupt_Status and HBA_PxIS_TFES) /= 0 then
+         if (Drive.Port_Data.Interrupt_Status and
+             (HBA_PxIS_TFES or HBA_PxIS_HBFS or HBA_PxIS_HBDS or HBA_PxIS_IFS))
+            /= 0
+         then
             Recover_Port (Drive.Port_Data);
             Synchronization.Release (Drive.Mutex);
             return False;
@@ -413,6 +417,24 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       end loop;
       Port.SATA_Error       := Unsigned_32'Last;
       Port.Interrupt_Status := Unsigned_32'Last;
+
+      --  A device left busy only comes back with a COMRESET.
+      if (Port.Task_File_Data and (ATA_Device_Busy or ATA_Device_DRQ)) /= 0
+      then
+         Port.SATA_Control := (Port.SATA_Control and not HBA_PxSCTL_DET) or 1;
+         Arch.Clocks.Busy_Monotonic_Sleep (1_000_000);
+         Port.SATA_Control := Port.SATA_Control and not HBA_PxSCTL_DET;
+         while (Port.SATA_Status and HBA_PxSSTS_DET) /= 3 loop
+            Arch.Snippets.Pause;
+         end loop;
+         Port.SATA_Error := Unsigned_32'Last;
+         while (Port.Task_File_Data and (ATA_Device_Busy or ATA_Device_DRQ))
+            /= 0
+         loop
+            Arch.Snippets.Pause;
+         end loop;
+      end if;
+
       Port.Command_And_Status := Port.Command_And_Status or HBA_PxCMD_ST;
    exception
       when Constraint_Error =>

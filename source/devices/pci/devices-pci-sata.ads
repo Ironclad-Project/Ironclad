@@ -35,7 +35,13 @@ private
    HBA_PxCMD_FR  : constant := 16#4000#;
    HBA_PxCMD_CR  : constant := 16#8000#;
 
+   HBA_PxIS_IFS  : constant := 16#08000000#;
+   HBA_PxIS_HBDS : constant := 16#10000000#;
+   HBA_PxIS_HBFS : constant := 16#20000000#;
    HBA_PxIS_TFES : constant := 16#40000000#;
+
+   HBA_PxSSTS_DET : constant := 16#F#;
+   HBA_PxSCTL_DET : constant := 16#F#;
 
    type HBA_Padding is array (Natural range <>) of Unsigned_8;
    type HBA_Port is record
@@ -412,7 +418,8 @@ private
    procedure Start_Command_Engine (Port : HBA_Port_Acc);
    procedure Stop_Command_Engine  (Port : HBA_Port_Acc);
 
-   --  Clear the errors of a port and restart its command engine.
+   --  Clear the errors of a port, reset its device if it is left busy, and
+   --  restart its command engine.
    procedure Recover_Port (Port : HBA_Port_Acc);
    ----------------------------------------------------------------------------
    procedure Read
