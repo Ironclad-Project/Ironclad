@@ -518,7 +518,9 @@ private
       Namespace_Atomic_Boundary_Size_Power_Fail : Unsigned_16;
       Namespace_Optimal_IO_Boundary : Unsigned_16;
       NVM_Capacity : Unsigned_128;
-      Reserved_0 : NVMe_Padding (64 .. 103);
+      Reserved_0 : NVMe_Padding (64 .. 81);
+      Number_of_Unique_Attribute_LBA_Formats : Unsigned_8;
+      Reserved_2 : NVMe_Padding (83 .. 103);
       Namespace_GUID : NVMe_GUID;
       IEEE_Extended_Unique_Identifier : Unsigned_64;
       LBA_Format_Support : Identify_LBA_Formats (0 .. 15);

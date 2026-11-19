@@ -244,7 +244,10 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       --  The NVMe 1.0e spec falsely claims that this is a 0's based value?
       FLBAS := Natural (NS_Identify.Formatted_LBA_Size and 16#F#);
 
-      if FLBAS > Natural (NS_Identify.Number_of_LBA_Formats) then
+      --  Formats with unique attributes come after the common ones.
+      if FLBAS > Natural (NS_Identify.Number_of_LBA_Formats) +
+                 Natural (NS_Identify.Number_of_Unique_Attribute_LBA_Formats)
+      then
          Messages.Put_Line
             ("NVMe " & Drive_Idx'Image & " Namespace " & NS_Id'Image &
                " has no valid LBA formats");
