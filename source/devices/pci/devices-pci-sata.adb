@@ -20,7 +20,9 @@ with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Messages;
 with Memory.MMU;
+with Memory.Physical;
 with Memory;
+with Interfaces.C;
 with Alignment;
 with Cryptography.Random;
 with Arch.MMU;
@@ -85,7 +87,7 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
                Register (
                   (Data => C1.To_Address (C1.Object_Pointer (Drive_Data)),
                    Is_Block    => True,
-                   Block_Size  => Sector_Size,
+                   Block_Size  => Drive_Data.Logical_Size,
                    Block_Count => Drive_Data.Sector_Count,
                    Read        => Read'Access,
                    Write       => Write'Access,
@@ -188,6 +190,9 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
           Command_TBLs => Cmd_TBLs,
           Port_Data    => Port_Data,
           Sector_Count => 0,
+          Logical_Size => Sector_Size,
+          Buffer       => 0,
+          Buffer_Mutex => Synchronization.Unlocked_Mutex,
           Cache_Reg    => <>,
           Parts        => <>);
       Success := Issue_Command
@@ -203,18 +208,38 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       end if;
 
       declare
-         Sectors : Unsigned_64 with Import, Address => Identify (101)'Address;
          Serial  : Cryptography.Random.Crypto_Data (1 .. 20)
-            with Import, Address => Identify (10)'Address;
+            with Import, Address => Identify.Serial_Number'Address;
+
+         --  Logical sectors bigger than 512 bytes give their size in words
+         --  117-118, which word 106 says are valid.
+         Words : constant Unsigned_64 :=
+            (if (Identify.Reserved_104_107 (3) and 16#D000#) = 16#5000# then
+                Unsigned_64 (Identify.Reserved_112_126 (7)) or
+                Shift_Left (Unsigned_64 (Identify.Reserved_112_126 (8)), 16)
+             else Sector_Size / 2);
       begin
          --  Serial numbers make great randomness to add.
          Cryptography.Random.Feed_Entropy (Serial);
-         Dev_Data.Sector_Count := Sectors;
+         Dev_Data.Sector_Count := Identify.LBA48_Sectors;
+
+         if Words * 2 not in Sector_Size .. Memory.MMU.Page_Size or else
+            (Words * 2) mod Sector_Size /= 0
+         then
+            Messages.Put_Line
+               ("unsupported logical sector size in SATA drive");
+            return null;
+         end if;
+         Dev_Data.Logical_Size := Natural (Words * 2);
       end;
+
+      Memory.Physical.Alloc
+         (Interfaces.C.size_t (Dev_Data.Logical_Size), Dev_Data.Buffer);
 
       Caching.Init
          (Dev_Data.all'Address,
-          Dev_Data.Sector_Count,
+          Dev_Data.Sector_Count *
+             Unsigned_64 (Dev_Data.Logical_Size / Sector_Size),
           Read_Sector'Access,
           Write_Sector'Access,
           Dev_Data.Cache_Reg);
@@ -280,7 +305,8 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
          Unsigned_32 (Data_Addr and 16#FFFFFFFF#);
       Drive.Command_TBLs (Slot).PRDT.DBAU :=
          Unsigned_32 (Shift_Right (Data_Addr, 32));
-      Drive.Command_TBLs (Slot).PRDT.DBC := 511;
+      Drive.Command_TBLs (Slot).PRDT.DBC :=
+         (if Is_Identify then 511 else Unsigned_22 (Drive.Logical_Size - 1));
       Drive.Command_TBLs (Slot).PRDT.I := True;
 
       --  Fill the identify FIS.
@@ -346,17 +372,33 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
        Data_Buffer : out Caching.Sector_Data;
        Success     : out Boolean)
    is
-      Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (D));
-      SAddr : constant  System.Address := Data_Buffer'Address;
-      IAddr : constant Integer_Address := To_Integer (SAddr);
+      Drive   : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (D));
+      Sectors : Unsigned_64;
+      Offset  : Natural;
    begin
-      Success := Issue_Command
-         (Drive       => Drive,
-          LBA         => LBA,
-          Command     => 16#25#,
-          Is_Identify => False,
-          Is_Write    => False,
-          Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
+      Synchronization.Seize (Drive.Buffer_Mutex);
+      Sectors := Unsigned_64 (Drive.Logical_Size / Data_Buffer'Length);
+      Offset  := Natural (LBA mod Sectors) * Data_Buffer'Length;
+      declare
+         Buffer : Operation_Data (1 .. Drive.Logical_Size)
+            with Import, Address => To_Address (Drive.Buffer);
+      begin
+         Success := Issue_Command
+            (Drive       => Drive,
+             LBA         => LBA / Sectors,
+             Command     => 16#25#,
+             Is_Identify => False,
+             Is_Write    => False,
+             Data_Addr   => Unsigned_64 (Drive.Buffer - Memory.Memory_Offset));
+         if Success then
+            Data_Buffer := Buffer (Offset + 1 .. Offset + Data_Buffer'Length);
+         end if;
+      end;
+      Synchronization.Release (Drive.Buffer_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Drive.Buffer_Mutex);
+         Success := False;
    end Read_Sector;
 
    procedure Write_Sector
@@ -365,17 +407,45 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
        Data_Buffer : Caching.Sector_Data;
        Success     : out Boolean)
    is
-      Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (D));
-      SAddr : constant  System.Address := Data_Buffer'Address;
-      IAddr : constant Integer_Address := To_Integer (SAddr);
+      Drive     : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (D));
+      Sectors   : Unsigned_64;
+      Final_LBA : Unsigned_64;
+      Offset    : Natural;
    begin
-      Success := Issue_Command
-         (Drive       => Drive,
-          LBA         => LBA,
-          Command     => 16#35#,
-          Is_Identify => False,
-          Is_Write    => True,
-          Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
+      Synchronization.Seize (Drive.Buffer_Mutex);
+      Sectors := Unsigned_64 (Drive.Logical_Size / Data_Buffer'Length);
+      Offset  := Natural (LBA mod Sectors) * Data_Buffer'Length;
+      Final_LBA := LBA / Sectors;
+
+      declare
+         Buffer : Operation_Data (1 .. Drive.Logical_Size)
+            with Import, Address => To_Address (Drive.Buffer);
+      begin
+         --  Writing part of a logical sector means reading the rest first.
+         Success := Sectors = 1 or else Issue_Command
+            (Drive       => Drive,
+             LBA         => Final_LBA,
+             Command     => 16#25#,
+             Is_Identify => False,
+             Is_Write    => False,
+             Data_Addr   => Unsigned_64 (Drive.Buffer - Memory.Memory_Offset));
+         if Success then
+            Buffer (Offset + 1 .. Offset + Data_Buffer'Length) := Data_Buffer;
+            Success := Issue_Command
+               (Drive       => Drive,
+                LBA         => Final_LBA,
+                Command     => 16#35#,
+                Is_Identify => False,
+                Is_Write    => True,
+                Data_Addr   =>
+                   Unsigned_64 (Drive.Buffer - Memory.Memory_Offset));
+         end if;
+      end;
+      Synchronization.Release (Drive.Buffer_Mutex);
+   exception
+      when Constraint_Error =>
+         Synchronization.Release (Drive.Buffer_Mutex);
+         Success := False;
    end Write_Sector;
 
    function Find_Command_Slot (Port : HBA_Port_Acc) return Natural is

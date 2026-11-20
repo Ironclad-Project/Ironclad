@@ -370,8 +370,52 @@ private
    package Caching is new Devices.Drive_Cache (Sector_Size => 512);
 
    type String_Acc is access String;
-   type SATA_Identify is array (1 .. 256) of Unsigned_16;
+   type Word_Array is array (Natural range <>) of Unsigned_16;
+   type SATA_Identify is record
+      General_Configuration    : Unsigned_16;
+      Obsolete_1_9             : Word_Array (1 .. 9);
+      Serial_Number            : String (1 .. 20);
+      Reserved_20_22           : Word_Array (1 .. 3);
+      Firmware_Revision        : String (1 .. 8);
+      Model_Number             : String (1 .. 40);
+      Max_Sectors_Multiple     : Unsigned_16;
+      Trusted_Computing        : Unsigned_16;
+      Capabilities             : Unsigned_16;
+      Reserved_50_52           : Word_Array (1 .. 3);
+      Field_Validity           : Unsigned_16;
+      Current_Geometry         : Word_Array (1 .. 5);
+      Multiple_Sector_Setting  : Unsigned_16;
+      LBA28_Sectors            : Unsigned_32;
+      Obsolete_DMA             : Unsigned_16;
+      Multiword_DMA            : Unsigned_16;
+      PIO_Modes                : Unsigned_16;
+      Min_Cycle_Times          : Word_Array (1 .. 4);
+      Reserved_69_74           : Word_Array (1 .. 6);
+      Queue_Depth              : Unsigned_16;
+      SATA_Capabilities        : Unsigned_16;
+      Reserved_77              : Unsigned_16;
+      SATA_Features_Supported  : Unsigned_16;
+      SATA_Features_Enabled    : Unsigned_16;
+      Major_Version            : Unsigned_16;
+      Minor_Version            : Unsigned_16;
+      Command_Set_Supported    : Word_Array (1 .. 3);
+      Command_Set_Enabled      : Word_Array (1 .. 3);
+      UDMA_Modes               : Unsigned_16;
+      Reserved_89_99           : Word_Array (1 .. 11);
+      LBA48_Sectors            : Unsigned_64;
+      Reserved_104_107         : Word_Array (1 .. 4);
+      WWN                      : Unsigned_64;
+      Reserved_112_126         : Word_Array (1 .. 15);
+      Removable_Media_Status   : Unsigned_16;
+      Security_Status          : Unsigned_16;
+      Vendor_Specific_129_159  : Word_Array (1 .. 31);
+      CFA_Power_Mode           : Word_Array (1 .. 16);
+      Reserved_176_205         : Word_Array (1 .. 30);
+      Reserved_206_254         : Word_Array (1 .. 49);
+      Integrity_Word           : Unsigned_16;
+   end record with Pack, Size => 4096;
    type SATA_Identify_Acc is access all SATA_Identify;
+
    type SATA_Data is record
       Mutex        : aliased Synchronization.Binary_Semaphore;
       Name         : String_Acc;
@@ -380,6 +424,9 @@ private
       Command_TBLs : HBA_Command_TBL_Arr (1 .. Ports_Per_Controller);
       Port_Data    : HBA_Port_Acc;
       Sector_Count : Unsigned_64;
+      Logical_Size : Natural;
+      Buffer       : Memory.Virtual_Address;
+      Buffer_Mutex : aliased Synchronization.Mutex;
       Cache_Reg    : aliased Caching.Cache_Registry;
       Parts        : Partitions.Partition_Arr;
    end record;
@@ -397,14 +444,14 @@ private
        Is_Write    : Boolean;
        Data_Addr   : Unsigned_64) return Boolean;
 
-   --  Read a single sector.
+   --  Read a single sector, through the buffer of the drive.
    procedure Read_Sector
       (D           : System.Address;
        LBA         : Unsigned_64;
        Data_Buffer : out Caching.Sector_Data;
        Success     : out Boolean);
 
-   --  Write a single sector.
+   --  Write a single sector, through the buffer of the drive.
    procedure Write_Sector
       (D           : System.Address;
        LBA         : Unsigned_64;
