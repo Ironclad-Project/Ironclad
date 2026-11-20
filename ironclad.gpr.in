@@ -98,6 +98,8 @@ project Ironclad is
       "@WERROR_FLAG@",
       "-nostdinc",
       "-fno-exceptions",
+      "-fno-asynchronous-unwind-tables",
+      "-fno-unwind-tables",
       "-fno-stack-protector",
       "-fno-stack-check",
       "-fno-stack-clash-protection",
@@ -113,11 +115,14 @@ project Ironclad is
       when "riscv64-limine" =>
          --  Unlike on x86_64, control-flow protection is not used, and a
          --  toolchain enabling it by default would reject the -march below.
+         --  Many cores trap unaligned accesses for the firmware to emulate,
+         --  so the compiler is kept from making them.
          Common_Compiler_Flags := Common_Compiler_Flags & (
             "-fcf-protection=none",
             "-march=rv64imac_zicsr_zifencei",
             "-mabi=lp64",
-            "-mcmodel=medlow"
+            "-mcmodel=medlow",
+            "-mstrict-align"
          );
       when "x86_64-limine" =>
          Common_Compiler_Flags := Common_Compiler_Flags & (
@@ -143,7 +148,9 @@ project Ironclad is
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags & (
          "-std=gnu11",
          "-ffreestanding",
+         "-fno-builtin",
          "-fno-common",
+         "-fno-strict-aliasing",
          "-I@SRCDIR@/uacpi/include",
          "-isystem@SRCDIR@/freestanding-c-hdrs/include"
       ) & Split (Preprocessor_Flags, " ");
